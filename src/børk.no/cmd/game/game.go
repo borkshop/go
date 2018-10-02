@@ -114,12 +114,12 @@ func (g *game) describeRender(ent ecs.Entity) fmt.Stringer   { return g.ren.Get(
 func (g *game) describePosition(ent ecs.Entity) fmt.Stringer { return g.pos.Get(ent) }
 
 var (
-	playerStyle    = renStyle(50, '@', ansi.SGRAttrBold|ansi.RGB(0x60, 0xb0, 0xd0).FG())
-	spiritStyle    = renStyle(50, '^', ansi.SGRAttrBold|ansi.RGB(0x60, 0xd0, 0xb0).FG())
-	wallStyle      = renStyle(5, '#', ansi.SGRAttrBold|ansi.RGB(0x18, 0x18, 0x18).BG()|ansi.RGB(0x30, 0x30, 0x30).FG())
-	floorStyle     = renStyle(4, '·', ansi.RGB(0x10, 0x10, 0x10).BG()|ansi.RGB(0x18, 0x18, 0x18).FG())
-	doorStyle      = renStyle(6, '+', ansi.RGB(0x18, 0x18, 0x18).BG()|ansi.RGB(0x60, 0x40, 0x30).FG())
-	blueprintStyle = renStyle(15, '?', ansi.RGB(0x08, 0x18, 0x28).BG()|ansi.RGB(0x50, 0x60, 0x70).FG())
+	playerStyle    = renStyle(50, '@', ' ', ansi.SGRAttrBold|ansi.RGB(0x60, 0xb0, 0xd0).FG())
+	spiritStyle    = renStyle(50, '^', ' ', ansi.SGRAttrBold|ansi.RGB(0x60, 0xd0, 0xb0).FG())
+	wallStyle      = renStyle(5, '#', '#', ansi.SGRAttrBold|ansi.RGB(0x18, 0x18, 0x18).BG()|ansi.RGB(0x30, 0x30, 0x30).FG())
+	floorStyle     = renStyle(4, '·', '·', ansi.RGB(0x10, 0x10, 0x10).BG()|ansi.RGB(0x18, 0x18, 0x18).FG())
+	doorStyle      = renStyle(6, '+', '+', ansi.RGB(0x18, 0x18, 0x18).BG()|ansi.RGB(0x60, 0x40, 0x30).FG())
+	blueprintStyle = renStyle(15, '?', '?', ansi.RGB(0x08, 0x18, 0x28).BG()|ansi.RGB(0x50, 0x60, 0x70).FG())
 
 	corporealApp = entApps(playerStyle, addEntityType(gameCollides))
 	ghostApp     = entApps(spiritStyle, deleteEntityType(gameCollides))
@@ -142,21 +142,19 @@ func newGame() *game {
 	const itemZ = 40
 
 	g.itemDefs.load([]itemInfo{
-		// 🔧
-		{"wrench", entSpec(gameItem, renStyle(itemZ, 'w', ansi.SGRAttrBold|ansi.RGB(0xc0, 0xc8, 0xd0).FG()))},
+		{"wrench", entSpec(gameItem, renStyle(itemZ, '🔧', ' ', ansi.SGRAttrBold|ansi.RGB(0xc0, 0xc8, 0xd0).FG()))},
 
 		// 🔩
 		// {"screwdriver"},
 
-		// 🔨
-		{"hammer", entSpec(gameItem, renStyle(itemZ, 'H', ansi.SGRAttrBold|ansi.RGB(0xd0, 0xc0, 0xb0).FG()))},
+		{"hammer", entSpec(gameItem, renStyle(itemZ, '🔨', ' ', ansi.SGRAttrBold|ansi.RGB(0xd0, 0xc0, 0xb0).FG()))},
 
 		// {"finishing nail"},
 		// {"carpentry nail"},
 		// {"drywall screw"},
 
 		// {"doorknob"},
-		{"plywood sheet", entSpec(gameItem, renStyle(itemZ, 'W', ansi.SGRAttrBold|ansi.RGB(0xd0, 0xd0, 0x60).FG()))},
+		{"plywood sheet", entSpec(gameItem, renStyle(itemZ, '▤', ' ', ansi.SGRAttrBold|ansi.RGB(0xd0, 0xd0, 0x60).FG()))},
 		// {"angle bracket"},
 
 		// {"zip tie"},
@@ -259,7 +257,9 @@ func (g *game) Update(ctx *platform.Context) (err error) {
 
 	// center view on player (if any)
 	centroid, _ := agCtx.Value(playerCentroidKey).(image.Point)
-	view, port := centerView(g.view, centroid, ctx.Output.Size)
+	size := ctx.Output.Size
+	size.X /= 2
+	view, port := centerView(g.view, centroid, size)
 	g.view = view
 
 	// run generation within a simulation region around the player

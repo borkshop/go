@@ -32,8 +32,8 @@ func (rz renderZord) Swap(i, j int) {
 }
 
 type cell struct {
-	r rune
-	a ansi.SGRAttr
+	r, r2 rune
+	a     ansi.SGRAttr
 }
 
 func (ren *render) Init(s *shard, t ecs.Type) {
@@ -49,14 +49,21 @@ func (ren *render) drawRegionInto(view image.Rectangle, grid *anansi.Grid) {
 		pi := ren.zord.pi[ii]
 		posd := positioned{ren.pos, pi}
 		if pt := posd.Point(); pt.In(view) {
+
 			pt = pt.Sub(view.Min)
-			if c := grid.Cell(pt); c.Rune() == 0 {
-				c.Set(ren.cell[ri].r, ren.cell[ri].a)
+			pt.X *= 2
+
+			c1 := grid.Cell(pt)
+			c2 := grid.Cell(pt.Add(image.Pt(1, 0)))
+			if c1.Rune() == 0 {
+				c1.Set(ren.cell[ri].r, ren.cell[ri].a)
+				c2.Set(ren.cell[ri].r2, ren.cell[ri].a)
 			} else {
-				a := c.Attr()
+				a := c1.Attr()
 				if _, bgSet := a.BG(); !bgSet {
 					if color, haveBG := ren.cell[ri].a.BG(); haveBG {
-						c.SetAttr(a | color.BG())
+						c1.SetAttr(a | color.BG())
+						c2.SetAttr(a | color.BG())
 					}
 				}
 			}
@@ -140,9 +147,9 @@ func (rend renderable) Cell() (rune, ansi.SGRAttr) {
 	}
 	return rend.ren.cell[rend.ri].r, rend.ren.cell[rend.ri].a
 }
-func (rend renderable) SetCell(r rune, a ansi.SGRAttr) {
+func (rend renderable) SetCell(r, r2 rune, a ansi.SGRAttr) {
 	if rend.ren != nil {
-		rend.ren.cell[rend.ri] = cell{r, a}
+		rend.ren.cell[rend.ri] = cell{r, r2, a}
 	}
 }
 
@@ -166,14 +173,14 @@ func (rend renderable) String() string {
 	)
 }
 
-func renStyle(z int, r rune, a ansi.SGRAttr) renderStyle {
-	return renderStyle{z, r, a}
+func renStyle(z int, r, r2 rune, a ansi.SGRAttr) renderStyle {
+	return renderStyle{z, r, r2, a}
 }
 
 type renderStyle struct {
-	z int
-	r rune
-	a ansi.SGRAttr
+	z     int
+	r, r2 rune
+	a     ansi.SGRAttr
 }
 
 func (st renderStyle) String() string {
@@ -183,5 +190,5 @@ func (st renderStyle) String() string {
 func (st renderStyle) apply(s *shard, ent ecs.Entity) {
 	rend := s.ren.Get(ent)
 	rend.SetZ(st.z)
-	rend.SetCell(st.r, st.a)
+	rend.SetCell(st.r, st.r2, st.a)
 }
