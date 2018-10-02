@@ -18,10 +18,8 @@ import (
 - rip out room-based, add ontological gen; probably keep style-based builder
 - rip out goal system (probably)
 - probably rip out the agent system (free player spawn movement from it)
-- items:
-	- definition database
-	- game-level component for instantiating in-world items
-	- inventory system; would be a good place to start a proper player Scope
+- inventory system; would be a good place to start a proper player Scope
+- items: what're they good for? recipies? player abilities?
 - complete the collision system: it needs to leave some trace so that
   collisions can have actions...
 - ...speaking of which: actions (pickup items, drop inventory, etc)
