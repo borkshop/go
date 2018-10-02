@@ -23,6 +23,7 @@ type genType struct {
 type ID uint64
 
 const (
+	idBits       = 56
 	idGenMask ID = 0xff00000000000000 // 8-bit generation
 	idSeqMask ID = 0x00ffffffffffffff // 56-bit id
 )
@@ -30,7 +31,7 @@ const (
 // String representation of the ID, clearly shows the sequence and generation
 // numbers.
 func (id ID) String() string {
-	gen, seq := id>>56, id&idSeqMask
+	gen, seq := id>>idBits, id&idSeqMask
 	if gen == 0 {
 		if seq != 0 {
 			return fmt.Sprintf("INVALID_ZeroID(seq:%d)", gen)
@@ -40,9 +41,9 @@ func (id ID) String() string {
 	return fmt.Sprintf("%d(gen:%d)", seq, gen)
 }
 
-// genseq returns the 8-bit generation number and 56-bit sequence numbers.
+// genseq returns the generation and sequence numbers.
 func (id ID) genseq() (uint8, uint64) {
-	gen, seq := id>>56, id&idSeqMask
+	gen, seq := id>>idBits, id&idSeqMask
 	if gen == 0 {
 		panic("invalid use of gen-0 ID")
 	}
@@ -56,7 +57,7 @@ func (id ID) setgen(gen uint8) ID {
 	if gen == 0 {
 		panic("invalid use of gen-0 ID")
 	}
-	return seq | (ID(gen) << 56)
+	return seq | (ID(gen) << idBits)
 }
 
 // Type describe entity component composition: each entity in a Scope has a
@@ -116,6 +117,16 @@ func (f EntityDestroyedFunc) EntityDestroyed(e Entity, t Type) { f(e, t) }
 // Len returns the number of existent entities (with non-zero type).
 func (sc *Scope) Len() int {
 	return len(sc.typs) - len(sc.free)
+}
+
+// ID returns the entity id for the given sequence number, useful when using
+// direct indexing. Returns zero ID if the given sequence has no defined type.
+func (sc *Scope) ID(seq int) ID {
+	typ := sc.typs[seq]
+	if typ.Type == 0 {
+		return 0
+	}
+	return ID(seq) | (ID(typ.gen) << idBits)
 }
 
 // Watch changes in entity types, calling the given Watcher when all of the
@@ -329,6 +340,9 @@ type Entities struct {
 	Scope *Scope
 	IDs   []ID
 }
+
+// ID returns the i-th entity id.
+func (es Entities) ID(i int) ID { return es.IDs[i] }
 
 // Entity returns an entity handle for the i-th ID.
 func (es Entities) Entity(i int) Entity { return Entity{es.Scope, es.IDs[i]} }

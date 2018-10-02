@@ -28,6 +28,8 @@ import (
 */
 
 type game struct {
+	itemDefs itemDefinitions
+
 	// ag tracks agents across various scopes, primarily for the
 	// purpose of calling batch update functions on each scope's
 	// population; secondarily it can be used to get easy access to a
@@ -64,6 +66,7 @@ type shard struct {
 	rooms rooms
 	gen   roomGen
 	goals goalSystem
+	items items
 }
 
 const (
@@ -75,6 +78,7 @@ const (
 	gameGoal
 	gameRoom
 	gameGen
+	gameItemInfo
 
 	gameBlueprint = gamePosition | gameRender | gameGoal
 
@@ -84,6 +88,7 @@ const (
 	gameCharacter  = gamePosition | gameRender | gameCollides
 	gamePlayer     = gameCharacter | gameInput
 	gameDoor       = gamePosition | gameRender // FIXME | gameCollides
+	gameItem       = gamePosition | gameRender | gameItemInfo
 )
 
 const (
@@ -135,11 +140,37 @@ func blueprint(t ecs.Type, rs renderStyle, goals ...goal) entitySpec {
 func newGame() *game {
 	g := &game{}
 	g.init()
+
+	const itemZ = 40
+
+	g.itemDefs.load([]itemInfo{
+		// 🔧
+		{"wrench", entSpec(gameItem, renStyle(itemZ, 'w', ansi.SGRAttrBold|ansi.RGB(0xc0, 0xc8, 0xd0).FG()))},
+
+		// 🔩
+		// {"screwdriver"},
+
+		// 🔨
+		{"hammer", entSpec(gameItem, renStyle(itemZ, 'H', ansi.SGRAttrBold|ansi.RGB(0xd0, 0xc0, 0xb0).FG()))},
+
+		// {"finishing nail"},
+		// {"carpentry nail"},
+		// {"drywall screw"},
+
+		// {"doorknob"},
+		{"plywood sheet", entSpec(gameItem, renStyle(itemZ, 'W', ansi.SGRAttrBold|ansi.RGB(0xd0, 0xd0, 0x60).FG()))},
+		// {"angle bracket"},
+
+		// {"zip tie"},
+		// {"plastic bag"},
+
+	})
+
 	g.gen.roomGenConfig = roomGenConfig{
 		Player:        entSpec(gamePlayer, playerStyle),
-		Wall:          blueprint(gameWall, wallStyle),
-		Floor:         blueprint(gameFloor, floorStyle),
-		Door:          blueprint(gameDoor, doorStyle),
+		Wall:          entSpec(gameWall, wallStyle),
+		Floor:         entSpec(gameFloor, floorStyle),
+		Door:          entSpec(gameDoor, doorStyle),
 		PlaceAttempts: 3,
 		RoomSize:      image.Rect(5, 3, 21, 13),
 		MinHallSize:   2,
@@ -158,19 +189,20 @@ func newGame() *game {
 }
 
 func (g *game) init() {
-	g.shard.init()
+	g.shard.init(g)
 
 	g.ag.registerFunc(g.movePlayers, 0, gamePlayer)
 	g.ag.registerFunc(g.spawnPlayers, 1, gameSpawnPoint)
 	g.ag.watch(&g.Scope)
 }
 
-func (s *shard) init() {
+func (s *shard) init(g *game) {
 	s.pos.Init(s, gamePosition)
 	s.ren.Init(s, gamePosition|gameRender)
 	s.rooms.Init(s, gameRoom)
 	s.gen.Init(s, gameGen)
 	s.goals.Init(s, gameGoal)
+	s.items.Init(s, gameItem, &g.itemDefs)
 }
 
 func (g *game) Update(ctx *platform.Context) (err error) {
@@ -238,6 +270,7 @@ func (g *game) Update(ctx *platform.Context) (err error) {
 	if !genning {
 		// create a spawn point once generation has stopped
 		if len(g.ag.ids[&g.Scope][gameSpawnPoint]) == 0 {
+
 			origin := g.rooms.r[0].Min.Add(g.rooms.r[0].Size().Div(2))
 			maxd := compMag(port.Size())
 
@@ -257,6 +290,59 @@ func (g *game) Update(ctx *platform.Context) (err error) {
 				g.pos.Get(spawn).SetPoint(mid)
 				g.rooms.parts.Insert(0, id, spawn.ID)
 			}
+
+			// scatter some items
+			for i := 0; i < 10; i++ {
+				roomID := chooseRandomID(g.rooms.Len(), g.rooms.ID, func(i int, id ecs.ID) int {
+					r := &g.rooms.r[i]
+					if !r.In(port) {
+						return 0
+					}
+					d := compMag(r.Min.Add(r.Size().Div(2)).Sub(origin))
+					sz := r.Size()
+					return d * sz.X * sz.Y
+				})
+				if roomID == 0 {
+					break
+				}
+
+				r := g.rooms.GetID(roomID)
+
+				itemID := chooseRandomID(g.itemDefs.Len(), g.itemDefs.ID, func(i int, id ecs.ID) int {
+					return 1 // TODO weight by inverse population count ?
+				})
+				if itemID == 0 {
+					break
+				}
+
+				// TODO select a random clear floor tile, weighted towards the corners
+				// roomParts := g.rooms.parts.Bs(g.rooms.parts.LookupA(roomID), nil)
+				// chooseRandomID(
+				// 	len(roomParts.IDs),
+				// 	roomParts.ID,
+				// 	func(i int, id ecs.ID) int {
+				// 		part := roomParts.Entity(i)
+				// 		// if part.Type()
+				// 	},
+				// )
+
+				mid := r.Min.Add(r.Size().Div(2))
+				occ := false
+				for pq := g.pos.At(mid); pq.Next(); {
+					if pq.handle().Entity().Type().HasAll(gameCollides) {
+						occ = true
+						break
+					}
+				}
+				if !occ {
+					item := g.itemDefs.Entity(itemID)
+					info := g.itemDefs.Info(item)
+					log.Printf("item %v @%v in %v", info, mid, r)
+					worldItem := info.worldSpec.create(&g.shard, mid)
+					g.rooms.parts.Insert(0, roomID, worldItem.ID)
+				}
+			}
+
 		}
 	}
 
