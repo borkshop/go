@@ -15,15 +15,16 @@ import (
 )
 
 /* TODO
-- shift genRoom.{exits,walls} to relation on gameRoom entities
-- ui for placing room / hallway blueprints
-- digging mechanic
-- building mechanic
-- automated agents that do goals
-- shard(s):
-  - world database (at least for level)
-  - simulation shards around agent regions
-  - agent FoS (field of simulation)
+- rip out room-based, add ontological gen; probably keep style-based builder
+- rip out goal system (probably)
+- probably rip out the agent system (free player spawn movement from it)
+- items:
+	- definition database
+	- game-level component for instantiating in-world items
+	- inventory system; would be a good place to start a proper player Scope
+- complete the collision system: it needs to leave some trace so that
+  collisions can have actions...
+- ...speaking of which: actions (pickup items, drop inventory, etc)
 */
 
 type game struct {
@@ -368,6 +369,9 @@ func eachCell(g *anansi.Grid, r image.Rectangle, f func(anansi.Cell)) {
 	}
 }
 
+// chooseRandomID implements weighted random selection on an arbitrarily
+// ordering of entity IDs: any ecs.ArrayIndex.Len() and .ID can be used for n
+// and i2id, user needs only to provide a weighting function.
 func chooseRandomID(n int, i2id func(i int) ecs.ID, wf func(i int, id ecs.ID) int) (rid ecs.ID) {
 	var ws int
 	for i := 0; i < n; i++ {
