@@ -19,6 +19,11 @@ type positioned struct {
 	pi  int
 }
 
+func (pos *position) Init(s *shard, t ecs.Type) {
+	pos.ArrayIndex.Init(&s.Scope)
+	s.Scope.Watch(t, 0, pos)
+}
+
 func (pos *position) EntityCreated(ent ecs.Entity, _ ecs.Type) {
 	i := pos.ArrayIndex.Insert(ent)
 	for i >= len(pos.pt) {

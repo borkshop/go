@@ -14,8 +14,8 @@ type goalSystem struct {
 }
 
 type goal interface {
-	check(g *game, subject, object ecs.Entity) goalReq
-	fulfill(g *game, subject, object ecs.Entity)
+	check(s *shard, subject, object ecs.Entity) goalReq
+	fulfill(s *shard, subject, object ecs.Entity)
 }
 
 type goalReq interface {
@@ -25,6 +25,11 @@ type goalReq interface {
 
 type goals []goal
 type goalReqs []goalReq
+
+func (goalSys *goalSystem) Init(s *shard, t ecs.Type) {
+	goalSys.ArrayIndex.Init(&s.Scope)
+	s.Scope.Watch(t, 0, goalSys)
+}
 
 func (goalSys *goalSystem) Get(ent ecs.Entity) goal {
 	if i, def := goalSys.ArrayIndex.Get(ent); def {
@@ -59,16 +64,16 @@ func (goalSys *goalSystem) EntityCreated(ent ecs.Entity, _ ecs.Type) {
 	goalSys.data[i] = nil
 }
 
-func (gs goals) check(g *game, subject, object ecs.Entity) (req goalReq) {
+func (gs goals) check(s *shard, subject, object ecs.Entity) (req goalReq) {
 	for i := range gs {
-		req = chainGoalReq(req, gs[i].check(g, subject, object))
+		req = chainGoalReq(req, gs[i].check(s, subject, object))
 	}
 	return req
 }
 
-func (gs goals) fulfill(g *game, subject, object ecs.Entity) {
+func (gs goals) fulfill(s *shard, subject, object ecs.Entity) {
 	for i := range gs {
-		gs[i].fulfill(g, subject, object)
+		gs[i].fulfill(s, subject, object)
 	}
 }
 
@@ -152,14 +157,14 @@ type goalApplication struct {
 	goal
 }
 
-func (ga goalApplication) apply(g *game, ent ecs.Entity) {
-	if i, def := g.goals.ArrayIndex.Get(ent); def {
-		g.goals.data[i] = ga.goal
+func (ga goalApplication) apply(s *shard, ent ecs.Entity) {
+	if i, def := s.goals.ArrayIndex.Get(ent); def {
+		s.goals.data[i] = ga.goal
 	}
 }
 
-func (spec entitySpec) check(g *game, subject, object ecs.Entity) goalReq { return nil }
-func (spec entitySpec) fulfill(g *game, subject, object ecs.Entity)       { spec.apply(g, object) }
+func (spec entitySpec) check(s *shard, subject, object ecs.Entity) goalReq { return nil }
+func (spec entitySpec) fulfill(s *shard, subject, object ecs.Entity)       { spec.apply(s, object) }
 
 type radiusGoal int
 type radiusReq struct {
@@ -167,11 +172,11 @@ type radiusReq struct {
 	pos image.Point
 }
 
-func (rg radiusGoal) check(g *game, subject, object ecs.Entity) goalReq {
-	return radiusReq{rg, g.pos.Get(object).Point()}
+func (rg radiusGoal) check(s *shard, subject, object ecs.Entity) goalReq {
+	return radiusReq{rg, s.pos.Get(object).Point()}
 }
 
-func (rg radiusGoal) fulfill(g *game, subject, object ecs.Entity) {}
+func (rg radiusGoal) fulfill(s *shard, subject, object ecs.Entity) {}
 
 func (rq radiusReq) Error() string {
 	return fmt.Sprintf("must be within %v cells of %v", rq.rad, rq.pos)

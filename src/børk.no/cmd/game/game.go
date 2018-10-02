@@ -28,21 +28,42 @@ import (
 */
 
 type game struct {
+	// ag tracks agents across various scopes, primarily for the
+	// purpose of calling batch update functions on each scope's
+	// population; secondarily it can be used to get easy access to a
+	// list of entities of a given type, e.g. to select a random spawn
+	// point.
 	ag agentSystem
 
-	// TODO shard(s)
-	ecs.Scope
-	ren   render
-	pos   position
-	rooms rooms
-	gen   roomGen
-	goals goalSystem
+	// shard contains all game entity data; TODO have more than one shard:
+	// - coalesce/split regions supported by certain agent populations
+	// - to assist, each agent population can define some:
+	//   func neededRegion(ecs.ID) image.Rectangle
+	// - also need one massive "at rest" or "cold storage" shard for entities
+	//   no longer in any agent simulation region
+	// - then we only need to run the region(s) supported by player agents at 60hz
+	// - anything else (ai-driven regions) can go slower / out-of-band with the UI goroutine
+	// - performing (at least most) shard data movement can be done as
+	//   inter-frame background work
+	// - further per-shard optimizations can be done inter-frame, like moving
+	//   component data around to match the spatial index ordering, optimizing
+	//   for spatial locality within each system
+	shard
 
 	// ui
 	sim  image.Rectangle
 	view image.Rectangle
 	drag dragState
 	pop  popup
+}
+
+type shard struct {
+	ecs.Scope
+	ren   render
+	pos   position
+	rooms rooms
+	gen   roomGen
+	goals goalSystem
 }
 
 const (
@@ -137,27 +158,19 @@ func newGame() *game {
 }
 
 func (g *game) init() {
+	g.shard.init()
+
 	g.ag.registerFunc(g.movePlayers, 0, gamePlayer)
 	g.ag.registerFunc(g.spawnPlayers, 1, gameSpawnPoint)
-
-	// TODO better shard construction
-	g.pos.Init(&g.Scope)
-	g.ren.Init(&g.Scope)
-	g.rooms.Init(&g.Scope)
-	g.gen.Init(&g.Scope)
-	g.goals.Init(&g.Scope)
-
-	// TODO better dep coupling
-	g.ren.pos = &g.pos
-	g.gen.rooms = &g.rooms
-	g.gen.g = g
-
-	g.Scope.Watch(gameRoom, 0, &g.rooms)
-	g.Scope.Watch(gameGen, 0, &g.gen)
-	g.Scope.Watch(gamePosition, 0, &g.pos)
-	g.Scope.Watch(gamePosition|gameRender, 0, &g.ren)
-	g.Scope.Watch(gameGoal, 0, &g.goals)
 	g.ag.watch(&g.Scope)
+}
+
+func (s *shard) init() {
+	s.pos.Init(s, gamePosition)
+	s.ren.Init(s, gamePosition|gameRender)
+	s.rooms.Init(s, gameRoom)
+	s.gen.Init(s, gameGen)
+	s.goals.Init(s, gameGoal)
 }
 
 func (g *game) Update(ctx *platform.Context) (err error) {
@@ -193,9 +206,9 @@ func (g *game) Update(ctx *platform.Context) (err error) {
 		for _, id := range g.ag.ids[&g.Scope][gamePlayer] {
 			if rend := g.ren.GetID(id); !rend.zero() {
 				if r, _ := rend.Cell(); r == '^' {
-					corporealApp.apply(g, g.Entity(id))
+					corporealApp.apply(&g.shard, g.Entity(id))
 				} else {
-					ghostApp.apply(g, g.Entity(id))
+					ghostApp.apply(&g.shard, g.Entity(id))
 				}
 			}
 		}

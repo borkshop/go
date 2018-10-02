@@ -13,9 +13,11 @@ type rooms struct {
 	parts ecs.EntityRelation
 }
 
-func (rooms *rooms) Init(scope *ecs.Scope) {
-	rooms.ArrayIndex.Init(scope)
-	rooms.parts.Init(scope, nil)
+func (rooms *rooms) Init(s *shard, t ecs.Type) {
+	rooms.ArrayIndex.Init(&s.Scope)
+	rooms.ArrayIndex.Init(&s.Scope)
+	rooms.parts.Init(&s.Scope, nil)
+	s.Scope.Watch(t, 0, rooms)
 }
 
 func (rooms *rooms) EntityCreated(ent ecs.Entity, _ ecs.Type) {

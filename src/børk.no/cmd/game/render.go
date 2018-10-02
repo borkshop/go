@@ -36,6 +36,12 @@ type cell struct {
 	a ansi.SGRAttr
 }
 
+func (ren *render) Init(s *shard, t ecs.Type) {
+	ren.pos = &s.pos
+	ren.ArrayIndex.Init(&s.Scope)
+	s.Scope.Watch(t, 0, ren)
+}
+
 func (ren *render) drawRegionInto(view image.Rectangle, grid *anansi.Grid) {
 	ren.rezort(ren.pos.Within(view))
 	for ii := range ren.zord.ri {
@@ -174,8 +180,8 @@ func (st renderStyle) String() string {
 	return fmt.Sprintf("z:%v rune:%q attr:%v", st.z, st.r, st.a)
 }
 
-func (st renderStyle) apply(g *game, ent ecs.Entity) {
-	rend := g.ren.Get(ent)
+func (st renderStyle) apply(s *shard, ent ecs.Entity) {
+	rend := s.ren.Get(ent)
 	rend.SetZ(st.z)
 	rend.SetCell(st.r, st.a)
 }

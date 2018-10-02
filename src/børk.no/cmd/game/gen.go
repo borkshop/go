@@ -56,6 +56,13 @@ type genRoomHandle struct {
 	*genRoom
 }
 
+func (gen *roomGen) Init(s *shard, t ecs.Type) {
+	gen.shard = s
+	gen.rooms = &s.rooms
+	gen.ArrayIndex.Init(&s.Scope)
+	s.Scope.Watch(t, 0, gen)
+}
+
 func (gen *roomGen) logf(mess string, args ...interface{}) {
 	if gen.Log {
 		log.Printf(mess, args...)
@@ -172,7 +179,7 @@ func (gen *roomGen) createRoom(room genRoomHandle) {
 	if room.enter != image.ZP {
 		// entrance door
 		for _, id := range gen.builder.ids {
-			if posd := gen.g.pos.GetID(id); posd.Point() == room.enter {
+			if posd := gen.shard.pos.GetID(id); posd.Point() == room.enter {
 				gen.carveDoorway(room, posd.Entity())
 				break
 			}
@@ -213,7 +220,7 @@ func (gen *roomGen) elaborateRoom(room genRoomHandle) bool {
 		switch {
 		case part.Type().HasAll(roomDoor):
 			door := gen.rooms.parts.B(part)
-			pt := gen.g.pos.GetID(door.ID).Point()
+			pt := gen.shard.pos.GetID(door.ID).Point()
 			gen.points = append(gen.points, pt)
 			numDoors++
 		case part.Type().HasAll(roomWall):
@@ -232,7 +239,7 @@ func (gen *roomGen) elaborateRoom(room genRoomHandle) bool {
 	// prune corner walls and walls that share a component with any prior door
 	var i int
 	for j := 0; j < len(walls.IDs); j++ {
-		pt := gen.g.pos.GetID(walls.IDs[j]).Point()
+		pt := gen.shard.pos.GetID(walls.IDs[j]).Point()
 		if isCorner(pt, *room.r) || sharesPointComponent(pt, gen.points) {
 			continue
 		}
@@ -246,7 +253,7 @@ func (gen *roomGen) elaborateRoom(room genRoomHandle) bool {
 	shuffleIDs(walls.IDs)
 	for _, id := range walls.IDs[:gen.PlaceAttempts] {
 		// place hallway
-		start := gen.g.pos.GetID(id).Point()
+		start := gen.shard.pos.GetID(id).Point()
 		dir := room.wallNormal(start)
 		end, n := gen.placeCorridor(start, dir)
 		if n == 0 {
@@ -261,7 +268,7 @@ func (gen *roomGen) elaborateRoom(room genRoomHandle) bool {
 
 		gen.logf("hallway dir:%v n:%v", dir, n)
 		pos := start
-		gen.carveDoorway(room, gen.g.Entity(id))
+		gen.carveDoorway(room, gen.shard.Entity(id))
 		pos = gen.createCorridor(pos, dir, n)
 		gen.create(room.depth+1, pos.Add(dir), r)
 		numDoors++
@@ -290,17 +297,17 @@ func (gen *roomGen) placeNextRoom(enter, dir image.Point) image.Rectangle {
 }
 
 func (gen *roomGen) carveDoorway(room genRoomHandle, wall ecs.Entity) ecs.Entity {
-	pt := gen.g.pos.Get(wall).Point()
+	pt := gen.shard.pos.Get(wall).Point()
 	gen.logf("doorway @%v", pt)
-	gen.Floor.apply(gen.g, wall)
-	door := gen.Door.create(gen.g, pt)
+	gen.Floor.apply(gen.shard, wall)
+	door := gen.Door.create(gen.shard, pt)
 	// TODO set door behavior
 	gen.rooms.parts.Insert(roomDoor, room.ID(), door.ID)
 	return door
 }
 
 func (gen *roomGen) anyWithin(r image.Rectangle) bool {
-	for q := gen.g.pos.Within(r); q.Next(); {
+	for q := gen.shard.pos.Within(r); q.Next(); {
 		ent := q.handle().Entity()
 		switch ent.Type() {
 		case gen.Floor.t, gen.Wall.t, gen.Door.t:
@@ -361,9 +368,9 @@ func (room genRoomHandle) wallNormal(p image.Point) (dir image.Point) {
 }
 
 type builder struct {
-	g   *game
-	pos image.Point
-	ids []ecs.ID
+	shard *shard // FIXME rename
+	pos   image.Point
+	ids   []ecs.ID
 
 	spec entitySpec
 }
@@ -405,7 +412,7 @@ func (bld *builder) lineTo(p image.Point, n int) {
 }
 
 func (bld *builder) create() ecs.Entity {
-	ent := bld.spec.create(bld.g, bld.pos)
+	ent := bld.spec.create(bld.shard, bld.pos)
 	bld.ids = append(bld.ids, ent.ID)
 	return ent
 }

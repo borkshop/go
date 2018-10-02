@@ -14,13 +14,13 @@ type entitySpec struct {
 }
 
 type entityApp interface {
-	apply(g *game, ent ecs.Entity)
+	apply(s *shard, ent ecs.Entity)
 }
 
-type entityAppFunc func(g *game, ent ecs.Entity)
+type entityAppFunc func(s *shard, ent ecs.Entity)
 
-func (f entityAppFunc) apply(g *game, ent ecs.Entity) {
-	f(g, ent)
+func (f entityAppFunc) apply(s *shard, ent ecs.Entity) {
+	f(s, ent)
 }
 
 func entSpec(t ecs.Type, apps ...entityApp) entitySpec {
@@ -38,19 +38,19 @@ func (spec entitySpec) String() string {
 	return fmt.Sprintf("t:%v %v", spec.t, spec.entityApp)
 }
 
-func (spec entitySpec) create(g *game, pos image.Point) ecs.Entity {
-	ent := g.Scope.Create(spec.t)
+func (spec entitySpec) create(s *shard, pos image.Point) ecs.Entity {
+	ent := s.Scope.Create(spec.t)
 	if spec.t.HasAll(gamePosition) {
-		g.pos.GetID(ent.ID).SetPoint(pos)
+		s.pos.GetID(ent.ID).SetPoint(pos)
 	}
-	spec.apply(g, ent)
+	spec.apply(s, ent)
 	return ent
 }
 
-func (spec entitySpec) apply(g *game, ent ecs.Entity) {
+func (spec entitySpec) apply(s *shard, ent ecs.Entity) {
 	ent.SetType(spec.t)
 	if spec.entityApp != nil {
-		spec.entityApp.apply(g, ent)
+		spec.entityApp.apply(s, ent)
 	}
 }
 
@@ -64,9 +64,9 @@ func (apps entityApps) String() string {
 	return strings.Join(parts, " ")
 }
 
-func (apps entityApps) apply(g *game, ent ecs.Entity) {
+func (apps entityApps) apply(s *shard, ent ecs.Entity) {
 	for i := range apps {
-		apps[i].apply(g, ent)
+		apps[i].apply(s, ent)
 	}
 }
 
@@ -96,5 +96,5 @@ func chainEntityApp(a, b entityApp) entityApp {
 type addEntityType ecs.Type
 type deleteEntityType ecs.Type
 
-func (t addEntityType) apply(_ *game, ent ecs.Entity)    { ent.AddType(ecs.Type(t)) }
-func (t deleteEntityType) apply(_ *game, ent ecs.Entity) { ent.DeleteType(ecs.Type(t)) }
+func (t addEntityType) apply(_ *shard, ent ecs.Entity)    { ent.AddType(ecs.Type(t)) }
+func (t deleteEntityType) apply(_ *shard, ent ecs.Entity) { ent.DeleteType(ecs.Type(t)) }
