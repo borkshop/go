@@ -2,27 +2,41 @@ package ecs
 
 import "fmt"
 
-// Scope is the core of what one might call a "world":
-// - it is the frame of reference for entity IDs
-// - it owns entity Type definition
-// - and supports watching changes in such Entity Type data
+// Scope is a frame of reference for defining typed entities, supporting
+// coordination between various stakeholders interested in entity type information.
+//
+// Scope is itself (an implicit) component manager of generational type
+// information for every ID.
+//
+// It maintains a free list of prior used entity IDs that are no longer used
+// (having Type 0). Any free entity IDs are re-used first before defining new
+// IDs.
 type Scope struct {
-	typs   []genType
-	free   []ID
-	watAll []Type
-	watAny []Type
+	typs []genType
+	free []ID
+
 	wats   []Watcher
+	watAll []Type // wats[i] tracks Type.HasAll(watAll[i])
+	watAny []Type // wats[i] tracks Type.HasAny(watAll[i])
 }
 
-// Watcher is a stakeholder in Entity's type changes, uses include: component
-// data manager (de)allocation and logic systems updating their entity subject
-// collections.
+// Watcher is a stakeholder in Entity type changes.
+//
+// A component data manager may be implemented as a Watcher that (de)allocates
+// data when entity types come (and go). A natural choice for storage here is
+// array data, either directly indexed using Entity.Seq(), or indirectly
+// through an ArrayIndex.
+//
+// An entity processing system may be implemented as a Watcher that retains
+// entity references, e.g. using one or more Entities collections. Its update
+// logic can then be implemented directly on this collected data, rather than
+// needing to iterate or query entity type information during update.
 type Watcher interface {
 	EntityCreated(Entity, Type)
 	EntityDestroyed(Entity, Type)
 }
 
-// Len returns the number of existent entities (with non-zero type).
+// Len returns the number of defined entities (with non-zero type).
 func (sc *Scope) Len() int {
 	return len(sc.typs) - len(sc.free)
 }
@@ -143,4 +157,26 @@ func (sc *Scope) create() ID {
 	}
 	sc.typs = append(sc.typs, genType{gen: 1})
 	return ID(len(sc.typs) - 1).setgen(1)
+}
+
+// TODO maybe move type Entity definition in from core.go
+
+func (ent Entity) dispatchCreate(newType, createdType Type) {
+	for i := 0; i < len(ent.Scope.watAll); i++ {
+		if all := ent.Scope.watAll[i]; all == 0 || (newType.HasAll(all) && createdType.HasAny(all)) {
+			if any := ent.Scope.watAny[i]; any == 0 || createdType.HasAny(any) {
+				ent.Scope.wats[i].EntityCreated(ent, createdType)
+			}
+		}
+	}
+}
+
+func (ent Entity) dispatchDestroy(newType, destroyedType Type) {
+	for i := 0; i < len(ent.Scope.watAll); i++ {
+		if all := ent.Scope.watAll[i]; all == 0 || (!newType.HasAll(all) && (newType | destroyedType).HasAll(all)) {
+			if any := ent.Scope.watAny[i]; any == 0 || destroyedType.HasAny(any) {
+				ent.Scope.wats[i].EntityDestroyed(ent, destroyedType)
+			}
+		}
+	}
 }

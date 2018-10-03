@@ -194,28 +194,6 @@ func (ent Entity) setType(priorTyp genType, seq uint64, newType Type) bool {
 	return true
 }
 
-func (ent Entity) dispatchCreate(newType, createdType Type) {
-	for i := 0; i < len(ent.Scope.watAll); i++ {
-		all := ent.Scope.watAll[i]
-		any := ent.Scope.watAny[i]
-		if (all == 0 || (newType&all == all && createdType&all != 0)) &&
-			(any == 0 || createdType&any != 0) {
-			ent.Scope.wats[i].EntityCreated(ent, createdType)
-		}
-	}
-}
-
-func (ent Entity) dispatchDestroy(newType, destroyedType Type) {
-	for i := 0; i < len(ent.Scope.watAll); i++ {
-		all := ent.Scope.watAll[i]
-		any := ent.Scope.watAny[i]
-		if (all == 0 || (newType&all != all && destroyedType&all != 0)) &&
-			(any == 0 || destroyedType&any != 0) {
-			ent.Scope.wats[i].EntityDestroyed(ent, destroyedType)
-		}
-	}
-}
-
 // ZE is the zero entity
 var ZE Entity
 
