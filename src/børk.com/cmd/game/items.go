@@ -31,6 +31,22 @@ type itemInfo struct {
 	// inventorySpec entitySpec
 }
 
+func (its *items) Item(ent ecs.Entity) ecs.Entity {
+	if i, def := its.ArrayIndex.Get(ent); def {
+		return its.defs.Entity(its.item[i])
+	}
+	return ecs.ZE
+}
+
+func (its *items) SetItem(ent ecs.Entity, item ecs.Entity) {
+	if item.Scope != &its.defs.Scope {
+		panic("invalid item entity")
+	}
+	if i, def := its.ArrayIndex.Get(ent); def {
+		its.item[i] = item.ID
+	}
+}
+
 func (its *items) Init(s *shard, t ecs.Type, defs *itemDefinitions) {
 	its.defs = defs
 	its.ArrayIndex.Init(&s.Scope)
@@ -75,9 +91,12 @@ func (defs *itemDefinitions) EntityDestroyed(e ecs.Entity, _ ecs.Type) {
 
 func (defs *itemDefinitions) load(infos []itemInfo) {
 	defs.init()
-	for i := range infos {
+	for _, info := range infos {
 		item := defs.Create(itemType)
-		defs.SetInfo(item, infos[i])
+		info.worldSpec.entityApp = entApps(info.worldSpec.entityApp, entityAppFunc(func(s *shard, ent ecs.Entity) {
+			s.items.SetItem(ent, item)
+		}))
+		defs.SetInfo(item, info)
 	}
 }
 
