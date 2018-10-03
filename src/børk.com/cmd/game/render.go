@@ -8,7 +8,7 @@ import (
 	"github.com/jcorbin/anansi"
 	"github.com/jcorbin/anansi/ansi"
 
-	"børk.no/ecs"
+	"børk.com/ecs"
 )
 
 type render struct {

@@ -3,7 +3,7 @@ package main
 import (
 	"fmt"
 
-	"børk.no/borkgen"
+	"børk.com/borkgen"
 )
 
 func main() {

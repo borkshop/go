@@ -5,7 +5,7 @@ import (
 	"io"
 	"unicode/utf8"
 
-	"børk.no/ecs"
+	"børk.com/ecs"
 )
 
 type descSpec struct {

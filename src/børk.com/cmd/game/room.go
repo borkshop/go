@@ -3,7 +3,7 @@ package main
 import (
 	"image"
 
-	"børk.no/ecs"
+	"børk.com/ecs"
 )
 
 type rooms struct {

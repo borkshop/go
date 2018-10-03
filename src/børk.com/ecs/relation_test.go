@@ -6,7 +6,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 
-	. "børk.no/ecs"
+	. "børk.com/ecs"
 )
 
 type testData struct {

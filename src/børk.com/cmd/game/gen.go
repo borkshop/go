@@ -6,7 +6,7 @@ import (
 	"math/rand"
 	"time"
 
-	"børk.no/ecs"
+	"børk.com/ecs"
 )
 
 type roomGenConfig struct {
