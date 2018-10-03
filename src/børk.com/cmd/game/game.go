@@ -193,8 +193,8 @@ func (g *game) init() {
 }
 
 func (s *shard) init(g *game) {
-	s.pos.Init(s, gamePosition)
-	s.ren.Init(s, gamePosition|gameRender)
+	s.pos.Init(&s.Scope, gamePosition)
+	s.ren.Init(&s.Scope, gamePosition|gameRender, &s.pos)
 	s.rooms.Init(s, gameRoom)
 	s.gen.Init(s, gameGen)
 	s.goals.Init(s, gameGoal)

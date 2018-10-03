@@ -36,10 +36,10 @@ type cell struct {
 	a     ansi.SGRAttr
 }
 
-func (ren *render) Init(s *shard, t ecs.Type) {
-	ren.pos = &s.pos
-	ren.ArrayIndex.Init(&s.Scope)
-	s.Scope.Watch(t, 0, ren)
+func (ren *render) Init(scope *ecs.Scope, t ecs.Type, pos *position) {
+	ren.pos = pos
+	ren.ArrayIndex.Init(scope)
+	scope.Watch(t, 0, ren)
 }
 
 func (ren *render) drawRegionInto(view image.Rectangle, grid *anansi.Grid) {
