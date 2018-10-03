@@ -6,8 +6,8 @@ run: game
 
 .PHONY: game
 game:
-	$(GO) build børk.no/cmd/game
+	$(GO) build børk.com/cmd/game
 
 .PHONY: test
 test:
-	$(GO) test børk.no/... github.com/jcorbin/anansi/...
+	$(GO) test børk.com/... github.com/jcorbin/anansi/...
