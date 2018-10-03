@@ -129,6 +129,29 @@ func (sc *Scope) ID(seq int) ID {
 	return ID(seq) | (ID(typ.gen) << idBits)
 }
 
+// Clear destroys all entities defined within the scope.
+func (sc *Scope) Clear() {
+	for seq, typ := range sc.typs {
+		if typ.Type != 0 {
+			id := ID(seq) | (ID(typ.gen) << idBits)
+			ent := Entity{sc, id}
+			ent.setType(typ, uint64(seq), 0) // TODO optimize
+		}
+	}
+}
+
+// MustOwn panics unless the scope own the given entity.
+// The name argument is used to provide a more useful panic message if non-empty.
+func (sc *Scope) MustOwn(ent Entity, name string) {
+	if ent.Scope != sc {
+		if name == "" {
+			panic("invalid entity")
+		} else {
+			panic(fmt.Sprintf("invalid %s entity", name))
+		}
+	}
+}
+
 // Watch changes in entity types, calling the given Watcher when all of the
 // given bits are destroyed / created. If all is 0 then the Watcher is called
 // when any type bits are destroyed/created.
