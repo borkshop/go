@@ -128,33 +128,54 @@ var (
 	ghostApp     = entApps(spiritStyle, deleteEntityType(gameCollides))
 )
 
-var body = braille.NewBitmapData(12,
-	/* 6x3 runes => 12x12 bits
-	 * * * - _ - _ - _ - _ * *
-	 * * * * _ _ _ _ _ _ * * *
-	 * _ _ * * _ _ _ _ * * _ _
-	 * _ _ * * _ _ _ _ * * _ _
-	 * + _ _ * * * * * * _ _ _
-	 * _ _ _ _ * _ _ * _ _ _ _
-	 * _ _ _ _ * _ _ * _ _ _ _
-	 * _ _ _ * * * * * * _ _ _
-	 * + _ * * _ _ _ _ * * _ _
-	 * _ _ * * _ _ _ _ * * _ _
-	 * * * * _ _ _ _ _ _ * * *
-	 * * * _ _ _ _ _ _ _ _ * *
-	 */
-	true, true, false, false, false, false, false, false, false, false, true, true,
-	true, true, true, false, false, false, false, false, false, true, true, true,
-	false, false, true, true, false, false, false, false, true, true, false, false,
-	false, false, true, true, false, false, false, false, true, true, false, false,
-	false, false, false, true, true, true, true, true, true, false, false, false,
-	false, false, false, false, true, false, false, true, false, false, false, false,
-	false, false, false, false, true, false, false, true, false, false, false, false,
-	false, false, false, true, true, true, true, true, true, false, false, false,
-	false, false, true, true, false, false, false, false, true, true, false, false,
-	false, false, true, true, false, false, false, false, true, true, false, false,
-	true, true, true, false, false, false, false, false, false, true, true, true,
-	true, true, false, false, false, false, false, false, false, false, true, true,
+var (
+	body = braille.NewBitmapData(12,
+		/* 6x3 runes => 12x12 bits
+		* * * - _ - _ - _ - _ * *
+		* * * * _ _ _ _ _ _ * * *
+		* _ _ * * _ _ _ _ * * _ _
+		* _ _ * * _ _ _ _ * * _ _
+		* + _ _ * * * * * * _ _ _
+		* _ _ _ _ * _ _ * _ _ _ _
+		* _ _ _ _ * _ _ * _ _ _ _
+		* _ _ _ * * * * * * _ _ _
+		* + _ * * _ _ _ _ * * _ _
+		* _ _ * * _ _ _ _ * * _ _
+		* * * * _ _ _ _ _ _ * * *
+		* * * _ _ _ _ _ _ _ _ * *
+		 */
+		true, true, false, false, false, false, false, false, false, false, true, true,
+		true, true, true, false, false, false, false, false, false, true, true, true,
+		false, false, true, true, false, false, false, false, true, true, false, false,
+		false, false, true, true, false, false, false, false, true, true, false, false,
+		false, false, false, true, true, true, true, true, true, false, false, false,
+		false, false, false, false, true, false, false, true, false, false, false, false,
+		false, false, false, false, true, false, false, true, false, false, false, false,
+		false, false, false, true, true, true, true, true, true, false, false, false,
+		false, false, true, true, false, false, false, false, true, true, false, false,
+		false, false, true, true, false, false, false, false, true, true, false, false,
+		true, true, true, false, false, false, false, false, false, true, true, true,
+		true, true, false, false, false, false, false, false, false, false, true, true,
+	)
+
+	bodyPosLeftHand   = image.Pt(0, 0)
+	bodyPosLeftArm    = image.Pt(1, 0)
+	bodyPosLeftHead   = image.Pt(2, 0)
+	bodyPosRightHead  = image.Pt(3, 0)
+	bodyPosRightArm   = image.Pt(4, 0)
+	bodyPosRightHand  = image.Pt(5, 0)
+	bodyPosLeftSide   = image.Pt(0, 1)
+	bodyPosLeftHip    = image.Pt(1, 1)
+	bodyPosLeftTorso  = image.Pt(2, 1)
+	bodyPosRightTorso = image.Pt(3, 1)
+	bodyPosRightHip   = image.Pt(4, 1)
+	bodyPosRightSide  = image.Pt(5, 1)
+	bodyPosLeftFoot   = image.Pt(0, 2)
+	bodyPosLeftLeg    = image.Pt(1, 2)
+	bodyPosLeftTail   = image.Pt(2, 2)
+	bodyPosRightTail  = image.Pt(3, 2)
+	bodyPosRightLeg   = image.Pt(4, 2)
+	bodyPosRightFoot  = image.Pt(5, 2)
 )
 
 func blueprint(t ecs.Type, rs renderStyle, goals ...goal) entitySpec {
@@ -419,6 +440,15 @@ func (g *game) Update(ctx *platform.Context) (err error) {
 				cell.SetAttr(a)
 			}
 		}
+
+		ctx.Output.Cell(at.Add(bodyPosLeftHead)).Set('/', ansi.RGB(0x60, 0xd0, 0x60).FG())
+		ctx.Output.Cell(at.Add(bodyPosRightHead)).Set('\\', ansi.RGB(0x60, 0xd0, 0x60).FG())
+
+		ctx.Output.Cell(at.Add(bodyPosLeftSide)).Set(']', ansi.RGB(0xd0, 0x60, 0x60).FG())
+		ctx.Output.Cell(at.Add(bodyPosRightSide)).Set('[', ansi.RGB(0xd0, 0x60, 0x60).FG())
+
+		ctx.Output.Cell(at.Add(bodyPosLeftTail)).Set('\\', ansi.RGB(0x30, 0x60, 0xd0).FG())
+		ctx.Output.Cell(at.Add(bodyPosRightTail)).Set('/', ansi.RGB(0x30, 0x60, 0xd0).FG())
 
 		// at.X -= body.RuneSize().X+1
 		at.X += body.RuneSize().X + 1
