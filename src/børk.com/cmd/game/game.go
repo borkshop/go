@@ -407,12 +407,21 @@ func (g *game) Update(ctx *platform.Context) (err error) {
 
 	// at := ctx.Output.Size.Sub(body.RuneSize())
 	at := image.Pt(1, ctx.Output.Size.Y-body.RuneSize().Y)
+	for _, id := range g.ag.ids[&g.Scope][gamePlayer] {
+		player := g.Entity(id)
+		rend := g.ren.Get(player)
+		_, _, a := rend.Cell()
 
-	body.CopyInto(&ctx.Output.Grid, at)
-	for p, sz := at, at.Add(body.RuneSize()); p.Y < sz.Y; p.Y++ {
-		for p.X = at.X; p.X < sz.X; p.X++ {
-			ctx.Output.Cell(p).SetAttr(playerStyle.a)
+		body.CopyInto(&ctx.Output.Grid, at)
+		for p, sz := at, at.Add(body.RuneSize()); p.Y < sz.Y; p.Y++ {
+			for p.X = at.X; p.X < sz.X; p.X++ {
+				cell := ctx.Output.Cell(p)
+				cell.SetAttr(a)
+			}
 		}
+
+		// at.X -= body.RuneSize().X+1
+		at.X += body.RuneSize().X + 1
 	}
 
 	// entity count in upper-left
