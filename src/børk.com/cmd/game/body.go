@@ -50,34 +50,20 @@ func (bod *body) SetSlot(i int, r rune, a ansi.SGRAttr) {
 }
 
 var (
-	bodyBits = braille.NewBitmapData(12,
-		/* 6x3 runes => 12x12 bits
-		* * * - _ - _ - _ - _ * *
-		* * * * _ _ _ _ _ _ * * *
-		* _ _ * * _ _ _ _ * * _ _
-		* _ _ * * _ _ _ _ * * _ _
-		* + _ _ * * * * * * _ _ _
-		* _ _ _ _ * _ _ * _ _ _ _
-		* _ _ _ _ * _ _ * _ _ _ _
-		* _ _ _ * * * * * * _ _ _
-		* + _ * * _ _ _ _ * * _ _
-		* _ _ * * _ _ _ _ * * _ _
-		* * * * _ _ _ _ _ _ * * *
-		* * * _ _ _ _ _ _ _ _ * *
-		 */
-		true, true, false, false, false, false, false, false, false, false, true, true,
-		true, true, true, false, false, false, false, false, false, true, true, true,
-		false, false, true, true, false, false, false, false, true, true, false, false,
-		false, false, true, true, false, false, false, false, true, true, false, false,
-		false, false, false, true, true, true, true, true, true, false, false, false,
-		false, false, false, false, true, false, false, true, false, false, false, false,
-		false, false, false, false, true, false, false, true, false, false, false, false,
-		false, false, false, true, true, true, true, true, true, false, false, false,
-		false, false, true, true, false, false, false, false, true, true, false, false,
-		false, false, true, true, false, false, false, false, true, true, false, false,
-		true, true, true, false, false, false, false, false, false, true, true, true,
-		true, true, false, false, false, false, false, false, false, false, true, true,
-	)
+	// 6x3 runes => 12x12 bits
+	bodyBits = braille.NewBitmapString('#',
+		"##        ##",
+		"###      ###",
+		"  ##    ##  ",
+		"  ##    ##  ",
+		"   ######   ",
+		"    #  #    ",
+		"    #  #    ",
+		"   ######   ",
+		"  ##    ##  ",
+		"  ##    ##  ",
+		"###      ###",
+		"##        ##")
 
 	bodyPosLeftHand   = image.Pt(0, 0)
 	bodyPosLeftArm    = image.Pt(1, 0)
