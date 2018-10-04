@@ -9,6 +9,7 @@ import (
 
 	"github.com/jcorbin/anansi"
 	"github.com/jcorbin/anansi/ansi"
+	"github.com/jcorbin/anansi/x/braille"
 	"github.com/jcorbin/anansi/x/platform"
 
 	"børk.com/ecs"
@@ -125,6 +126,35 @@ var (
 
 	corporealApp = entApps(playerStyle, addEntityType(gameCollides))
 	ghostApp     = entApps(spiritStyle, deleteEntityType(gameCollides))
+)
+
+var body = braille.NewBitmapData(12,
+	/* 6x3 runes => 12x12 bits
+	 * * * - _ - _ - _ - _ * *
+	 * * * * _ _ _ _ _ _ * * *
+	 * _ _ * * _ _ _ _ * * _ _
+	 * _ _ * * _ _ _ _ * * _ _
+	 * + _ _ * * * * * * _ _ _
+	 * _ _ _ _ * _ _ * _ _ _ _
+	 * _ _ _ _ * _ _ * _ _ _ _
+	 * _ _ _ * * * * * * _ _ _
+	 * + _ * * _ _ _ _ * * _ _
+	 * _ _ * * _ _ _ _ * * _ _
+	 * * * * _ _ _ _ _ _ * * *
+	 * * * _ _ _ _ _ _ _ _ * *
+	 */
+	true, true, false, false, false, false, false, false, false, false, true, true,
+	true, true, true, false, false, false, false, false, false, true, true, true,
+	false, false, true, true, false, false, false, false, true, true, false, false,
+	false, false, true, true, false, false, false, false, true, true, false, false,
+	false, false, false, true, true, true, true, true, true, false, false, false,
+	false, false, false, false, true, false, false, true, false, false, false, false,
+	false, false, false, false, true, false, false, true, false, false, false, false,
+	false, false, false, true, true, true, true, true, true, false, false, false,
+	false, false, true, true, false, false, false, false, true, true, false, false,
+	false, false, true, true, false, false, false, false, true, true, false, false,
+	true, true, true, false, false, false, false, false, false, true, true, true,
+	true, true, false, false, false, false, false, false, false, false, true, true,
 )
 
 func blueprint(t ecs.Type, rs renderStyle, goals ...goal) entitySpec {
@@ -374,6 +404,16 @@ func (g *game) Update(ctx *platform.Context) (err error) {
 
 	ctx.Output.Clear()
 	g.ren.drawRegionInto(g.view, &ctx.Output.Grid)
+
+	// at := ctx.Output.Size.Sub(body.RuneSize())
+	at := image.Pt(1, ctx.Output.Size.Y-body.RuneSize().Y)
+
+	body.CopyInto(&ctx.Output.Grid, at)
+	for p, sz := at, body.RuneSize(); p.Y < sz.Y; p.Y++ {
+		for p.X = at.X; p.X < sz.X; p.X++ {
+			ctx.Output.Cell(p).SetAttr(playerStyle.a)
+		}
+	}
 
 	// entity count in upper-left
 	if ctx.HUD.Visible {
