@@ -376,15 +376,22 @@ func (g *game) Update(ctx *platform.Context) (err error) {
 	g.ren.drawRegionInto(g.view, &ctx.Output.Grid)
 
 	// entity count in upper-left
-	ctx.Output.To(image.Pt(1, 1))
-	fmt.Fprintf(ctx.Output, "%v entities %v rooms", g.Scope.Len(), g.rooms.Used())
-	if genning {
-		fmt.Fprintf(ctx.Output, " (%v generating)", g.gen.Used())
+	if ctx.HUD.Visible {
+		pt := image.Pt(1, 2)
+		ctx.Output.To(pt)
+		fmt.Fprintf(ctx.Output, "%v entities %v rooms", g.Scope.Len(), g.rooms.Used())
+		if genning {
+			fmt.Fprintf(ctx.Output, " (%v generating)", g.gen.Used())
+		}
+
+		pt = image.Pt(0, pt.Y+1)
+		ctx.Output.To(pt)
+		fmt.Fprintf(ctx.Output, "view:%v", g.view)
+
+		pt = image.Pt(0, pt.Y+1)
+		ctx.Output.To(pt)
+		fmt.Fprintf(ctx.Output, "sim:%v", g.sim)
 	}
-	ctx.Output.To(image.Pt(1, 2))
-	fmt.Fprintf(ctx.Output, "view:%v", g.view)
-	ctx.Output.To(image.Pt(2, 3))
-	fmt.Fprintf(ctx.Output, "sim:%v", g.sim)
 
 	if g.drag.active {
 		dr := g.drag.r.Canon()
