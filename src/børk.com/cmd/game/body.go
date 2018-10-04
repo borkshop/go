@@ -49,55 +49,58 @@ func (bod *body) SetSlot(i int, r rune, a ansi.SGRAttr) {
 	bod.slotAttrs[i] = a
 }
 
-var (
-	// 6x3 runes => 12x12 bits
-	bodyBits = braille.NewBitmapString('#',
-		"##        ##",
-		"###      ###",
-		"  ##    ##  ",
-		"  ##    ##  ",
-		"   ######   ",
-		"    #  #    ",
-		"    #  #    ",
-		"   ######   ",
-		"  ##    ##  ",
-		"  ##    ##  ",
-		"###      ###",
-		"##        ##")
-
-	bodyPosLeftHand   = image.Pt(0, 0)
-	bodyPosLeftArm    = image.Pt(1, 0)
-	bodyPosLeftHead   = image.Pt(2, 0)
-	bodyPosRightHead  = image.Pt(3, 0)
-	bodyPosRightArm   = image.Pt(4, 0)
-	bodyPosRightHand  = image.Pt(5, 0)
-	bodyPosLeftSide   = image.Pt(0, 1)
-	bodyPosLeftHip    = image.Pt(1, 1)
-	bodyPosLeftTorso  = image.Pt(2, 1)
-	bodyPosRightTorso = image.Pt(3, 1)
-	bodyPosRightHip   = image.Pt(4, 1)
-	bodyPosRightSide  = image.Pt(5, 1)
-	bodyPosLeftFoot   = image.Pt(0, 2)
-	bodyPosLeftLeg    = image.Pt(1, 2)
-	bodyPosLeftTail   = image.Pt(2, 2)
-	bodyPosRightTail  = image.Pt(3, 2)
-	bodyPosRightLeg   = image.Pt(4, 2)
-	bodyPosRightFoot  = image.Pt(5, 2)
-)
-
 const (
-	bodyLeftHeadSlot = iota
-	bodyRightHeadSlot
-	bodyLeftSlot
-	bodyRightSlot
-	bodyLeftTailSlot
-	bodyRightTailSlot
+	bodyLeftHeadSlot  = iota // h
+	bodyRightHeadSlot        // H
+	bodyLeftSlot             // L
+	bodyRightSlot            // R
+	bodyLeftTailSlot         // t
+	bodyRightTailSlot        // T
 
 	bodyNumSlots
 )
 
+var (
+	// 6x3 runes => 12x12 bits
+	bodyBits = braille.NewBitmapString('#',
+		"##  hhHH  ##",
+		"### hhHH ###",
+		"  ##hhHH##  ",
+		"  ##hhHH##  ",
+		"LL ###### RR",
+		"LL  #  #  RR",
+		"LL  #  #  RR",
+		"LL ###### RR",
+		"  ##ttTT##  ",
+		"  ##ttTT##  ",
+		"### ttTT ###",
+		"##  ttTT  ##")
+
+	bodyPosLeftHand   = image.Pt(0, 0)
+	bodyPosLeftArm    = image.Pt(1, 0)
+	bodyPosLeftHead   = image.Pt(2, 0) // h
+	bodyPosRightHead  = image.Pt(3, 0) // H
+	bodyPosRightArm   = image.Pt(4, 0)
+	bodyPosRightHand  = image.Pt(5, 0)
+	bodyPosLeftSide   = image.Pt(0, 1) // L
+	bodyPosLeftHip    = image.Pt(1, 1)
+	bodyPosLeftTorso  = image.Pt(2, 1)
+	bodyPosRightTorso = image.Pt(3, 1)
+	bodyPosRightHip   = image.Pt(4, 1)
+	bodyPosRightSide  = image.Pt(5, 1) // R
+	bodyPosLeftFoot   = image.Pt(0, 2)
+	bodyPosLeftLeg    = image.Pt(1, 2)
+	bodyPosLeftTail   = image.Pt(2, 2) // t
+	bodyPosRightTail  = image.Pt(3, 2) // T
+	bodyPosRightLeg   = image.Pt(4, 2)
+	bodyPosRightFoot  = image.Pt(5, 2)
+)
+
 var bodySlotPositions = [bodyNumSlots]image.Point{
-	bodyPosLeftHead, bodyPosRightHead,
-	bodyPosLeftSide, bodyPosRightSide,
-	bodyPosLeftTail, bodyPosRightTail,
+	bodyPosLeftHead,  // h
+	bodyPosRightHead, // H
+	bodyPosLeftSide,  // L
+	bodyPosRightSide, // R
+	bodyPosLeftTail,  // t
+	bodyPosRightTail, // T
 }
