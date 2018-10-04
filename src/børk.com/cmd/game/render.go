@@ -141,11 +141,12 @@ func (rend renderable) SetZ(z int) {
 	}
 }
 
-func (rend renderable) Cell() (rune, ansi.SGRAttr) {
+func (rend renderable) Cell() (r, r2 rune, _ ansi.SGRAttr) {
 	if rend.ren == nil {
-		return 0, 0
+		return 0, 0, 0
 	}
-	return rend.ren.cell[rend.ri].r, rend.ren.cell[rend.ri].a
+	cell := rend.ren.cell[rend.ri]
+	return cell.r, cell.r2, cell.a
 }
 func (rend renderable) SetCell(r, r2 rune, a ansi.SGRAttr) {
 	if rend.ren != nil {

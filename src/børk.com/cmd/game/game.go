@@ -266,7 +266,7 @@ func (g *game) Update(ctx *platform.Context) (err error) {
 	if ctx.Input.CountRune('^')%2 == 1 {
 		for _, id := range g.ag.ids[&g.Scope][gamePlayer] {
 			if rend := g.ren.GetID(id); !rend.zero() {
-				if r, _ := rend.Cell(); r == '^' {
+				if r, _, _ := rend.Cell(); r == '^' {
 					corporealApp.apply(&g.shard, g.Entity(id))
 				} else {
 					ghostApp.apply(&g.shard, g.Entity(id))
