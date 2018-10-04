@@ -409,7 +409,7 @@ func (g *game) Update(ctx *platform.Context) (err error) {
 	at := image.Pt(1, ctx.Output.Size.Y-body.RuneSize().Y)
 
 	body.CopyInto(&ctx.Output.Grid, at)
-	for p, sz := at, body.RuneSize(); p.Y < sz.Y; p.Y++ {
+	for p, sz := at, at.Add(body.RuneSize()); p.Y < sz.Y; p.Y++ {
 		for p.X = at.X; p.X < sz.X; p.X++ {
 			ctx.Output.Cell(p).SetAttr(playerStyle.a)
 		}
