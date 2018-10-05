@@ -65,7 +65,6 @@ type shard struct {
 	gen   roomGen
 	goals goalSystem
 	items items
-	inv   inventorySystem
 }
 
 const (
@@ -78,7 +77,6 @@ const (
 	gameRoom
 	gameGen
 	gameItemInfo
-	gameInventory
 
 	gameBlueprint = gamePosition | gameRender | gameGoal
 
@@ -201,7 +199,6 @@ func (s *shard) init(g *game) {
 	s.gen.Init(s, gameGen)
 	s.goals.Init(s, gameGoal)
 	s.items.Init(s, gameItem, &g.itemDefs)
-	s.inv.Init(&s.Scope, gameInventory)
 }
 
 func (g *game) Update(ctx *platform.Context) (err error) {

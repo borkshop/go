@@ -16,39 +16,6 @@ const (
 	invItem = invPosition | invRender | invItemData
 )
 
-// inventorySystem supports attaching an inventory to an entity (in a world
-// shard).
-type inventorySystem struct {
-	ecs.ArrayIndex
-	inv []inventory
-}
-
-func (invSys *inventorySystem) Init(scope *ecs.Scope, t ecs.Type) {
-	invSys.ArrayIndex.Init(scope)
-	scope.Watch(t, 0, invSys)
-}
-
-func (invSys *inventorySystem) EntityCreated(ent ecs.Entity, _ ecs.Type) {
-	i := invSys.ArrayIndex.Insert(ent)
-	for i >= len(invSys.inv) {
-		if i < cap(invSys.inv) {
-			invSys.inv = invSys.inv[:i+1]
-		} else {
-			invSys.inv = append(invSys.inv, inventory{})
-		}
-	}
-	inv := &invSys.inv[i]
-	inv.Init()
-	inv.Clear()
-}
-
-func (invSys *inventorySystem) Get(ent ecs.Entity) *inventory {
-	if i, def := invSys.ArrayIndex.Get(ent); def {
-		return &invSys.inv[i]
-	}
-	return nil
-}
-
 // inventory implements a scope of renderable spatial entities, including
 // slots, and items.
 type inventory struct {
