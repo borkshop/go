@@ -81,10 +81,10 @@ func (ent Entity) String() string {
 }
 
 // EntityCreatedFunc is a convenience for a creation-only watcher.
-type EntityCreatedFunc func(Entity, Type)
+type EntityCreatedFunc func(e Entity, t Type)
 
 // EntityDestroyedFunc is a convenience for a destruction-only watcher.
-type EntityDestroyedFunc func(Entity, Type)
+type EntityDestroyedFunc func(e Entity, t Type)
 
 // EntityCreated calls the aliased function.
 func (f EntityCreatedFunc) EntityCreated(e Entity, t Type) { f(e, t) }

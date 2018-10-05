@@ -32,8 +32,8 @@ type Scope struct {
 // logic can then be implemented directly on this collected data, rather than
 // needing to iterate or query entity type information during update.
 type Watcher interface {
-	EntityCreated(Entity, Type)
-	EntityDestroyed(Entity, Type)
+	EntityCreated(e Entity, t Type)
+	EntityDestroyed(e Entity, t Type)
 }
 
 // Len returns the number of defined entities (with non-zero type).
