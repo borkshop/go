@@ -183,6 +183,11 @@ func newGame() *game {
 					}
 					bod.runeAttr[part.Seq()] = ansi.RGB(0x20, 0x40, 0xb0).FG()
 				}
+				for i := 0; i < bod.hands.Len(); i++ {
+					part := bod.hands.Entity(i)
+					part.AddType(bodyRune | bodyRuneAttr)
+					bod.runeAttr[part.Seq()] = ansi.RGB(0x20, 0xb0, 0x40).FG()
+				}
 			}),
 		),
 		Wall:          entSpec(gameWall, wallStyle),

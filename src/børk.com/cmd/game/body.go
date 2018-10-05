@@ -15,6 +15,7 @@ const (
 	bodyRune
 	bodyRuneAttr
 	bodySlot
+	bodyHand
 )
 
 var defaultBodyDef = bodyDef(braille.NewBitmapString('#',
@@ -31,15 +32,15 @@ var defaultBodyDef = bodyDef(braille.NewBitmapString('#',
 	"  ### ttTT ###  ",
 	"  ##  ttTT  ##  ",
 ), []bodyPartDef{
-	{Point: image.Pt(0, 0), name: "left hand slot", t: bodySlot}, // c
+	{Point: image.Pt(0, 0), name: "left hand slot", t: bodySlot | bodyHand}, // c
 	{Point: image.Pt(1, 0), name: "left hand"},
 	{Point: image.Pt(2, 0), name: "left arm"},
 	{Point: image.Pt(3, 0), name: "left head slot", t: bodySlot},  // h
 	{Point: image.Pt(4, 0), name: "right head slot", t: bodySlot}, // H
 	{Point: image.Pt(5, 0), name: "right arm"},
 	{Point: image.Pt(6, 0), name: "right hand"},
-	{Point: image.Pt(7, 0), name: "right hand slot", t: bodySlot}, // C
-	{Point: image.Pt(1, 1), name: "left side slot", t: bodySlot},  // L
+	{Point: image.Pt(7, 0), name: "right hand slot", t: bodySlot | bodyHand}, // C
+	{Point: image.Pt(1, 1), name: "left side slot", t: bodySlot},             // L
 	{Point: image.Pt(2, 1), name: "left side"},
 	{Point: image.Pt(3, 1), name: "left torso"},
 	{Point: image.Pt(4, 1), name: "right torso"},
@@ -86,6 +87,7 @@ type body struct {
 
 	parts map[string]ecs.ID
 	slots ecs.ArrayIndex
+	hands ecs.ArrayIndex
 }
 
 func (bod *body) Init(defn *bodyDefinition) {
@@ -95,12 +97,14 @@ func (bod *body) Init(defn *bodyDefinition) {
 		}
 		bod.setup = true
 		bod.slots.Init(&bod.Scope)
+		bod.hands.Init(&bod.Scope)
 		bod.Watch(bodyGridPos, 0, ecs.EntityCreatedFunc(bod.alloc))
 		bod.Watch(bodyGridPos, 0, ecs.EntityDestroyedFunc(bod.clearPart))
 		bod.Watch(bodyRune, 0, ecs.EntityDestroyedFunc(bod.clearPos))
 		bod.Watch(bodyRune, 0, ecs.EntityDestroyedFunc(bod.clearRune))
 		bod.Watch(bodyRuneAttr, 0, ecs.EntityDestroyedFunc(bod.clearRuneAttr))
 		bod.Watch(bodySlot, 0, &bod.slots)
+		bod.Watch(bodyHand, 0, &bod.hands)
 	}
 	if defn == nil {
 		return
