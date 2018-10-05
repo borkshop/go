@@ -14,6 +14,7 @@ const (
 	bodyGridPos ecs.Type = 1 << iota
 	bodyRune
 	bodyRuneAttr
+	bodySlot
 )
 
 var defaultBodyDef = bodyDef(braille.NewBitmapString('#',
@@ -30,24 +31,24 @@ var defaultBodyDef = bodyDef(braille.NewBitmapString('#',
 	"  ### ttTT ###  ",
 	"  ##  ttTT  ##  ",
 ), []bodyPartDef{
-	{Point: image.Pt(0, 0), name: "left hand slot"}, // c
+	{Point: image.Pt(0, 0), name: "left hand slot", t: bodySlot}, // c
 	{Point: image.Pt(1, 0), name: "left hand"},
 	{Point: image.Pt(2, 0), name: "left arm"},
-	{Point: image.Pt(3, 0), name: "left head slot"}, // h
-	{Point: image.Pt(4, 0), name: "right head slot"}, // H
+	{Point: image.Pt(3, 0), name: "left head slot", t: bodySlot},  // h
+	{Point: image.Pt(4, 0), name: "right head slot", t: bodySlot}, // H
 	{Point: image.Pt(5, 0), name: "right arm"},
 	{Point: image.Pt(6, 0), name: "right hand"},
-	{Point: image.Pt(7, 0), name: "right hand slot"}, // C
-	{Point: image.Pt(1, 1), name: "left side slot"}, // L
+	{Point: image.Pt(7, 0), name: "right hand slot", t: bodySlot}, // C
+	{Point: image.Pt(1, 1), name: "left side slot", t: bodySlot},  // L
 	{Point: image.Pt(2, 1), name: "left side"},
 	{Point: image.Pt(3, 1), name: "left torso"},
 	{Point: image.Pt(4, 1), name: "right torso"},
 	{Point: image.Pt(5, 1), name: "right side"},
-	{Point: image.Pt(6, 1), name: "right side slot"}, // R
+	{Point: image.Pt(6, 1), name: "right side slot", t: bodySlot}, // R
 	{Point: image.Pt(1, 2), name: "left foot"},
 	{Point: image.Pt(2, 2), name: "left leg"},
-	{Point: image.Pt(3, 2), name: "left tail slot"}, // t
-	{Point: image.Pt(4, 2), name: "right tail slot"}, // T
+	{Point: image.Pt(3, 2), name: "left tail slot", t: bodySlot},  // t
+	{Point: image.Pt(4, 2), name: "right tail slot", t: bodySlot}, // T
 	{Point: image.Pt(5, 2), name: "right leg"},
 	{Point: image.Pt(6, 2), name: "right foot"},
 })
@@ -64,6 +65,7 @@ type bodyDefinition struct {
 type bodyPartDef struct {
 	image.Point
 	name string
+	t    ecs.Type
 }
 
 func (defn *bodyDefinition) apply(s *shard, e ecs.Entity) {
@@ -83,6 +85,7 @@ type body struct {
 	runeAttr  []ansi.SGRAttr // defined for bodyRuneAttr
 
 	parts map[string]ecs.ID
+	slots ecs.ArrayIndex
 }
 
 func (bod *body) Init(defn *bodyDefinition) {
@@ -91,11 +94,13 @@ func (bod *body) Init(defn *bodyDefinition) {
 			defn = &defaultBodyDef
 		}
 		bod.setup = true
+		bod.slots.Init(&bod.Scope)
 		bod.Watch(bodyGridPos, 0, ecs.EntityCreatedFunc(bod.alloc))
 		bod.Watch(bodyGridPos, 0, ecs.EntityDestroyedFunc(bod.clearPart))
 		bod.Watch(bodyRune, 0, ecs.EntityDestroyedFunc(bod.clearPos))
 		bod.Watch(bodyRune, 0, ecs.EntityDestroyedFunc(bod.clearRune))
 		bod.Watch(bodyRuneAttr, 0, ecs.EntityDestroyedFunc(bod.clearRuneAttr))
+		bod.Watch(bodySlot, 0, &bod.slots)
 	}
 	if defn == nil {
 		return
@@ -116,6 +121,9 @@ func (bod *body) Init(defn *bodyDefinition) {
 		bod.name[i] = partDef.name
 		if partDef.name != "" {
 			bod.parts[partDef.name] = part.ID
+		}
+		if partDef.t != 0 {
+			part.AddType(partDef.t)
 		}
 	}
 

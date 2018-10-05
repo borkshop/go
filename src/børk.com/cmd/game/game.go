@@ -6,6 +6,7 @@ import (
 	"io"
 	"log"
 	"math/rand"
+	"strconv"
 
 	"github.com/jcorbin/anansi"
 	"github.com/jcorbin/anansi/ansi"
@@ -173,10 +174,15 @@ func newGame() *game {
 			entityAppFunc(func(s *shard, ent ecs.Entity) {
 				i, _ := s.bodIndex.GetID(ent.ID)
 				bod := &s.bod[i]
-				part := bod.Entity(bod.parts["right side slot"])
-				part.AddType(bodyRune | bodyRuneAttr)
-				bod.runes[part.Seq()] = 'U'
-				bod.runeAttr[part.Seq()] = ansi.RGB(0x20, 0x40, 0xb0).FG()
+				for i := 0; i < bod.slots.Len(); i++ {
+					part := bod.slots.Entity(i)
+					part.AddType(bodyRune | bodyRuneAttr)
+					for _, r := range strconv.FormatInt(int64(i), 16) {
+						bod.runes[part.Seq()] = r
+						break
+					}
+					bod.runeAttr[part.Seq()] = ansi.RGB(0x20, 0x40, 0xb0).FG()
+				}
 			}),
 		),
 		Wall:          entSpec(gameWall, wallStyle),
