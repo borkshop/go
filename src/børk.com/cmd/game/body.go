@@ -17,37 +17,39 @@ const (
 )
 
 var defaultBodyDef = bodyDef(braille.NewBitmapString('#',
-	"##  hhHH  ##",
-	"### hhHH ###",
-	"  ##hhHH##  ",
-	"  ##hhHH##  ",
-	"LL ###### RR",
-	"LL  #  #  RR",
-	"LL  #  #  RR",
-	"LL ###### RR",
-	"  ##ttTT##  ",
-	"  ##ttTT##  ",
-	"### ttTT ###",
-	"##  ttTT  ##",
+	"cc##  hhHH  ##CC",
+	"cc### hhHH ###CC",
+	"cc  ##hhHH##  CC",
+	"cc  ##hhHH##  CC",
+	"  LL ###### RR  ",
+	"  LL  #  #  RR  ",
+	"  LL  #  #  RR  ",
+	"  LL ###### RR  ",
+	"    ##ttTT##    ",
+	"    ##ttTT##    ",
+	"  ### ttTT ###  ",
+	"  ##  ttTT  ##  ",
 ), []bodyPartDef{
-	{Point: image.Pt(0, 0)},
+	{Point: image.Pt(0, 0)}, // c
 	{Point: image.Pt(1, 0)},
-	{Point: image.Pt(2, 0)}, // h
-	{Point: image.Pt(3, 0)}, // H
-	{Point: image.Pt(4, 0)},
+	{Point: image.Pt(2, 0)},
+	{Point: image.Pt(3, 0)}, // h
+	{Point: image.Pt(4, 0)}, // H
 	{Point: image.Pt(5, 0)},
-	{Point: image.Pt(0, 1)}, // L
-	{Point: image.Pt(1, 1)},
+	{Point: image.Pt(6, 0)},
+	{Point: image.Pt(7, 0)}, // C
+	{Point: image.Pt(1, 1)}, // L
 	{Point: image.Pt(2, 1)},
 	{Point: image.Pt(3, 1)},
 	{Point: image.Pt(4, 1)},
-	{Point: image.Pt(5, 1)}, // R
-	{Point: image.Pt(0, 2)},
+	{Point: image.Pt(5, 1)},
+	{Point: image.Pt(6, 1)}, // R
 	{Point: image.Pt(1, 2)},
-	{Point: image.Pt(2, 2)}, // t
-	{Point: image.Pt(3, 2)}, // T
-	{Point: image.Pt(4, 2)},
+	{Point: image.Pt(2, 2)},
+	{Point: image.Pt(3, 2)}, // t
+	{Point: image.Pt(4, 2)}, // T
 	{Point: image.Pt(5, 2)},
+	{Point: image.Pt(6, 2)},
 })
 
 func bodyDef(bi *braille.Bitmap, parts []bodyPartDef) bodyDefinition {
