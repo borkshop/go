@@ -40,13 +40,19 @@ func (inv *inventory) Init() {
 		inv.setup = true
 		inv.pos.Init(&inv.Scope, invPosition)
 		inv.ren.Init(&inv.Scope, invRender, &inv.pos)
-		inv.Scope.Watch(invSlot, 0, ecs.EntityCreatedFunc(inv.slotCreated))
-		inv.Scope.Watch(invItem, 0, ecs.EntityCreatedFunc(inv.itemCreated))
+		inv.Scope.Watch(invSlot, 0, ecs.Watchers{
+			&inv.slotIndex,
+			ecs.EntityCreatedFunc(inv.slotCreated),
+		})
+		inv.Scope.Watch(invItem, 0, ecs.Watchers{
+			&inv.itemIndex,
+			ecs.EntityCreatedFunc(inv.itemCreated),
+		})
 	}
 }
 
 func (inv *inventory) slotCreated(ent ecs.Entity, _ ecs.Type) {
-	i := inv.slotIndex.Insert(ent)
+	i, _ := inv.slotIndex.GetID(ent.ID)
 	for i >= len(inv.slotName) {
 		if i < cap(inv.slotName) {
 			inv.slotName = inv.slotName[:i+1]
@@ -58,7 +64,7 @@ func (inv *inventory) slotCreated(ent ecs.Entity, _ ecs.Type) {
 }
 
 func (inv *inventory) itemCreated(ent ecs.Entity, _ ecs.Type) {
-	i := inv.itemIndex.Insert(ent)
+	i, _ := inv.itemIndex.GetID(ent.ID)
 	for i >= len(inv.item) {
 		if i < cap(inv.item) {
 			inv.item = inv.item[:i+1]
