@@ -7,6 +7,7 @@ import (
 	"github.com/jcorbin/anansi/ansi"
 	"github.com/jcorbin/anansi/x/braille"
 
+	"børk.com/ecs"
 )
 
 var defaultBodyDef = bodyDef(braille.NewBitmapString('#',
@@ -54,6 +55,11 @@ type bodyDefinition struct {
 
 type bodyPartDef struct {
 	image.Point
+}
+
+func (defn *bodyDefinition) apply(s *shard, e ecs.Entity) {
+	i, _ := s.bodIndex.GetID(e.ID)
+	s.bod[i].Init(defn)
 }
 
 type body struct {

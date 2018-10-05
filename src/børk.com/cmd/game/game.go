@@ -65,6 +65,9 @@ type shard struct {
 	gen   roomGen
 	goals goalSystem
 	items items
+
+	bodIndex ecs.ArrayIndex
+	bod      []body
 }
 
 const (
@@ -77,6 +80,7 @@ const (
 	gameRoom
 	gameGen
 	gameItemInfo
+	gameBody
 
 	gameBlueprint = gamePosition | gameRender | gameGoal
 
@@ -163,7 +167,7 @@ func newGame() *game {
 	})
 
 	g.gen.roomGenConfig = roomGenConfig{
-		Player:        entSpec(gamePlayer, playerStyle),
+		Player:        entSpec(gamePlayer|gameBody, playerStyle, &defaultBodyDef),
 		Wall:          entSpec(gameWall, wallStyle),
 		Floor:         entSpec(gameFloor, floorStyle),
 		Door:          entSpec(gameDoor, doorStyle),
@@ -199,6 +203,21 @@ func (s *shard) init(g *game) {
 	s.gen.Init(s, gameGen)
 	s.goals.Init(s, gameGoal)
 	s.items.Init(s, gameItem, &g.itemDefs)
+	s.Scope.Watch(gameBody, 0, ecs.Watchers{
+		&s.bodIndex,
+		ecs.EntityCreatedFunc(s.bodyCreated),
+	})
+}
+
+func (s *shard) bodyCreated(e ecs.Entity, t ecs.Type) {
+	i, _ := s.bodIndex.GetID(e.ID)
+	for i >= len(s.bod) {
+		if i < cap(s.bod) {
+			s.bod = s.bod[:i+1]
+		} else {
+			s.bod = append(s.bod, body{})
+		}
+	}
 }
 
 func (g *game) Update(ctx *platform.Context) (err error) {
@@ -376,15 +395,14 @@ func (g *game) Update(ctx *platform.Context) (err error) {
 
 	for _, id := range g.ag.ids[&g.Scope][gamePlayer] {
 		player := g.Entity(id)
-		rend := g.ren.Get(player)
-		_, _, a := rend.Cell()
-
-		var bod body
-		bod.Init(&defaultBodyDef)
-
-		at.Y -= bod.Size().Y
-		bod.RenderInto(&ctx.Output.Grid, at, a)
-		at = at.Add(bod.Size()).Add(image.Pt(1, 0))
+		if i, def := g.bodIndex.Get(player); def {
+			rend := g.ren.Get(player)
+			_, _, a := rend.Cell() // TODO better integrate body attrs
+			bod := &g.bod[i]
+			at.Y -= bod.Size().Y
+			bod.RenderInto(&ctx.Output.Grid, at, a)
+			at = at.Add(bod.Size()).Add(image.Pt(1, 0))
+		}
 	}
 
 	// entity count in upper-left

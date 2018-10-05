@@ -101,8 +101,12 @@ func (as *agentSystem) EntityCreated(ent ecs.Entity, _ ecs.Type) {
 		tids = make(map[ecs.Type][]ecs.ID)
 		as.ids[ent.Scope] = tids
 	}
-	t := ent.Type()
-	tids[t] = append(tids[t], ent.ID)
+	et := ent.Type()
+	for t, ids := range tids {
+		if et.HasAll(t) {
+			tids[t] = append(ids, ent.ID)
+		}
+	}
 }
 
 func (as *agentSystem) EntityDestroyed(ent ecs.Entity, _ ecs.Type) {
