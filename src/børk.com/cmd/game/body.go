@@ -10,6 +10,12 @@ import (
 	"børk.com/ecs"
 )
 
+const (
+	bodyGridPos ecs.Type = 1 << iota
+	bodyRune
+	bodyRuneAttr
+)
+
 var defaultBodyDef = bodyDef(braille.NewBitmapString('#',
 	"##  hhHH  ##",
 	"### hhHH ###",
@@ -67,9 +73,10 @@ type body struct {
 
 	bi braille.Bitmap
 
-	gridPos  []image.Point
-	runes    []rune
-	runeAttr []ansi.SGRAttr
+	ecs.Scope                // direct indexing into:
+	gridPos   []image.Point  // always defined
+	runes     []rune         // defined for bodyRune
+	runeAttr  []ansi.SGRAttr // defined for bodyRuneAttr
 }
 
 func (bod *body) Init(defn *bodyDefinition) {
@@ -78,21 +85,54 @@ func (bod *body) Init(defn *bodyDefinition) {
 			defn = &defaultBodyDef
 		}
 		bod.setup = true
+		bod.Watch(bodyGridPos, 0, ecs.EntityCreatedFunc(bod.alloc))
+		bod.Watch(bodyRune, 0, ecs.EntityDestroyedFunc(bod.clearPos))
+		bod.Watch(bodyRune, 0, ecs.EntityDestroyedFunc(bod.clearRune))
+		bod.Watch(bodyRuneAttr, 0, ecs.EntityDestroyedFunc(bod.clearRuneAttr))
 	}
 	if defn == nil {
 		return
 	}
 
-	bod.gridPos = make([]image.Point, len(defn.parts))
-	bod.runes = make([]rune, len(defn.parts))
-	bod.runeAttr = make([]ansi.SGRAttr, len(defn.parts))
+	bod.Clear()
+
 	for i, partDef := range defn.parts {
+		bod.Create(bodyGridPos)
 		bod.gridPos[i] = partDef.Point
 	}
 
 	bod.bi = *defn.Bitmap
 	bod.bi.Bit = append(bod.bi.Bit[:0], bod.bi.Bit...)
 }
+
+func (bod *body) alloc(e ecs.Entity, _ ecs.Type) {
+	i := int(e.Seq())
+	for i >= len(bod.gridPos) {
+		if i < cap(bod.gridPos) {
+			bod.gridPos = bod.gridPos[:i+1]
+		} else {
+			bod.gridPos = append(bod.gridPos, image.ZP)
+		}
+	}
+	for i >= len(bod.runes) {
+		if i < cap(bod.runes) {
+			bod.runes = bod.runes[:i+1]
+		} else {
+			bod.runes = append(bod.runes, 0)
+		}
+	}
+	for i >= len(bod.runeAttr) {
+		if i < cap(bod.runeAttr) {
+			bod.runeAttr = bod.runeAttr[:i+1]
+		} else {
+			bod.runeAttr = append(bod.runeAttr, 0)
+		}
+	}
+}
+
+func (bod *body) clearPos(e ecs.Entity, _ ecs.Type)      { bod.gridPos[e.Seq()] = image.ZP }
+func (bod *body) clearRune(e ecs.Entity, _ ecs.Type)     { bod.runes[e.Seq()] = 0 }
+func (bod *body) clearRuneAttr(e ecs.Entity, _ ecs.Type) { bod.runeAttr[e.Seq()] = 0 }
 
 func (bod *body) Size() image.Point { return bod.bi.RuneSize() }
 
