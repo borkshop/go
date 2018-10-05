@@ -380,15 +380,7 @@ func (g *game) Update(ctx *platform.Context) (err error) {
 		_, _, a := rend.Cell()
 
 		var bod body
-		bod.Init()
-		bod.SetSlot(bodyLeftSlot, ']', ansi.RGB(0xd0, 0x60, 0x60).FG())
-
-		// g.Cell(at.Add(bodyPosLeftHead)).Set('/', ansi.RGB(0x60, 0xd0, 0x60).FG())
-		// g.Cell(at.Add(bodyPosRightHead)).Set('\\', ansi.RGB(0x60, 0xd0, 0x60).FG())
-		// g.Cell(at.Add(bodyPosLeftSide)).Set(']', ansi.RGB(0xd0, 0x60, 0x60).FG())
-		// g.Cell(at.Add(bodyPosRightSide)).Set('[', ansi.RGB(0xd0, 0x60, 0x60).FG())
-		// g.Cell(at.Add(bodyPosLeftTail)).Set('\\', ansi.RGB(0x30, 0x60, 0xd0).FG())
-		// g.Cell(at.Add(bodyPosRightTail)).Set('/', ansi.RGB(0x30, 0x60, 0xd0).FG())
+		bod.Init(&defaultBodyDef)
 
 		at.Y -= bod.Size().Y
 		bod.RenderInto(&ctx.Output.Grid, at, a)
