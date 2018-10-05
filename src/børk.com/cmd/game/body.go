@@ -30,26 +30,26 @@ var defaultBodyDef = bodyDef(braille.NewBitmapString('#',
 	"  ### ttTT ###  ",
 	"  ##  ttTT  ##  ",
 ), []bodyPartDef{
-	{Point: image.Pt(0, 0)}, // c
-	{Point: image.Pt(1, 0)},
-	{Point: image.Pt(2, 0)},
-	{Point: image.Pt(3, 0)}, // h
-	{Point: image.Pt(4, 0)}, // H
-	{Point: image.Pt(5, 0)},
-	{Point: image.Pt(6, 0)},
-	{Point: image.Pt(7, 0)}, // C
-	{Point: image.Pt(1, 1)}, // L
-	{Point: image.Pt(2, 1)},
-	{Point: image.Pt(3, 1)},
-	{Point: image.Pt(4, 1)},
-	{Point: image.Pt(5, 1)},
-	{Point: image.Pt(6, 1)}, // R
-	{Point: image.Pt(1, 2)},
-	{Point: image.Pt(2, 2)},
-	{Point: image.Pt(3, 2)}, // t
-	{Point: image.Pt(4, 2)}, // T
-	{Point: image.Pt(5, 2)},
-	{Point: image.Pt(6, 2)},
+	{Point: image.Pt(0, 0), name: "left hand slot"}, // c
+	{Point: image.Pt(1, 0), name: "left hand"},
+	{Point: image.Pt(2, 0), name: "left arm"},
+	{Point: image.Pt(3, 0), name: "left head slot"}, // h
+	{Point: image.Pt(4, 0), name: "right head slot"}, // H
+	{Point: image.Pt(5, 0), name: "right arm"},
+	{Point: image.Pt(6, 0), name: "right hand"},
+	{Point: image.Pt(7, 0), name: "right hand slot"}, // C
+	{Point: image.Pt(1, 1), name: "left side slot"}, // L
+	{Point: image.Pt(2, 1), name: "left side"},
+	{Point: image.Pt(3, 1), name: "left torso"},
+	{Point: image.Pt(4, 1), name: "right torso"},
+	{Point: image.Pt(5, 1), name: "right side"},
+	{Point: image.Pt(6, 1), name: "right side slot"}, // R
+	{Point: image.Pt(1, 2), name: "left foot"},
+	{Point: image.Pt(2, 2), name: "left leg"},
+	{Point: image.Pt(3, 2), name: "left tail slot"}, // t
+	{Point: image.Pt(4, 2), name: "right tail slot"}, // T
+	{Point: image.Pt(5, 2), name: "right leg"},
+	{Point: image.Pt(6, 2), name: "right foot"},
 })
 
 func bodyDef(bi *braille.Bitmap, parts []bodyPartDef) bodyDefinition {
@@ -63,6 +63,7 @@ type bodyDefinition struct {
 
 type bodyPartDef struct {
 	image.Point
+	name string
 }
 
 func (defn *bodyDefinition) apply(s *shard, e ecs.Entity) {
@@ -77,8 +78,11 @@ type body struct {
 
 	ecs.Scope                // direct indexing into:
 	gridPos   []image.Point  // always defined
+	name      []string       // always defined
 	runes     []rune         // defined for bodyRune
 	runeAttr  []ansi.SGRAttr // defined for bodyRuneAttr
+
+	parts map[string]ecs.ID
 }
 
 func (bod *body) Init(defn *bodyDefinition) {
@@ -88,6 +92,7 @@ func (bod *body) Init(defn *bodyDefinition) {
 		}
 		bod.setup = true
 		bod.Watch(bodyGridPos, 0, ecs.EntityCreatedFunc(bod.alloc))
+		bod.Watch(bodyGridPos, 0, ecs.EntityDestroyedFunc(bod.clearPart))
 		bod.Watch(bodyRune, 0, ecs.EntityDestroyedFunc(bod.clearPos))
 		bod.Watch(bodyRune, 0, ecs.EntityDestroyedFunc(bod.clearRune))
 		bod.Watch(bodyRuneAttr, 0, ecs.EntityDestroyedFunc(bod.clearRuneAttr))
@@ -98,9 +103,20 @@ func (bod *body) Init(defn *bodyDefinition) {
 
 	bod.Clear()
 
+	if bod.parts == nil {
+		bod.parts = make(map[string]ecs.ID, len(defn.parts))
+	} else {
+		for name := range bod.parts {
+			delete(bod.parts, name)
+		}
+	}
 	for i, partDef := range defn.parts {
-		bod.Create(bodyGridPos)
+		part := bod.Create(bodyGridPos)
 		bod.gridPos[i] = partDef.Point
+		bod.name[i] = partDef.name
+		if partDef.name != "" {
+			bod.parts[partDef.name] = part.ID
+		}
 	}
 
 	bod.bi = *defn.Bitmap
@@ -114,6 +130,13 @@ func (bod *body) alloc(e ecs.Entity, _ ecs.Type) {
 			bod.gridPos = bod.gridPos[:i+1]
 		} else {
 			bod.gridPos = append(bod.gridPos, image.ZP)
+		}
+	}
+	for i >= len(bod.name) {
+		if i < cap(bod.name) {
+			bod.name = bod.name[:i+1]
+		} else {
+			bod.name = append(bod.name, "")
 		}
 	}
 	for i >= len(bod.runes) {
@@ -132,6 +155,12 @@ func (bod *body) alloc(e ecs.Entity, _ ecs.Type) {
 	}
 }
 
+func (bod *body) clearPart(e ecs.Entity, _ ecs.Type) {
+	i := e.Seq()
+	name := bod.name[i]
+	bod.name[i] = ""
+	delete(bod.parts, name)
+}
 func (bod *body) clearPos(e ecs.Entity, _ ecs.Type)      { bod.gridPos[e.Seq()] = image.ZP }
 func (bod *body) clearRune(e ecs.Entity, _ ecs.Type)     { bod.runes[e.Seq()] = 0 }
 func (bod *body) clearRuneAttr(e ecs.Entity, _ ecs.Type) { bod.runeAttr[e.Seq()] = 0 }

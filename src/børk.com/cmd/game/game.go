@@ -167,7 +167,18 @@ func newGame() *game {
 	})
 
 	g.gen.roomGenConfig = roomGenConfig{
-		Player:        entSpec(gamePlayer|gameBody, playerStyle, &defaultBodyDef),
+		Player: entSpec(gamePlayer|gameBody,
+			playerStyle,
+			&defaultBodyDef,
+			entityAppFunc(func(s *shard, ent ecs.Entity) {
+				i, _ := s.bodIndex.GetID(ent.ID)
+				bod := &s.bod[i]
+				part := bod.Entity(bod.parts["right side slot"])
+				part.AddType(bodyRune | bodyRuneAttr)
+				bod.runes[part.Seq()] = 'U'
+				bod.runeAttr[part.Seq()] = ansi.RGB(0x20, 0x40, 0xb0).FG()
+			}),
+		),
 		Wall:          entSpec(gameWall, wallStyle),
 		Floor:         entSpec(gameFloor, floorStyle),
 		Door:          entSpec(gameDoor, doorStyle),
