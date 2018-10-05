@@ -197,11 +197,17 @@ func (ent Entity) setType(priorTyp genType, seq uint64, newType Type) bool {
 // ZE is the zero entity
 var ZE Entity
 
+// ZEs is the canonical empty Entities collection
+var ZEs Entities
+
 // Entities is a collection of entity ids from the same scope.
 type Entities struct {
 	Scope *Scope
 	IDs   []ID
 }
+
+// Len returns the size of the entity collection
+func (es Entities) Len() int { return len(es.IDs) }
 
 // ID returns the i-th entity id.
 func (es Entities) ID(i int) ID { return es.IDs[i] }
