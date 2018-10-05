@@ -36,6 +36,23 @@ type Watcher interface {
 	EntityDestroyed(e Entity, t Type)
 }
 
+// Watchers is a compound Watcher.
+type Watchers []Watcher
+
+// EntityCreated calls each watcher in order.
+func (wats Watchers) EntityCreated(e Entity, t Type) {
+	for i := 0; i < len(wats); i++ {
+		wats[i].EntityCreated(e, t)
+	}
+}
+
+// EntityDestroyed calls each watcher in reverse order.
+func (wats Watchers) EntityDestroyed(e Entity, t Type) {
+	for i := len(wats) - 1; i >= 0; i-- {
+		wats[i].EntityDestroyed(e, t)
+	}
+}
+
 // Len returns the number of defined entities (with non-zero type).
 func (sc *Scope) Len() int {
 	return len(sc.typs) - len(sc.free)
