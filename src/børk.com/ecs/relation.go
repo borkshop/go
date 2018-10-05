@@ -133,6 +133,7 @@ func (er *EntityRelation) EntityDestroyed(rel Entity, _ Type) {
 // The typ argument may provide additional type bits when being used as part of
 // a larger EntityRelation-embedding struct.
 func (er *EntityRelation) Insert(typ Type, aid, bid ID) Entity {
+	// TODO take Entity args for safety
 	rel := er.Scope.Create(TypeEntityRelation | typ)
 	i := rel.Seq()
 	er.aid[i] = aid
@@ -148,6 +149,7 @@ func (er *EntityRelation) Insert(typ Type, aid, bid ID) Entity {
 // NOTE The returned batch of Entities is only valid until the next call to
 // InsertMany, and MUST NOT be retained.
 func (er *EntityRelation) InsertMany(typ Type, aid ID, bids ...ID) Entities {
+	// TODO take Entity, Entities args for safety
 	er.tmp = er.tmp[:0]
 	if cap(er.tmp) < len(bids) {
 		er.tmp = make([]ID, 0, len(bids))
