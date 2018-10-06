@@ -44,27 +44,27 @@ func (ren *render) Init(scope *ecs.Scope, t ecs.Type, pos *position) {
 
 func (ren *render) drawRegionInto(view image.Rectangle, grid *anansi.Grid) {
 	ren.rezort(ren.pos.Within(view))
+	ren.drawZordOff(view.Min, grid)
+}
+
+func (ren *render) drawZordOff(off image.Point, grid *anansi.Grid) {
 	for ii := range ren.zord.ri {
 		ri := ren.zord.ri[ii]
 		pi := ren.zord.pi[ii]
 		posd := positioned{ren.pos, pi}
-		if pt := posd.Point(); pt.In(view) {
-
-			pt = pt.Sub(view.Min)
-			pt.X *= 2
-
-			c1 := grid.Cell(pt)
-			c2 := grid.Cell(pt.Add(image.Pt(1, 0)))
-			if c1.Rune() == 0 {
-				c1.Set(ren.cell[ri].r, ren.cell[ri].a)
-				c2.Set(ren.cell[ri].r2, ren.cell[ri].a)
-			} else {
-				a := c1.Attr()
-				if _, bgSet := a.BG(); !bgSet {
-					if color, haveBG := ren.cell[ri].a.BG(); haveBG {
-						c1.SetAttr(a | color.BG())
-						c2.SetAttr(a | color.BG())
-					}
+		pt := posd.Point().Sub(off)
+		pt.X *= 2
+		c1 := grid.Cell(pt)
+		c2 := grid.Cell(pt.Add(image.Pt(1, 0)))
+		if c1.Rune() == 0 {
+			c1.Set(ren.cell[ri].r, ren.cell[ri].a)
+			c2.Set(ren.cell[ri].r2, ren.cell[ri].a)
+		} else {
+			a := c1.Attr()
+			if _, bgSet := a.BG(); !bgSet {
+				if color, haveBG := ren.cell[ri].a.BG(); haveBG {
+					c1.SetAttr(a | color.BG())
+					c2.SetAttr(a | color.BG())
 				}
 			}
 		}
