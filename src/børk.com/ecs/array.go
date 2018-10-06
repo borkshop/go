@@ -17,6 +17,16 @@ func (ai *ArrayIndex) Init(scope *Scope) {
 	}
 }
 
+// Reset clears all index state, and nils the Scope, preparing it for re-Init.
+func (ai *ArrayIndex) Reset() {
+	for id := range ai.ix {
+		delete(ai.ix, id)
+	}
+	ai.id = ai.id[:0]
+	ai.free = ai.free[:0]
+	ai.Scope = nil
+}
+
 // Len returns how many id slots have been allocated.
 func (ai *ArrayIndex) Len() int { return len(ai.id) }
 
