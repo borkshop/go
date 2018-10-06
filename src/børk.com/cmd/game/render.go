@@ -158,6 +158,11 @@ func (rend renderable) Entity() ecs.Entity {
 	return rend.ren.Scope.Entity(rend.ren.ID(rend.ri))
 }
 
+func (rend renderable) Apply(st renderStyle) {
+	rend.SetZ(st.z)
+	rend.SetCell(st.r, st.r2, st.a)
+}
+
 func (rend renderable) String() string {
 	if rend.ren == nil {
 		return fmt.Sprintf("no-render")
@@ -188,8 +193,4 @@ func (st renderStyle) String() string {
 	return fmt.Sprintf("z:%v rune:%q attr:%v", st.z, st.r, st.a)
 }
 
-func (st renderStyle) apply(s *shard, ent ecs.Entity) {
-	rend := s.ren.Get(ent)
-	rend.SetZ(st.z)
-	rend.SetCell(st.r, st.r2, st.a)
-}
+func (st renderStyle) apply(s *shard, ent ecs.Entity) { s.ren.Get(ent).Apply(st) }
