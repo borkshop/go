@@ -84,6 +84,9 @@ type Entity struct {
 }
 
 func (ent Entity) String() string {
+	if ent == ZE {
+		   return "ZeroEntity"
+	}
 	return fmt.Sprintf("entity(%p %v %v)", ent.Scope, ent.ID, ent.Type())
 }
 
