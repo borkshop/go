@@ -12,7 +12,7 @@ import (
 )
 
 type render struct {
-	pos *position
+	spc *space
 	ecs.ArrayIndex
 	cell []cell
 	zord renderZord
@@ -36,14 +36,20 @@ type cell struct {
 	a     ansi.SGRAttr
 }
 
-func (ren *render) Init(scope *ecs.Scope, t ecs.Type, pos *position) {
-	ren.pos = pos
+func (ren *render) Init(scope *ecs.Scope, t ecs.Type, spc *space) {
+	if spc == nil {
+		panic("no space to render")
+	}
+	ren.spc = spc
 	ren.ArrayIndex.Init(scope)
 	scope.Watch(t, 0, ren)
 }
 
 func (ren *render) drawRegionInto(view image.Rectangle, grid *anansi.Grid) {
-	ren.rezort(ren.pos.Within(view))
+	if ren.spc.bounds != image.ZR {
+		view = view.Intersect(ren.spc.bounds)
+	}
+	ren.rezort(ren.spc.Within(view))
 	ren.drawZordOff(view.Min, grid)
 }
 
@@ -51,7 +57,7 @@ func (ren *render) drawZordOff(off image.Point, grid *anansi.Grid) {
 	for ii := range ren.zord.ri {
 		ri := ren.zord.ri[ii]
 		pi := ren.zord.pi[ii]
-		posd := positioned{ren.pos, pi}
+		posd := positioned{ren.spc, pi}
 		pt := posd.Point().Sub(off)
 		pt.X *= 2
 		c1 := grid.Cell(pt)
@@ -117,14 +123,14 @@ type renderable struct {
 
 func (ren *render) Get(ent ecs.Entity) renderable {
 	if ri, def := ren.ArrayIndex.Get(ent); def {
-		return renderable{ren.pos.GetID(ent.ID), ren, ri}
+		return renderable{ren.spc.GetID(ent.ID), ren, ri}
 	}
 	return renderable{}
 }
 
 func (ren *render) GetID(id ecs.ID) renderable {
 	if ri, def := ren.ArrayIndex.GetID(id); def {
-		return renderable{ren.pos.GetID(id), ren, ri}
+		return renderable{ren.spc.GetID(id), ren, ri}
 	}
 	return renderable{}
 }

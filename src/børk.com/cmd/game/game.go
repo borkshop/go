@@ -72,7 +72,8 @@ type shard struct {
 }
 
 const (
-	gamePosition ecs.Type = 1 << iota
+	gameSpace ecs.Type = 1 << iota
+	gamePosition
 	gameRender
 	gameCollides
 	gameInput
@@ -219,8 +220,8 @@ func (g *game) init() {
 }
 
 func (s *shard) init(g *game) {
-	s.pos.Init(&s.Scope, gamePosition)
-	s.ren.Init(&s.Scope, gamePosition|gameRender, &s.pos)
+	s.pos.Init(&s.Scope, gameSpace, gamePosition)
+	s.ren.Init(&s.Scope, gamePosition|gameRender, s.pos.Space(ecs.ZE))
 	s.rooms.Init(s, gameRoom)
 	s.gen.Init(s, gameGen)
 	s.goals.Init(s, gameGoal)
