@@ -57,24 +57,40 @@ func (ai *ArrayIndex) EntityDestroyed(ent Entity, _ Type) { ai.Delete(ent) }
 
 // Insert index entries for the given entity, re-using from the free list if
 // possible. Returns the array index that should be used for the new entity.
-func (ai *ArrayIndex) Insert(ent Entity) (i int) {
+func (ai *ArrayIndex) Insert(ent Entity) int {
+	if ent == ZE {
+		if len(ai.id) > 0 {
+			panic("invalid zero entity definition")
+		}
+		return ai.assign(0, 0)
+	}
+
 	if ai.Scope == nil {
 		ai.Scope = ent.Scope
 	} else if ent.Scope != ai.Scope {
 		panic("multi-scope use of ArrayIndex")
 	}
+	if j := len(ai.free) - 1; j >= 0 {
+		i := ai.assign(ent.ID, ai.free[j])
+		ai.free = ai.free[:j]
+		return i
+	}
+	return ai.assign(ent.ID, len(ai.id))
+}
+
+func (ai *ArrayIndex) assign(id ID, i int) int {
+	for i >= len(ai.id) {
+		if i < cap(ai.id) {
+			ai.id = ai.id[:i+1]
+		} else {
+			ai.id = append(ai.id, 0)
+		}
+	}
 	if ai.ix == nil {
 		ai.ix = make(map[ID]int, 64)
 	}
-	if j := len(ai.free) - 1; j >= 0 {
-		i = ai.free[j]
-		ai.free = ai.free[:j]
-		ai.id[i] = ent.ID
-	} else {
-		i = len(ai.id)
-		ai.id = append(ai.id, ent.ID)
-	}
-	ai.ix[ent.ID] = i
+	ai.id[i] = id
+	ai.ix[id] = i
 	return i
 }
 
@@ -96,7 +112,10 @@ func (ai *ArrayIndex) Delete(ent Entity) (i int, def bool) {
 // Get returns the index defined for the given entity and true, only if the
 // entity has been created under this ArrayIndex.
 func (ai *ArrayIndex) Get(ent Entity) (i int, def bool) {
-	if ai.Scope != nil && ent.Scope != ai.Scope {
+	if ent.Scope == nil {
+		return ai.GetID(0)
+	}
+	if ent.Scope != ai.Scope {
 		return 0, false
 	}
 	return ai.GetID(ent.ID)
