@@ -159,7 +159,7 @@ func (sc *Scope) CreateN(newType Type, n int) (es Entities) {
 // Panics if the ID is invalid.
 func (sc *Scope) Entity(id ID) Entity {
 	if id == 0 {
-		return Entity{}
+		return ZE
 	}
 	ent := Entity{sc, id}
 	ent.typ() // check gen
