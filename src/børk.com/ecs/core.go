@@ -13,6 +13,13 @@ const (
 	idSeqMask ID = 0x00ffffffffffffff // 56-bit id
 )
 
+// Seq returns sequence number within the ID; should only be used for direct
+// indexing when the ID is known to belong to the relevant scope.
+func (id ID) Seq() uint64 {
+	_, seq := id.genseq()
+	return seq
+}
+
 // String representation of the ID, clearly shows the sequence and generation
 // numbers.
 func (id ID) String() string {
