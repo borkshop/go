@@ -96,6 +96,16 @@ type EntityCreatedFunc func(e Entity, t Type)
 // EntityDestroyedFunc is a convenience for a destruction-only watcher.
 type EntityDestroyedFunc func(e Entity, t Type)
 
+// EntityWatcherFuncs is a convenience for a watcher of two function pointers.
+type EntityWatcherFuncs struct {
+	Created, Destroyed func(e Entity, t Type)
+}
+
+// EntityWatcher is a further conenience for created an EntityWatcherFuncs value.
+func EntityWatcher(c, d func(e Entity, t Type)) EntityWatcherFuncs {
+	return EntityWatcherFuncs{ c, d }
+}
+
 // EntityCreated calls the aliased function.
 func (f EntityCreatedFunc) EntityCreated(e Entity, t Type) { f(e, t) }
 
@@ -107,6 +117,12 @@ func (f EntityDestroyedFunc) EntityCreated(e Entity, t Type) {}
 
 // EntityDestroyed calls the aliased function.
 func (f EntityDestroyedFunc) EntityDestroyed(e Entity, t Type) { f(e, t) }
+
+// EntityCreated calls the Created field's function.
+func (fs EntityWatcherFuncs) EntityCreated(e Entity, t Type) { fs.Created(e, t) }
+
+// EntityDestroyed calls the Destroyed field's function.
+func (fs EntityWatcherFuncs) EntityDestroyed(e Entity, t Type) { fs.Destroyed(e, t) }
 
 // Destroy the Entity; a convenience for SetType(0).
 func (ent Entity) Destroy() bool {
