@@ -45,6 +45,11 @@ func (ren *render) Init(scope *ecs.Scope, t ecs.Type, spc *space) {
 	scope.Watch(t, 0, ren)
 }
 
+func (ren *render) drawInto(grid *anansi.Grid) {
+	ren.rezort(ren.spc.Within(ren.spc.bounds))
+	ren.drawZordOff(ren.spc.bounds.Min, grid)
+}
+
 func (ren *render) drawRegionInto(view image.Rectangle, grid *anansi.Grid) {
 	if ren.spc.bounds != image.ZR {
 		view = view.Intersect(ren.spc.bounds)
