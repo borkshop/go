@@ -35,10 +35,10 @@ type Room struct {
 	At, Size                                         image.Point
 	NorthMargin, SouthMargin, WestMargin, EastMargin int
 	NorthWall, SouthWall, WestWall, EastWall         bool
-	NorthDoor, SouthDoor, WestDoor, EastDoor         int
+	NorthDoor, SouthDoor, WestDoor, EastDoor         bool
 }
 
-// DescribeRoom describes a room at a particular position.
+// DescribeRoom describes a room at a particular coördinate on a Hilbert space.
 func DescribeRoom(at image.Point) Room {
 	room := Room{}
 
@@ -52,10 +52,10 @@ func DescribeRoom(at image.Point) Room {
 	leftMarginRand := xorshiftstar.New(at.X * 2)
 	rightMarginRand := xorshiftstar.New(at.X*2 + 1)
 
-	room.NorthMargin = int(1 + topMarginRand.Uint64()%7)
-	room.SouthMargin = int(1 + bottomMarginRand.Uint64()%7)
-	room.WestMargin = int(1 + leftMarginRand.Uint64()%7)
-	room.EastMargin = int(1 + rightMarginRand.Uint64()%7)
+	room.NorthMargin = int(2 + topMarginRand.Uint64()%5)
+	room.SouthMargin = int(2 + bottomMarginRand.Uint64()%5)
+	room.WestMargin = int(2 + leftMarginRand.Uint64()%5)
+	room.EastMargin = int(2 + rightMarginRand.Uint64()%5)
 
 	width := int(1 + room.WestMargin + room.EastMargin)
 	height := int(1 + room.NorthMargin + room.SouthMargin)
@@ -76,8 +76,8 @@ func DescribeRoom(at image.Point) Room {
 	default:
 		room.NorthWall = true
 		rng := xorshiftstar.New(room.Hilbert ^ hilbertNorth)
-		if rng.Uint64()%3 == 1 {
-			room.NorthDoor = int(1+rng.Uint64()) % (width - 2)
+		if rng.Uint64()%4 == 0 {
+			room.NorthDoor = true
 		}
 	}
 
@@ -86,8 +86,8 @@ func DescribeRoom(at image.Point) Room {
 	default:
 		room.SouthWall = true
 		rng := xorshiftstar.New(room.Hilbert ^ hilbertSouth)
-		if rng.Uint64()%3 == 1 {
-			room.SouthDoor = int(1+rng.Uint64()) % (width - 2)
+		if rng.Uint64()%4 == 0 {
+			room.SouthDoor = true
 		}
 	}
 
@@ -96,8 +96,8 @@ func DescribeRoom(at image.Point) Room {
 	default:
 		room.WestWall = true
 		rng := xorshiftstar.New(room.Hilbert ^ hilbertWest)
-		if rng.Uint64()%3 == 1 {
-			room.WestDoor = int(1+rng.Uint64()) % (height - 2)
+		if rng.Uint64()%4 == 0 {
+			room.WestDoor = true
 		}
 	}
 
@@ -106,8 +106,8 @@ func DescribeRoom(at image.Point) Room {
 	default:
 		room.EastWall = true
 		rng := xorshiftstar.New(room.Hilbert ^ hilbertEast)
-		if rng.Uint64()%3 == 1 {
-			room.EastDoor = int(1+rng.Uint64()) % (height - 2)
+		if rng.Uint64()%4 == 0 {
+			room.EastDoor = true
 		}
 	}
 

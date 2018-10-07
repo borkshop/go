@@ -123,6 +123,7 @@ var (
 	spiritStyle    = renStyle(50, '}', '{', ansi.SGRAttrBold|ansi.RGB(0x60, 0xd0, 0xb0).FG())
 	wallStyle      = renStyle(5, '#', '#', ansi.SGRAttrBold|ansi.RGB(0x18, 0x18, 0x18).BG()|ansi.RGB(0x30, 0x30, 0x30).FG())
 	floorStyle     = renStyle(4, '·', '·', ansi.RGB(0x10, 0x10, 0x10).BG()|ansi.RGB(0x18, 0x18, 0x18).FG())
+	aisleStyle     = renStyle(4, '·', '·', ansi.RGB(0x40, 0x40, 0x40).BG()|ansi.RGB(0x18, 0x18, 0x18).FG())
 	doorStyle      = renStyle(6, '⫤', '⊫', ansi.RGB(0x18, 0x18, 0x18).BG()|ansi.RGB(0x60, 0x40, 0x30).FG())
 	blueprintStyle = renStyle(15, '?', '¿', ansi.RGB(0x08, 0x18, 0x28).BG()|ansi.RGB(0x50, 0x60, 0x70).FG())
 
@@ -192,6 +193,7 @@ func newGame() *game {
 		),
 		Wall:          entSpec(gameWall, wallStyle),
 		Floor:         entSpec(gameFloor, floorStyle),
+		Aisle:         entSpec(gameFloor, aisleStyle),
 		Door:          entSpec(gameDoor, doorStyle),
 		PlaceAttempts: 3,
 		RoomSize:      image.Rect(5, 3, 21, 13),
@@ -325,8 +327,7 @@ func (g *game) Update(ctx *platform.Context) (err error) {
 				r := g.rooms.GetID(id)
 				log.Printf("add spawn in id:%v r:%v", id, r)
 				spawn := g.Create(gameSpawnPoint)
-				mid := r.Min.Add(r.Size().Div(2))
-				g.pos.Get(spawn).SetPoint(mid)
+				g.pos.Get(spawn).SetPoint(image.ZP)
 				g.rooms.parts.Insert(0, id, spawn.ID)
 			}
 
