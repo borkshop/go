@@ -422,7 +422,7 @@ func (g *game) Update(ctx *platform.Context) (err error) {
 			_, _, a := rend.Cell() // TODO better integrate body attrs
 			bod := &g.bod[i]
 			at.Y -= bod.Size().Y
-			bod.RenderInto(&ctx.Output.Grid, at, a)
+			bod.RenderInto(ctx.Output.Grid, at, a)
 			at = at.Add(bod.Size()).Add(image.Pt(1, 0))
 		}
 	}

@@ -179,8 +179,11 @@ func (bod *body) clearRuneAttr(e ecs.Entity, _ ecs.Type) { bod.runeAttr[e.Seq()]
 
 func (bod *body) Size() image.Point { return bod.bi.RuneSize() }
 
-func (bod *body) RenderInto(g *anansi.Grid, at image.Point, a ansi.SGRAttr) {
-	bod.bi.CopyInto(g, at, true, a)
+func (bod *body) RenderInto(g anansi.Grid, at image.Point, a ansi.SGRAttr) {
+	bod.bi.CopyInto(g, at,
+		braille.FillStyle(0),
+		braille.AttrStyle(a),
+	)
 	for i, r := range bod.runes {
 		if r != 0 {
 			cell := g.Cell(at.Add(bod.gridPos[i]))
