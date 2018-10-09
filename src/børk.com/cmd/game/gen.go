@@ -110,95 +110,142 @@ func (gen *roomGen) expandSimRegion(r image.Rectangle) image.Rectangle {
 
 func (gen *roomGen) run(within image.Rectangle) bool {
 	if !gen.done {
-		room := borkgen.DescribeRoom(image.Pt(2, 3))
+		room := borkgen.DescribeRoom(image.ZP)
 
-		// center
-		gen.builder.spec = gen.Aisle
-		gen.builder.moveTo(image.ZP)
-		gen.builder.create()
-
-		// corners
-		gen.wallOrFloor(room.NorthWall || room.WestWall)
-		gen.builder.fill(image.Rectangle{image.ZP, image.Pt(1, 1)}.
-			Add(image.Pt(-room.WestMargin-1, -room.NorthMargin-1)))
-		gen.wallOrFloor(room.NorthWall || room.EastWall)
-		gen.builder.fill(image.Rectangle{image.ZP, image.Pt(1, 1)}.
-			Add(image.Pt(room.EastMargin+1, -room.NorthMargin-1)))
-		gen.wallOrFloor(room.SouthWall || room.WestWall)
-		gen.builder.fill(image.Rectangle{image.ZP, image.Pt(1, 1)}.
-			Add(image.Pt(-room.WestMargin-1, room.SouthMargin+1)))
-		gen.wallOrFloor(room.SouthWall || room.EastWall)
-		gen.builder.fill(image.Rectangle{image.ZP, image.Pt(1, 1)}.
-			Add(image.Pt(room.EastMargin+1, room.SouthMargin+1)))
-
-		// aisles
-		gen.floorOrAisle(!room.NorthWall)
-		gen.builder.fill(image.Rectangle{image.ZP, image.Pt(1, room.NorthMargin)}.
-			Add(image.Pt(0, -room.NorthMargin)))
-		gen.floorOrAisle(!room.SouthWall)
-		gen.builder.fill(image.Rectangle{image.ZP, image.Pt(1, room.SouthMargin)}.
-			Add(image.Pt(0, 1)))
-		gen.floorOrAisle(!room.WestWall)
-		gen.builder.fill(image.Rectangle{image.ZP, image.Pt(room.WestMargin, 1)}.
-			Add(image.Pt(-room.WestMargin, 0)))
-		gen.floorOrAisle(!room.EastWall)
-		gen.builder.fill(image.Rectangle{image.ZP, image.Pt(room.EastMargin, 1)}.
-			Add(image.Pt(1, 0)))
-
-		// floor quadrants
-		gen.builder.spec = gen.Floor
-		gen.builder.fill(image.Rectangle{image.ZP, image.Pt(room.WestMargin, room.NorthMargin)}.
-			Add(image.Pt(-room.WestMargin, -room.NorthMargin)))
-		gen.builder.fill(image.Rectangle{image.ZP, image.Pt(room.WestMargin, room.SouthMargin)}.
-			Add(image.Pt(-room.WestMargin, 1)))
-		gen.builder.fill(image.Rectangle{image.ZP, image.Pt(room.EastMargin, room.NorthMargin)}.
-			Add(image.Pt(1, -room.NorthMargin)))
-		gen.builder.fill(image.Rectangle{image.ZP, image.Pt(room.EastMargin, room.SouthMargin)}.
-			Add(image.Pt(1, 1)))
-
-		// north wall segments
-		gen.wallOrFloor(room.NorthWall)
-		gen.builder.fill(image.Rectangle{image.ZP, image.Pt(room.WestMargin, 1)}.
-			Add(image.Pt(-room.WestMargin, -room.NorthMargin-1)))
-		gen.builder.fill(image.Rectangle{image.ZP, image.Pt(room.EastMargin, 1)}.
-			Add(image.Pt(1, -room.NorthMargin-1)))
-		gen.maybeDoor(room.NorthWall, room.NorthDoor)
-		gen.builder.fill(image.Rectangle{image.ZP, image.Pt(1, 1)}.
-			Add(image.Pt(0, -room.NorthMargin-1)))
-
-		// south wall segments
-		gen.wallOrFloor(room.SouthWall)
-		gen.builder.fill(image.Rectangle{image.ZP, image.Pt(room.WestMargin, 1)}.
-			Add(image.Pt(-room.WestMargin, room.SouthMargin+1)))
-		gen.builder.fill(image.Rectangle{image.ZP, image.Pt(room.EastMargin, 1)}.
-			Add(image.Pt(1, room.SouthMargin+1)))
-		gen.maybeDoor(room.SouthWall, room.SouthDoor)
-		gen.builder.fill(image.Rectangle{image.ZP, image.Pt(1, 1)}.
-			Add(image.Pt(0, room.SouthMargin+1)))
-
-		// west wall segments
-		gen.wallOrFloor(room.WestWall)
-		gen.builder.fill(image.Rectangle{image.ZP, image.Pt(1, room.NorthMargin)}.
-			Add(image.Pt(-room.WestMargin-1, -room.NorthMargin)))
-		gen.builder.fill(image.Rectangle{image.ZP, image.Pt(1, room.SouthMargin)}.
-			Add(image.Pt(-room.WestMargin-1, 1)))
-		gen.maybeDoor(room.WestWall, room.WestDoor)
-		gen.builder.fill(image.Rectangle{image.ZP, image.Pt(1, 1)}.
-			Add(image.Pt(-room.WestMargin-1, 0)))
-
-		// east wall segments
-		gen.wallOrFloor(room.EastWall)
-		gen.builder.fill(image.Rectangle{image.ZP, image.Pt(1, room.NorthMargin)}.
-			Add(image.Pt(room.EastMargin+1, -room.NorthMargin)))
-		gen.builder.fill(image.Rectangle{image.ZP, image.Pt(1, room.SouthMargin)}.
-			Add(image.Pt(room.EastMargin+1, 1)))
-		gen.maybeDoor(room.EastWall, room.EastDoor)
-		gen.builder.fill(image.Rectangle{image.ZP, image.Pt(1, 1)}.
-			Add(image.Pt(room.EastMargin+1, 0)))
-
+		// find the northwest corner of the visible region
+		for room.Pt.X > within.Min.X {
+			room = room.At(image.Pt(room.HilbertPt.X-1, room.HilbertPt.Y))
+		}
+		for room.Pt.Y > within.Min.Y {
+			room = room.At(image.Pt(room.HilbertPt.X, room.HilbertPt.Y-1))
+		}
+		// draw rooms in boustrophedron
+		for room.Pt.Y < within.Max.Y {
+			for room.Pt.X < within.Max.X {
+				gen.genRoom(room)
+				room = room.At(image.Pt(room.HilbertPt.X+1, room.HilbertPt.Y))
+			}
+			room = room.At(image.Pt(room.HilbertPt.X, room.HilbertPt.Y+1))
+			for room.Pt.X > within.Min.X {
+				gen.genRoom(room)
+				room = room.At(image.Pt(room.HilbertPt.X-1, room.HilbertPt.Y))
+			}
+			room = room.At(image.Pt(room.HilbertPt.X, room.HilbertPt.Y+1))
+		}
 		gen.done = true
 	}
 	return false
+}
+
+func (gen *roomGen) genRoom(room *borkgen.Room) {
+	// center
+	gen.builder.spec = gen.Aisle
+	gen.builder.moveTo(room.Pt)
+	gen.builder.create()
+
+	// corners
+	// gen.wallOrFloor(room.NorthWall || room.WestWall)
+	gen.builder.spec = gen.Wall
+	gen.builder.fill(image.Rectangle{image.ZP, image.Pt(1, 1)}.
+		Add(image.Pt(-room.WestMargin-1, -room.NorthMargin-1)).
+		Add(room.Pt))
+	// gen.wallOrFloor(room.NorthWall || room.EastWall)
+	gen.builder.fill(image.Rectangle{image.ZP, image.Pt(1, 1)}.
+		Add(image.Pt(room.EastMargin+1, -room.NorthMargin-1)).
+		Add(room.Pt))
+	// gen.wallOrFloor(room.SouthWall || room.WestWall)
+	gen.builder.fill(image.Rectangle{image.ZP, image.Pt(1, 1)}.
+		Add(image.Pt(-room.WestMargin-1, room.SouthMargin+1)).
+		Add(room.Pt))
+	// gen.wallOrFloor(room.SouthWall || room.EastWall)
+	gen.builder.fill(image.Rectangle{image.ZP, image.Pt(1, 1)}.
+		Add(image.Pt(room.EastMargin+1, room.SouthMargin+1)).
+		Add(room.Pt))
+
+	// aisles
+	gen.floorOrAisle(!room.NorthWall)
+	gen.builder.fill(image.Rectangle{image.ZP, image.Pt(1, room.NorthMargin)}.
+		Add(image.Pt(0, -room.NorthMargin)).
+		Add(room.Pt))
+	gen.floorOrAisle(!room.SouthWall)
+	gen.builder.fill(image.Rectangle{image.ZP, image.Pt(1, room.SouthMargin)}.
+		Add(image.Pt(0, 1)).
+		Add(room.Pt))
+	gen.floorOrAisle(!room.WestWall)
+	gen.builder.fill(image.Rectangle{image.ZP, image.Pt(room.WestMargin, 1)}.
+		Add(image.Pt(-room.WestMargin, 0)).
+		Add(room.Pt))
+	gen.floorOrAisle(!room.EastWall)
+	gen.builder.fill(image.Rectangle{image.ZP, image.Pt(room.EastMargin, 1)}.
+		Add(image.Pt(1, 0)).
+		Add(room.Pt))
+
+	// floor quadrants
+	gen.builder.spec = gen.Floor
+	gen.builder.fill(image.Rectangle{image.ZP, image.Pt(room.WestMargin, room.NorthMargin)}.
+		Add(image.Pt(-room.WestMargin, -room.NorthMargin)).
+		Add(room.Pt))
+	gen.builder.fill(image.Rectangle{image.ZP, image.Pt(room.WestMargin, room.SouthMargin)}.
+		Add(image.Pt(-room.WestMargin, 1)).
+		Add(room.Pt))
+	gen.builder.fill(image.Rectangle{image.ZP, image.Pt(room.EastMargin, room.NorthMargin)}.
+		Add(image.Pt(1, -room.NorthMargin)).
+		Add(room.Pt))
+	gen.builder.fill(image.Rectangle{image.ZP, image.Pt(room.EastMargin, room.SouthMargin)}.
+		Add(image.Pt(1, 1)).
+		Add(room.Pt))
+
+	// north wall segments
+	gen.wallOrFloor(room.NorthWall)
+	gen.builder.fill(image.Rectangle{image.ZP, image.Pt(room.WestMargin, 1)}.
+		Add(image.Pt(-room.WestMargin, -room.NorthMargin-1)).
+		Add(room.Pt))
+	gen.builder.fill(image.Rectangle{image.ZP, image.Pt(room.EastMargin, 1)}.
+		Add(image.Pt(1, -room.NorthMargin-1)).
+		Add(room.Pt))
+	gen.maybeDoor(room.NorthWall, room.NorthDoor)
+	gen.builder.fill(image.Rectangle{image.ZP, image.Pt(1, 1)}.
+		Add(image.Pt(0, -room.NorthMargin-1)).
+		Add(room.Pt))
+
+	// south wall segments
+	gen.wallOrFloor(room.SouthWall)
+	gen.builder.fill(image.Rectangle{image.ZP, image.Pt(room.WestMargin, 1)}.
+		Add(image.Pt(-room.WestMargin, room.SouthMargin+1)).
+		Add(room.Pt))
+	gen.builder.fill(image.Rectangle{image.ZP, image.Pt(room.EastMargin, 1)}.
+		Add(image.Pt(1, room.SouthMargin+1)).
+		Add(room.Pt))
+	gen.maybeDoor(room.SouthWall, room.SouthDoor)
+	gen.builder.fill(image.Rectangle{image.ZP, image.Pt(1, 1)}.
+		Add(image.Pt(0, room.SouthMargin+1)).
+		Add(room.Pt))
+
+	// west wall segments
+	gen.wallOrFloor(room.WestWall)
+	gen.builder.fill(image.Rectangle{image.ZP, image.Pt(1, room.NorthMargin)}.
+		Add(image.Pt(-room.WestMargin-1, -room.NorthMargin)).
+		Add(room.Pt))
+	gen.builder.fill(image.Rectangle{image.ZP, image.Pt(1, room.SouthMargin)}.
+		Add(image.Pt(-room.WestMargin-1, 1)).
+		Add(room.Pt))
+	gen.maybeDoor(room.WestWall, room.WestDoor)
+	gen.builder.fill(image.Rectangle{image.ZP, image.Pt(1, 1)}.
+		Add(image.Pt(-room.WestMargin-1, 0)).
+		Add(room.Pt))
+
+	// east wall segments
+	gen.wallOrFloor(room.EastWall)
+	gen.builder.fill(image.Rectangle{image.ZP, image.Pt(1, room.NorthMargin)}.
+		Add(image.Pt(room.EastMargin+1, -room.NorthMargin)).
+		Add(room.Pt))
+	gen.builder.fill(image.Rectangle{image.ZP, image.Pt(1, room.SouthMargin)}.
+		Add(image.Pt(room.EastMargin+1, 1)).
+		Add(room.Pt))
+	gen.maybeDoor(room.EastWall, room.EastDoor)
+	gen.builder.fill(image.Rectangle{image.ZP, image.Pt(1, 1)}.
+		Add(image.Pt(room.EastMargin+1, 0)).
+		Add(room.Pt))
 }
 
 func (gen *roomGen) wallOrFloor(wall bool) {
