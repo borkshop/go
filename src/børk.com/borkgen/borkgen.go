@@ -10,7 +10,9 @@ import (
 
 const (
 	// Scale is the height and width of the warehouse Hilbert curve.
-	Scale = 16
+	Scale = 256
+	// Area is the area of the Hilbert curve
+	Area = Scale * Scale
 	// Hilbert is the Hilbert curve of the warehouse.
 	Hilbert = hilbert.Scale(Scale)
 	// DoorChance is the number of walls of which one is likely to be a door.
@@ -47,9 +49,9 @@ func DescribeRoom(hpt image.Point) *Room {
 	room := &Room{}
 
 	room.HilbertPt = hpt
-	room.HilbertNum = Hilbert.Encode(hpt)
+	room.HilbertNum = Hilbert.Encode(image.Pt((Scale+hpt.X)%Scale, (Scale+hpt.Y)%Scale))
 	room.Next = Hilbert.Decode(room.HilbertNum + 1)
-	room.Prev = Hilbert.Decode(room.HilbertNum - 1)
+	room.Prev = Hilbert.Decode((Area + room.HilbertNum - 1) % Area)
 
 	topMarginRand := xorshiftstar.New(hpt.Y * 2)
 	bottomMarginRand := xorshiftstar.New(hpt.Y*2 + 1)

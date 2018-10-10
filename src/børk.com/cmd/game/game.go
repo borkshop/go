@@ -121,9 +121,9 @@ func (g *game) describePosition(ent ecs.Entity) fmt.Stringer { return g.pos.Get(
 var (
 	playerStyle    = renStyle(50, ')', '(', ansi.SGRAttrBold|ansi.RGB(0x60, 0xb0, 0xd0).FG())
 	spiritStyle    = renStyle(50, '}', '{', ansi.SGRAttrBold|ansi.RGB(0x60, 0xd0, 0xb0).FG())
-	wallStyle      = renStyle(5, '#', '#', ansi.SGRAttrBold|ansi.RGB(0x18, 0x18, 0x18).BG()|ansi.RGB(0x30, 0x30, 0x30).FG())
-	floorStyle     = renStyle(4, '·', '·', ansi.RGB(0x10, 0x10, 0x10).BG()|ansi.RGB(0x18, 0x18, 0x18).FG())
-	aisleStyle     = renStyle(4, '·', '·', ansi.RGB(0x40, 0x40, 0x40).BG()|ansi.RGB(0x18, 0x18, 0x18).FG())
+	wallStyle      = renStyle(5, '>', '<', ansi.SGRAttrBold|ansi.RGB(0x1f, 0x1f, 0x7f).BG()|ansi.RGB(0, 0, 0x5f).FG())
+	floorStyle     = renStyle(4, '·', '·', ansi.RGB(0x7f, 0x7f, 0x7f).BG()|ansi.RGB(0x18, 0x18, 0x18).FG())
+	aisleStyle     = renStyle(4, '•', '•', ansi.RGB(0x9f, 0x9f, 0x9f).BG()|ansi.RGB(0x7f, 0x7f, 0x7f).FG())
 	doorStyle      = renStyle(6, '⫤', '⊫', ansi.RGB(0x18, 0x18, 0x18).BG()|ansi.RGB(0x60, 0x40, 0x30).FG())
 	blueprintStyle = renStyle(15, '?', '¿', ansi.RGB(0x08, 0x18, 0x28).BG()|ansi.RGB(0x50, 0x60, 0x70).FG())
 
@@ -200,13 +200,6 @@ func newGame() *game {
 		MinHallSize:   2,
 		MaxHallSize:   8,
 		ExitDensity:   25,
-	}
-
-	for minsz := g.gen.RoomSize.Size().Div(4).Mul(3); ; {
-		if sz := g.gen.chooseRoomSize(); sz.X >= minsz.X && sz.Y >= minsz.Y {
-			g.gen.create(0, image.ZP, image.Rectangle{image.ZP, sz})
-			break
-		}
 	}
 
 	return g
@@ -302,88 +295,14 @@ func (g *game) Update(ctx *platform.Context) (err error) {
 	centroid, _ := agCtx.Value(playerCentroidKey).(image.Point)
 	size := ctx.Output.Size
 	size.X /= 2
-	view, port := centerView(g.view, centroid, size)
+	view, _ := centerView(g.view, centroid, size)
 	g.view = view
 
 	// run generation within a simulation region around the player
-	g.sim = g.gen.expandSimRegion(g.view)
-	genning := g.gen.run(g.sim)
+	genning := g.gen.run(g.view)
 	if !genning {
-		// create a spawn point once generation has stopped
-		if len(g.ag.ids[&g.Scope][gameSpawnPoint]) == 0 {
-
-			origin := g.rooms.r[0].Min.Add(g.rooms.r[0].Size().Div(2))
-			maxd := compMag(port.Size())
-
-			if id := chooseRandomID(g.rooms.Len(), g.rooms.ID, func(i int, id ecs.ID) int {
-				r := &g.rooms.r[i]
-				if !r.In(port) {
-					return 0
-				}
-				d := compMag(r.Min.Add(r.Size().Div(2)).Sub(origin))
-				sz := r.Size()
-				return (maxd - d) * sz.X * sz.Y
-			}); id != 0 {
-				r := g.rooms.GetID(id)
-				log.Printf("add spawn in id:%v r:%v", id, r)
-				spawn := g.Create(gameSpawnPoint)
-				g.pos.Get(spawn).SetPoint(image.ZP)
-				g.rooms.parts.Insert(0, id, spawn.ID)
-			}
-
-			// scatter some items
-			for i := 0; i < 10; i++ {
-				roomID := chooseRandomID(g.rooms.Len(), g.rooms.ID, func(i int, id ecs.ID) int {
-					r := &g.rooms.r[i]
-					if !r.In(port) {
-						return 0
-					}
-					d := compMag(r.Min.Add(r.Size().Div(2)).Sub(origin))
-					sz := r.Size()
-					return d * sz.X * sz.Y
-				})
-				if roomID == 0 {
-					break
-				}
-
-				r := g.rooms.GetID(roomID)
-
-				itemID := chooseRandomID(g.itemDefs.Len(), g.itemDefs.ID, func(i int, id ecs.ID) int {
-					return 1 // TODO weight by inverse population count ?
-				})
-				if itemID == 0 {
-					break
-				}
-
-				// TODO select a random clear floor tile, weighted towards the corners
-				// roomParts := g.rooms.parts.Bs(g.rooms.parts.LookupA(roomID), nil)
-				// chooseRandomID(
-				// 	len(roomParts.IDs),
-				// 	roomParts.ID,
-				// 	func(i int, id ecs.ID) int {
-				// 		part := roomParts.Entity(i)
-				// 		// if part.Type()
-				// 	},
-				// )
-
-				mid := r.Min.Add(r.Size().Div(2))
-				occ := false
-				for pq := g.pos.At(mid); pq.Next(); {
-					if pq.handle().Entity().Type().HasAll(gameCollides) {
-						occ = true
-						break
-					}
-				}
-				if !occ {
-					item := g.itemDefs.Entity(itemID)
-					info := g.itemDefs.Info(item)
-					log.Printf("item %v @%v in %v", info, mid, r)
-					worldItem := info.worldSpec.create(&g.shard, mid)
-					g.rooms.parts.Insert(0, roomID, worldItem.ID)
-				}
-			}
-
-		}
+		spawn := g.Create(gameSpawnPoint)
+		g.pos.Get(spawn).SetPoint(image.ZP)
 	}
 
 	// Ctrl-mouse to inspect entities
@@ -433,9 +352,6 @@ func (g *game) Update(ctx *platform.Context) (err error) {
 		pt := image.Pt(1, 2)
 		ctx.Output.To(pt)
 		fmt.Fprintf(ctx.Output, "%v entities %v rooms", g.Scope.Len(), g.rooms.Used())
-		if genning {
-			fmt.Fprintf(ctx.Output, " (%v generating)", g.gen.Used())
-		}
 
 		pt = image.Pt(0, pt.Y+1)
 		ctx.Output.To(pt)
