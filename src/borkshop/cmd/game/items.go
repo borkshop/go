@@ -1,7 +1,7 @@
 package main
 
 import (
-	"børk.com/ecs"
+	"borkshop/ecs"
 )
 
 // items contains component data allowing an item definition to be

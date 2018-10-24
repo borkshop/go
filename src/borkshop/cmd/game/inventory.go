@@ -3,7 +3,7 @@ package main
 import (
 	"image"
 
-	"børk.com/ecs"
+	"borkshop/ecs"
 )
 
 const (

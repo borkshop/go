@@ -8,7 +8,7 @@ import (
 	"github.com/jcorbin/anansi/ansi"
 	"github.com/jcorbin/anansi/x/platform"
 
-	"børk.com/ecs"
+	"borkshop/ecs"
 )
 
 func (g *game) movePlayers(ctx agentContext, es ecs.Entities) (agentContext, error) {

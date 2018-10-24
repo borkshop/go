@@ -4,8 +4,8 @@ import (
 	"image"
 	"log"
 
-	"børk.com/borkgen"
-	"børk.com/ecs"
+	"borkshop/borkgen"
+	"borkshop/ecs"
 )
 
 type roomGenConfig struct {

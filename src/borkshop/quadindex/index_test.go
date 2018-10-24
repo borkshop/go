@@ -7,7 +7,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 
-	"børk.com/quadindex"
+	"borkshop/quadindex"
 )
 
 func TestIndex_queries(t *testing.T) {

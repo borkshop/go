@@ -5,7 +5,7 @@ import (
 	"image"
 	"strings"
 
-	"børk.com/ecs"
+	"borkshop/ecs"
 )
 
 type entitySpec struct {

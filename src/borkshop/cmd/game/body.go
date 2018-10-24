@@ -7,7 +7,7 @@ import (
 	"github.com/jcorbin/anansi/ansi"
 	"github.com/jcorbin/anansi/x/braille"
 
-	"børk.com/ecs"
+	"borkshop/ecs"
 )
 
 const (

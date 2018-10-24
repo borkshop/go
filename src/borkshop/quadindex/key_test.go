@@ -6,7 +6,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 
-	"børk.com/quadindex"
+	"borkshop/quadindex"
 )
 
 func TestKey(t *testing.T) {

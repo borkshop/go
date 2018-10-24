@@ -1,7 +1,7 @@
 package main
 
 import (
-	"børk.com/ecs"
+	"borkshop/ecs"
 )
 
 type agentSystem struct {

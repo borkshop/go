@@ -4,8 +4,8 @@ import (
 	"fmt"
 	"image"
 
-	"børk.com/ecs"
-	"børk.com/quadindex"
+	"borkshop/ecs"
+	"borkshop/quadindex"
 )
 
 type position struct {

@@ -12,7 +12,7 @@ import (
 	"github.com/jcorbin/anansi/ansi"
 	"github.com/jcorbin/anansi/x/platform"
 
-	"børk.com/ecs"
+	"borkshop/ecs"
 )
 
 /* TODO

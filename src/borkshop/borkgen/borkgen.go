@@ -3,9 +3,9 @@ package borkgen
 import (
 	"image"
 
-	"børk.com/hilbert"
-	"børk.com/modspace"
-	"børk.com/xorshiftstar"
+	"borkshop/hilbert"
+	"borkshop/modspace"
+	"borkshop/xorshiftstar"
 )
 
 const (
