@@ -83,40 +83,28 @@ func DescribeRoom(hpt image.Point) *Room {
 	case room.Next, room.Prev:
 	default:
 		room.NorthWall = true
-		rng := xorshiftstar.New(room.HilbertNum ^ hilbertNorth)
-		if rng.Uint64()%DoorChance == 0 {
-			room.NorthDoor = true
-		}
+		room.NorthDoor = isDoor(room.HilbertNum, hilbertNorth)
 	}
 
 	switch south {
 	case room.Next, room.Prev:
 	default:
 		room.SouthWall = true
-		rng := xorshiftstar.New(room.HilbertNum ^ hilbertSouth)
-		if rng.Uint64()%DoorChance == 0 {
-			room.SouthDoor = true
-		}
+		room.SouthDoor = isDoor(room.HilbertNum, hilbertSouth)
 	}
 
 	switch west {
 	case room.Next, room.Prev:
 	default:
 		room.WestWall = true
-		rng := xorshiftstar.New(room.HilbertNum ^ hilbertWest)
-		if rng.Uint64()%DoorChance == 0 {
-			room.WestDoor = true
-		}
+		room.WestDoor = isDoor(room.HilbertNum, hilbertWest)
 	}
 
 	switch east {
 	case room.Next, room.Prev:
 	default:
 		room.EastWall = true
-		rng := xorshiftstar.New(room.HilbertNum ^ hilbertEast)
-		if rng.Uint64()%DoorChance == 0 {
-			room.EastDoor = true
-		}
+		room.EastDoor = isDoor(room.HilbertNum, hilbertEast)
 	}
 
 	return room
@@ -149,4 +137,13 @@ func (r *Room) At(hpt image.Point) *Room {
 		r = s
 	}
 	return r
+}
+
+func isDoor(a, b int) bool {
+	m := a
+	if b < a {
+		m = b
+	}
+	rng := xorshiftstar.New(a ^ b)
+	return m&1 == 0 && rng.Uint64()%DoorChance == 0
 }
