@@ -23,17 +23,17 @@ func New(seed int) *Source {
 
 // Seed seeds the random number generator.
 func (r *Source) Seed(seed int64) {
-	r.state = uint64(seed + 1)
+	r.state = uint64(seed)
 }
 
 // Uint64 returns a random number.
 func (r *Source) Uint64() uint64 {
-	state := r.state
+	state := r.state + 1442695040888963407
 	state ^= state >> 12
 	state ^= state << 25
 	state ^= state >> 27
 	r.state = state
-	return state * 0x2545F4914F6CDD1D
+	return state * 6364136223846793005
 }
 
 // Int63 returns a random number.
@@ -43,5 +43,5 @@ func (r *Source) Int63() int64 {
 	state ^= state << 25
 	state ^= state >> 27
 	r.state = state
-	return int64((state * 0x2545F4914F6CDD1D) >> 1)
+	return int64((state * 6364136223846793005) >> 1)
 }

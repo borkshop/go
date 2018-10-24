@@ -7,5 +7,5 @@ type Space image.Point
 
 // Add adds two points, wrapping around the space at the edges.
 func (s Space) Add(a, b image.Point) image.Point {
-	return image.Pt((s.X+a.X+b.X)%s.X, (s.Y+a.Y+b.Y)%s.Y)
+	return image.Pt((a.X+b.X)&(s.X-1), (a.Y+b.Y)&(s.Y-1))
 }
