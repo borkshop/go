@@ -52,19 +52,28 @@ func (ren *render) drawZordOff(off image.Point, grid *anansi.Grid) {
 		ri := ren.zord.ri[ii]
 		pi := ren.zord.pi[ii]
 		posd := positioned{ren.pos, pi}
-		pt := posd.Point().Sub(off)
+		pt := ansi.PtFromImage(posd.Point().Sub(off))
 		pt.X *= 2
-		c1 := grid.Cell(pt)
-		c2 := grid.Cell(pt.Add(image.Pt(1, 0)))
-		if c1.Rune() == 0 {
-			c1.Set(ren.cell[ri].r, ren.cell[ri].a)
-			c2.Set(ren.cell[ri].r2, ren.cell[ri].a)
+
+		i1, ok := grid.CellOffset(pt)
+		if !ok {
+			continue
+		}
+		i2, ok := grid.CellOffset(pt.Add(image.Pt(1, 0)))
+		if !ok {
+			continue
+		}
+
+		c := ren.cell[ri]
+		if grid.Rune[i1] == 0 {
+			grid.Rune[i1], grid.Rune[i2] = c.r, c.r2
+			grid.Attr[i1], grid.Attr[i2] = c.a, c.a
 		} else {
-			a := c1.Attr()
+			a := grid.Attr[i1]
 			if _, bgSet := a.BG(); !bgSet {
-				if color, haveBG := ren.cell[ri].a.BG(); haveBG {
-					c1.SetAttr(a | color.BG())
-					c2.SetAttr(a | color.BG())
+				if color, haveBG := c.a.BG(); haveBG {
+					a |= color.BG()
+					grid.Attr[i1], grid.Attr[i2] = a, a
 				}
 			}
 		}

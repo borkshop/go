@@ -11,18 +11,17 @@ import (
 
 type popup struct {
 	active bool
-	at     image.Point
+	at     ansi.Point
 	anansi.ScreenState
 	buf ansi.Buffer
 }
 
-func (pop *popup) setAt(at image.Point) {
-	at = at.Add(image.Pt(1, 1)) // TODO better screen clamping
+func (pop *popup) setAt(at ansi.Point) {
 	pop.at = at
 }
 
 func (pop *popup) drawInto(grid *anansi.Grid) {
-	pop.Grid.CopyIntoAt(grid, pop.at)
+	anansi.DrawGrid(grid.SubAt(pop.at), pop.Grid)
 }
 
 func (pop *popup) processBuf() {

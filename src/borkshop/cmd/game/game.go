@@ -253,10 +253,10 @@ func (g *game) Update(ctx *platform.Context) (err error) {
 	}
 
 	// process any drag region
-	if r := g.drag.process(ctx); r != image.ZR {
+	if r := g.drag.process(ctx); r != ansi.ZR {
 		r = r.Canon().Add(g.view.Min)
 		n := 0
-		for q := g.pos.Within(r); q.Next(); n++ {
+		for q := g.pos.Within(r.ToImage()); q.Next(); n++ {
 			posd := q.handle()
 			rend := g.ren.Get(posd.Entity())
 			log.Printf("%v %v", posd, rend)
@@ -293,7 +293,7 @@ func (g *game) Update(ctx *platform.Context) (err error) {
 
 	// center view on player (if any)
 	centroid, _ := agCtx.Value(playerCentroidKey).(image.Point)
-	size := ctx.Output.Size
+	size := ctx.Output.Bounds().Size()
 	size.X /= 2
 	view, _ := centerView(g.view, centroid, size)
 	g.view = view
@@ -309,7 +309,7 @@ func (g *game) Update(ctx *platform.Context) (err error) {
 	if m, haveMouse := ctx.Input.LastMouse(false); haveMouse && m.State.IsMotion() {
 		any := false
 		if m.State&ansi.MouseModControl != 0 {
-			pq := g.pos.At(m.Point.Add(g.view.Min))
+			pq := g.pos.At(m.Point.Add(g.view.Min).ToImage())
 			if pq.Next() {
 				any = true
 				g.pop.buf.Reset()
@@ -333,7 +333,7 @@ func (g *game) Update(ctx *platform.Context) (err error) {
 	ctx.Output.Clear()
 	g.ren.drawRegionInto(g.view, &ctx.Output.Grid)
 
-	at := image.Pt(1, ctx.Output.Size.Y)
+	at := ansi.Pt(1, ctx.Output.Bounds().Dy())
 
 	for _, id := range g.ag.ids[&g.Scope][gamePlayer] {
 		player := g.Entity(id)
@@ -349,37 +349,38 @@ func (g *game) Update(ctx *platform.Context) (err error) {
 
 	// entity count in upper-left
 	if ctx.HUD.Visible {
-		pt := image.Pt(1, 2)
+		pt := ansi.Pt(1, 2)
 		ctx.Output.To(pt)
 		fmt.Fprintf(ctx.Output, "%v entities %v rooms", g.Scope.Len(), g.rooms.Used())
 
-		pt = image.Pt(0, pt.Y+1)
+		pt = ansi.Pt(1, pt.Y+1)
 		ctx.Output.To(pt)
 		fmt.Fprintf(ctx.Output, "view:%v", g.view)
 
-		pt = image.Pt(0, pt.Y+1)
+		pt = ansi.Pt(1, pt.Y+1)
 		ctx.Output.To(pt)
 		fmt.Fprintf(ctx.Output, "sim:%v", g.sim)
 	}
 
 	if g.drag.active {
 		dr := g.drag.r.Canon()
-		eachCell(&ctx.Output.Grid, dr, func(cell anansi.Cell) {
+		// TODO better compositing routine?
+		eachCell(ctx.Output.Grid, dr, func(g anansi.Grid, pt ansi.Point, i int) {
 			dc := uint32(0x1000)
-			if cell.X == dr.Min.X ||
-				cell.Y == dr.Min.Y ||
-				cell.X == dr.Max.X-1 ||
-				cell.Y == dr.Max.Y-1 {
+			if pt.X == dr.Min.X ||
+				pt.Y == dr.Min.Y ||
+				pt.X == dr.Max.X-1 ||
+				pt.Y == dr.Max.Y-1 {
 				dc = 0x2000
 			}
 			// TODO better brighten function
-			if r := cell.Rune(); r == 0 {
-				cell.SetRune(' ') // TODO this shouldn't be necessary, test and fix anansi.Screen
+			if g.Rune[i] == 0 {
+				g.Rune[i] = ' ' // TODO is this necessary anymore?
 			}
-			a := cell.Attr()
+			a := g.Attr[i]
 			c, _ := a.BG()
 			cr, cg, cb, ca := c.RGBA()
-			cell.SetAttr(a.SansBG() | ansi.RGBA(cr+dc, cg+dc, cb+dc, ca).BG())
+			g.Attr[i] = a.SansBG() | ansi.RGBA(cr+dc, cg+dc, cb+dc, ca).BG()
 		})
 	} else if g.pop.active {
 		g.pop.drawInto(&ctx.Output.Grid)
@@ -404,10 +405,10 @@ func compMag(p image.Point) (n int) {
 
 type dragState struct {
 	active bool
-	r      image.Rectangle
+	r      ansi.Rectangle
 }
 
-func (ds *dragState) process(ctx *platform.Context) (r image.Rectangle) {
+func (ds *dragState) process(ctx *platform.Context) (r ansi.Rectangle) {
 	for id, typ := range ctx.Input.Type {
 		if typ == platform.EventMouse {
 			m := ctx.Input.Mouse(id)
@@ -416,7 +417,7 @@ func (ds *dragState) process(ctx *platform.Context) (r image.Rectangle) {
 				ctx.Input.Type[id] = platform.EventNone
 			} else if m.State.IsDrag() {
 				ds.r.Max = m.Point
-				if ds.r.Min == image.ZP {
+				if ds.r.Min == ansi.ZP {
 					ds.r.Min = m.Point
 					ds.r.Max = m.Point
 				}
@@ -429,7 +430,7 @@ func (ds *dragState) process(ctx *platform.Context) (r image.Rectangle) {
 					ctx.Input.Type[id] = platform.EventNone
 				}
 				ds.active = false
-				ds.r = image.ZR
+				ds.r = ansi.ZR
 				break
 			}
 		}
@@ -437,10 +438,12 @@ func (ds *dragState) process(ctx *platform.Context) (r image.Rectangle) {
 	return r
 }
 
-func eachCell(g *anansi.Grid, r image.Rectangle, f func(anansi.Cell)) {
+func eachCell(g anansi.Grid, r ansi.Rectangle, f func(g anansi.Grid, pt ansi.Point, i int)) {
 	for p := r.Min; p.Y < r.Max.Y; p.Y++ {
 		for p.X = r.Min.X; p.X < r.Max.X; p.X++ {
-			f(g.Cell(p))
+			if i, ok := g.CellOffset(p); ok {
+				f(g, p, i)
+			}
 		}
 	}
 }

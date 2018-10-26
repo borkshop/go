@@ -5,7 +5,6 @@ import (
 
 	"github.com/jcorbin/anansi"
 	"github.com/jcorbin/anansi/ansi"
-	"github.com/jcorbin/anansi/x/braille"
 
 	"borkshop/ecs"
 )
@@ -18,7 +17,7 @@ const (
 	bodyHand
 )
 
-var defaultBodyDef = bodyDef(braille.NewBitmapString('#',
+var defaultBodyDef = bodyDef(anansi.NewBitmapString('#',
 	"cc##  hhHH  ##CC",
 	"cc### hhHH ###CC",
 	"cc  ##hhHH##  CC",
@@ -54,12 +53,12 @@ var defaultBodyDef = bodyDef(braille.NewBitmapString('#',
 	{Point: image.Pt(6, 2), name: "right foot"},
 })
 
-func bodyDef(bi *braille.Bitmap, parts []bodyPartDef) bodyDefinition {
+func bodyDef(bi *anansi.Bitmap, parts []bodyPartDef) bodyDefinition {
 	return bodyDefinition{bi, parts}
 }
 
 type bodyDefinition struct {
-	*braille.Bitmap
+	*anansi.Bitmap
 	parts []bodyPartDef
 }
 
@@ -77,7 +76,7 @@ func (defn *bodyDefinition) apply(s *shard, e ecs.Entity) {
 type body struct {
 	setup bool
 
-	bi braille.Bitmap
+	bi anansi.Bitmap
 
 	ecs.Scope                // direct indexing into:
 	gridPos   []image.Point  // always defined
@@ -179,18 +178,54 @@ func (bod *body) clearRuneAttr(e ecs.Entity, _ ecs.Type) { bod.runeAttr[e.Seq()]
 
 func (bod *body) Size() image.Point { return bod.bi.RuneSize() }
 
-func (bod *body) RenderInto(g anansi.Grid, at image.Point, a ansi.SGRAttr) {
-	bod.bi.CopyInto(g, at,
-		braille.FillStyle(0),
-		braille.AttrStyle(a),
+func (bod *body) RenderInto(g anansi.Grid, at ansi.Point, ba ansi.SGRAttr) {
+	style := anansi.Styles(
+		anansi.TransparentAttrBG,
+		anansi.StyleFunc(func(_ ansi.Point, _ rune, r rune, _, a ansi.SGRAttr) (rune, ansi.SGRAttr) {
+			if c, set := a.BG(); set {
+				a = a.SansBG() | darkenBy(c, 48).BG()
+				// TODO evaluate fg contrast, maybe lighten
+			}
+			return r, a
+		}),
 	)
+
+	anansi.DrawBitmap(g.SubAt(at), &bod.bi,
+		anansi.TransparentBrailleRunes,
+		anansi.AttrStyle(ba),
+		style,
+	)
+
 	for i, r := range bod.runes {
 		if r != 0 {
-			cell := g.Cell(at.Add(bod.gridPos[i]))
-			cell.SetRune(r)
-			if a := bod.runeAttr[i]; a != 0 {
-				cell.SetAttr(a)
+			pt := at.Add(bod.gridPos[i])
+			if j, ok := g.CellOffset(pt); ok {
+				pr, pa := g.Rune[j], g.Attr[j]
+				a := bod.runeAttr[i]
+				r, a = style.Style(pt, pr, r, pa, a)
+				g.Rune[j], g.Attr[j] = r, a
 			}
 		}
 	}
+}
+
+func darkenBy(c ansi.SGRColor, by uint8) ansi.SGRColor {
+	// TODO better darken function
+	r, g, b := c.RGB()
+	if r >= by {
+		r -= by
+	} else {
+		r = 0
+	}
+	if g >= by {
+		g -= by
+	} else {
+		g = 0
+	}
+	if b >= by {
+		b -= by
+	} else {
+		b = 0
+	}
+	return ansi.RGB(r, g, b)
 }
