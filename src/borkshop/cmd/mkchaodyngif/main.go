@@ -32,8 +32,14 @@ type body struct {
 func grav(a, b image.Point) image.Point {
 	p := b.Sub(a)
 	dis := int(math.Sqrt(float64(p.X*p.X + p.Y*p.Y)))
-	fmt.Printf("dis %x\n", dis)
 	return p.Mul(-g / dis / dis)
+}
+
+func bowl(p image.Point) image.Point {
+	xx := -0xfff * p.X / whole * p.X / whole * p.X / whole
+	yy := -0xfff * p.Y / whole * p.Y / whole * p.Y / whole
+	fmt.Printf("XX %v\n", xx)
+	return image.Pt(xx, yy)
 }
 
 func start() image.Point {
@@ -94,7 +100,7 @@ func run() error {
 	b.P = start()
 	c.P = start()
 
-	for i := 0; i < 100; i++ {
+	for i := 0; i < 1000; i++ {
 		fmt.Printf("AP %10v BP %10v CP %10v -- AV %10v BV %10v CV %10v\n", a.P, b.P, c.P, a.V, b.V, c.V)
 
 		// Compute mutual forces.
@@ -106,6 +112,11 @@ func run() error {
 		a.V = a.V.Add(ab).Sub(ca).Sub(a.P.Div(corral))
 		b.V = b.V.Add(bc).Sub(ab).Sub(b.P.Div(corral))
 		c.V = c.V.Add(ca).Sub(bc).Sub(c.P.Div(corral))
+
+		// Bowl forces
+		a.V = a.V.Add(bowl(a.P))
+		b.V = b.V.Add(bowl(b.P))
+		c.V = c.V.Add(bowl(c.P))
 
 		// Move: apply velocity to position.
 		a.P = a.P.Add(a.V)
