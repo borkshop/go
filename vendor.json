@@ -1,0 +1,18 @@
+{
+  "src/vendor/github.com/hsluv/hsluv-go": {
+    "remote": "https://github.com/hsluv/hsluv-go.git",
+    "ref": "refs/tags/v2.0.0"
+  },
+  "src/vendor/go.uber.org/atomic": {
+    "remote": "https://github.com/uber-go/atomic.git",
+    "ref": "refs/tags/v1.3.2"
+  },
+  "src/vendor/go.uber.org/multierr": {
+    "remote": "https://github.com/uber-go/multierr.git",
+    "ref": "refs/tags/v1.1.0"
+  },
+  "src/vendor/gopkg.in/src-d/go-billy.v4": {
+    "remote": "https://github.com/src-d/go-billy.git",
+    "ref": "refs/tags/v4.3.0"
+  }
+}

@@ -1,0 +1,9 @@
+#!/bin/bash
+set -ueo pipefail
+IFS=$'\n\t'
+DIR="$1"
+REMOTE=$(jq -r --arg dir "$DIR" '.[$dir].remote' vendor.json)
+git ls-remote "$REMOTE" 'refs/tags/*' |
+while read -rd$'\t' && read -rd$'\n' REF; do
+    echo "$REF"
+done

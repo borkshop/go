@@ -1,0 +1,15 @@
+#!/bin/bash
+set -ueo pipefail
+IFS=$'\n\t'
+export GIT_INDEX_FILE=.git/VENDOR
+jq -r '
+    to_entries[] as {key: $dir, value: {$remote, $ref}} |
+    [$dir, $remote, $ref] |
+    @tsv
+' vendor.json |
+while read -rd$'\t' DIR && read -rd$'\t' REMOTE && read -rd$'\n' REF; do
+    git fetch "$REMOTE" "$REF:refs/temp" -f --no-tags --recurse-submodules
+    git read-tree --empty
+    git read-tree --prefix "$DIR" TEMP
+    git checkout-index -af
+done
