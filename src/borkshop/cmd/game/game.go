@@ -13,6 +13,7 @@ import (
 	"github.com/jcorbin/anansi/x/platform"
 
 	"borkshop/ecs"
+	"borkshop/ecs/inspect"
 )
 
 /* TODO
@@ -107,16 +108,16 @@ const (
 )
 
 func (g *game) describe(w io.Writer, ent ecs.Entity) {
-	describe(w, ent, []descSpec{
-		{gameInput, "Ctl", nil},
-		{gameCollides, "Col", nil},
-		{gamePosition, "Pos", g.describePosition},
-		{gameRender, "Ren", g.describeRender},
-	})
+	inspect.Describe(w, ent,
+		inspect.DescSpec(gameInput, "Ctl", nil),
+		inspect.DescSpec(gameCollides, "Col", nil),
+		inspect.DescSpec(gamePosition, "Pos", g.describePosition),
+		inspect.DescSpec(gameRender, "Ren", g.describeRender),
+	)
 }
 
-func (g *game) describeRender(ent ecs.Entity) fmt.Stringer   { return g.ren.Get(ent) }
-func (g *game) describePosition(ent ecs.Entity) fmt.Stringer { return g.pos.Get(ent) }
+func (g *game) describeRender(ent ecs.Entity) string   { return g.ren.Get(ent).String() }
+func (g *game) describePosition(ent ecs.Entity) string { return g.pos.Get(ent).String() }
 
 var (
 	playerStyle    = renStyle(50, ')', '(', ansi.SGRAttrBold|ansi.RGB(0x60, 0xb0, 0xd0).FG())
