@@ -309,7 +309,7 @@ func (g *game) Update(ctx *platform.Context) (err error) {
 	if m, haveMouse := ctx.Input.LastMouse(false); haveMouse && m.State.IsMotion() {
 		any := false
 		if m.State&ansi.MouseModControl != 0 {
-			pq := g.pos.At(m.Point.Add(g.view.Min).ToImage())
+			pq := g.pos.At(m.Point.ToImage().Add(g.view.Min))
 			if pq.Next() {
 				any = true
 				g.pop.buf.Reset()
