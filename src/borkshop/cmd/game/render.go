@@ -1,6 +1,7 @@
 package main
 
 import (
+	"bytes"
 	"fmt"
 	"image"
 	"sort"
@@ -172,20 +173,28 @@ func (rend renderable) Apply(st renderStyle) {
 	rend.SetCell(st.r, st.r2, st.a)
 }
 
-func (rend renderable) String() string {
+func (rend renderable) String() string { return rend.describe(" ") }
+
+func (rend renderable) describe(sep string) string {
 	if rend.ren == nil {
 		return fmt.Sprintf("no-render")
 	}
-	a := rend.ren.cell[rend.ri].a
-	fg, _ := a.FG()
-	bg, _ := a.BG()
-	fl := a.SansBG().SansFG()
-	return fmt.Sprintf("z:%v rune:%q fg:%v bg:%v attr:%q",
-		rend.ren.zord.z[rend.ri],
-		rend.ren.cell[rend.ri].r,
-		fg, bg,
-		fl,
-	)
+	var buf bytes.Buffer
+	buf.Grow(2048)
+	cell := rend.ren.cell[rend.ri]
+	fmt.Fprintf(&buf, "%q", string(cell.r)+string(cell.r2))
+	a := cell.a
+	if fg, hasFG := a.FG(); hasFG {
+		fmt.Fprintf(&buf, "%sfg:%v", sep, fg)
+	}
+	if bg, hasBG := a.BG(); hasBG {
+		fmt.Fprintf(&buf, "%sbg:%v", sep, bg)
+	}
+	if a = a.SansBG().SansFG(); a != 0 {
+		fmt.Fprintf(&buf, "%sattr:%v", sep, a)
+	}
+	fmt.Fprintf(&buf, "%sz:%v", sep, rend.ren.zord.z[rend.ri])
+	return buf.String()
 }
 
 func renStyle(z int, r, r2 rune, a ansi.SGRAttr) renderStyle {
