@@ -323,7 +323,7 @@ func (g *game) Update(ctx *platform.Context) (err error) {
 			}
 			if any {
 				g.pop.processBuf()
-				g.pop.setAt(m.Point)
+				g.pop.setAt(m.Point.Add(image.Pt(1, 1)))
 				g.pop.active = true
 			} else {
 				g.pop.active = false
