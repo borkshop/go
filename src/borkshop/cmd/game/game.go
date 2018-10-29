@@ -254,9 +254,9 @@ func (g *game) Update(ctx *platform.Context) (err error) {
 
 	// process any drag region
 	if r := g.drag.process(ctx); r != ansi.ZR {
-		r = r.Canon().Add(g.view.Min)
+		ir := r.ToImage().Canon().Add(g.view.Min)
 		n := 0
-		for q := g.pos.Within(r.ToImage()); q.Next(); n++ {
+		for q := g.pos.Within(ir); q.Next(); n++ {
 			posd := q.handle()
 			rend := g.ren.Get(posd.Entity())
 			log.Printf("%v %v", posd, rend)
