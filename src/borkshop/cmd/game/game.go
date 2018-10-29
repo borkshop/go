@@ -116,7 +116,7 @@ func (g *game) describe(w io.Writer, ent ecs.Entity) {
 	)
 }
 
-func (g *game) describeRender(ent ecs.Entity) string   { return g.ren.Get(ent).String() }
+func (g *game) describeRender(ent ecs.Entity) string   { return g.ren.Get(ent).describe("\r\n     ") }
 func (g *game) describePosition(ent ecs.Entity) string { return g.pos.Get(ent).String() }
 
 var (
