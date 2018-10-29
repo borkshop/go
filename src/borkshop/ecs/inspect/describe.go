@@ -33,30 +33,32 @@ type Describer struct {
 	Specs []Spec
 
 	setup    bool
+	width    int
 	keyWidth int
 	valWidth int
 }
 
-const defaultWidth = 15
+const defaultWidth = 60
 
-func (desc Describer) init() {
+func (desc *Describer) init() {
 	if desc.setup {
 		return
 	}
-	if desc.valWidth == 0 {
-		desc.valWidth = defaultWidth
+	if desc.width == 0 {
+		desc.width = defaultWidth
 	}
-	desc.setup = true
-	desc.keyWidth = 4
+	desc.keyWidth = 5
 	for _, sp := range desc.Specs {
 		if c := utf8.RuneCountInString(sp.Label); desc.keyWidth < c {
 			desc.keyWidth = c
 		}
 	}
+	desc.valWidth = desc.width - desc.keyWidth - 2
+	desc.setup = true
 }
 
 // Describe writes all relevant descriptor bytes to the given io.Writer for an entity.
-func (desc Describer) Describe(w io.Writer, ent ecs.Entity) {
+func (desc *Describer) Describe(w io.Writer, ent ecs.Entity) {
 	desc.init()
 	first := true
 	writeRow := func(label, val string) {
@@ -72,7 +74,7 @@ func (desc Describer) Describe(w io.Writer, ent ecs.Entity) {
 	}
 
 	typ := ent.Type()
-	// writeRow("Scope", fmt.Sprint(ent.Scope))
+	writeRow("Scope", fmt.Sprintf("%p", ent.Scope))
 	writeRow("ID", ent.ID.String())
 	writeRow("Type", typ.String())
 	for _, sp := range desc.Specs {
@@ -88,5 +90,6 @@ func (desc Describer) Describe(w io.Writer, ent ecs.Entity) {
 
 // Describe is a convenience for describign an entity with a temporary Describer.
 func Describe(w io.Writer, ent ecs.Entity, specs ...Spec) {
-	Describer{Specs: specs}.Describe(w, ent)
+	desc := Describer{Specs: specs}
+	desc.Describe(w, ent)
 }
