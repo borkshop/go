@@ -8,8 +8,7 @@ import (
 // associated context.
 func NewTerm(f *os.File, cs ...Context) *Term {
 	term := &Term{File: f}
-	term.initContext()
-	term.ctx = Contexts(term.ctx, Contexts(cs...))
+	term.AddContext(cs...)
 	return term
 }
 
@@ -22,6 +21,21 @@ type Term struct {
 
 	active bool
 	ctx    Context
+}
+
+// AddContext to a terminal, Enter()-ing them if it is already active.
+func (term *Term) AddContext(cs ...Context) error {
+	term.initContext()
+	if ctx := Contexts(cs...); ctx != nil {
+		if term.active {
+			if err := ctx.Enter(term); err != nil {
+				_ = ctx.Exit(term)
+				return err
+			}
+		}
+		term.ctx = Contexts(term.ctx, ctx)
+	}
+	return nil
 }
 
 func (term *Term) initContext() {
