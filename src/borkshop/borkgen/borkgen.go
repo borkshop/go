@@ -143,12 +143,15 @@ func (r *Room) At(hpt image.Point) *Room {
 }
 
 func isDoor(a, b int) bool {
-	m := a
 	if b < a {
-		m = b
+		a, b = b, a
 	}
-	rng := xorshiftstar.New(a ^ b)
-	return m&1 == 0 && rng.Uint64()%DoorChance == 0
+	if b-a < 8 {
+		return false
+	}
+	rng := xorshiftstar.New(a)
+	return a&1 == 0 && int(rng.Uint64())&1 == 0
+	// return a&1 == 0
 }
 
 // Canvas is a surface on which to draw a showroom.
@@ -160,8 +163,8 @@ type Canvas interface {
 
 // Memo tracks whether a room has been drawn for the given hilbert point.
 type Memo interface {
-	SetRoomDrawn(num int)
-	IsRoomDrawn(num int) bool
+	SetRoomDrawn(*Room)
+	IsRoomDrawn(*Room) bool
 }
 
 // Draw paints a canvas within the given bounds.
@@ -190,10 +193,10 @@ func Draw(canvas Canvas, memo Memo, room *Room, within image.Rectangle) *Room {
 }
 
 func drawRoom(canvas Canvas, memo Memo, room *Room) {
-	if memo.IsRoomDrawn(room.HilbertNum) {
+	if memo.IsRoomDrawn(room) {
 		return
 	}
-	memo.SetRoomDrawn(room.HilbertNum)
+	memo.SetRoomDrawn(room)
 
 	// center
 	canvas.FillAisle(unitRect.Add(room.Pt))

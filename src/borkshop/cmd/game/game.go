@@ -5,7 +5,6 @@ import (
 	"image"
 	"io"
 	"log"
-	"math/rand"
 	"strconv"
 
 	"github.com/jcorbin/anansi"
@@ -388,20 +387,6 @@ func (g *game) Update(ctx *platform.Context) (err error) {
 	}
 
 	return err
-}
-
-func compMag(p image.Point) (n int) {
-	if p.X < 0 {
-		n -= p.X
-	} else {
-		n += p.X
-	}
-	if p.Y < 0 {
-		n -= p.Y
-	} else {
-		n += p.Y
-	}
-	return n
 }
 
 type dragState struct {

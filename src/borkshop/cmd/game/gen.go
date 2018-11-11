@@ -3,6 +3,7 @@ package main
 import (
 	"image"
 	"log"
+	"math/rand"
 
 	"borkshop/borkgen"
 	"borkshop/ecs"
@@ -29,10 +30,8 @@ type roomGen struct {
 	roomGenConfig
 
 	// generation state
-	hilbert    int
-	origin     image.Point
-	drawnRooms map[int]struct{}
-	cursor     *borkgen.Room
+	lastDrawnRoom *borkgen.Room
+	drawnRooms    map[int]struct{}
 
 	// scratch space
 	builder
@@ -48,20 +47,22 @@ func (gen *roomGen) logf(mess string, args ...interface{}) {
 }
 
 func (gen *roomGen) run(within image.Rectangle) bool {
-	if gen.cursor == nil {
-		gen.cursor = borkgen.DescribeRoom(image.ZP)
+	if gen.lastDrawnRoom == nil {
+		spawn := image.Pt(rand.Intn(borkgen.Scale), rand.Intn(borkgen.Scale))
+		gen.logf("player spawns at %v\n", spawn)
+		gen.lastDrawnRoom = borkgen.DescribeRoom(spawn)
 	}
-	gen.cursor = borkgen.Draw(gen, gen, gen.cursor, within)
+	gen.lastDrawnRoom = borkgen.Draw(gen, gen, gen.lastDrawnRoom, within)
 	return false
 }
 
-func (gen *roomGen) SetRoomDrawn(i int) {
-	gen.logf("room drawn %d\n", i)
-	gen.drawnRooms[i] = struct{}{}
+func (gen *roomGen) SetRoomDrawn(room *borkgen.Room) {
+	gen.logf("room drawn %v\n", room.HilbertPt)
+	gen.drawnRooms[room.HilbertNum] = struct{}{}
 }
 
-func (gen *roomGen) IsRoomDrawn(i int) bool {
-	_, ok := gen.drawnRooms[i]
+func (gen *roomGen) IsRoomDrawn(room *borkgen.Room) bool {
+	_, ok := gen.drawnRooms[room.HilbertNum]
 	return ok
 }
 

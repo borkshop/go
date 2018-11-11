@@ -5,7 +5,9 @@ import (
 	"flag"
 	"io"
 	"log"
+	"math/rand"
 	"os"
+	"time"
 
 	"github.com/jcorbin/anansi/x/platform"
 )
@@ -23,6 +25,7 @@ func init() {
 }
 
 func main() {
+	rand.Seed(time.Now().UnixNano()) // TODO find the right place to seed
 	// TODO load config from file
 	flag.Parse()
 	platform.MustRun(os.Stdout, func(p *platform.Platform) error {
