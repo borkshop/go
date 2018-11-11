@@ -2,6 +2,7 @@ package borkgen
 
 import (
 	"image"
+	"math/rand"
 
 	"borkshop/hilbert"
 	"borkshop/modspace"
@@ -58,6 +59,7 @@ type Room struct {
 	HilbertNum                                       int
 	Next, Prev                                       image.Point
 	Pt, HilbertPt, Size                              image.Point
+	Floor                                            image.Rectangle
 	NorthMargin, SouthMargin, WestMargin, EastMargin int
 	NorthWall, SouthWall, WestWall, EastWall         bool
 	NorthDoor, SouthDoor, WestDoor, EastDoor         bool
@@ -192,7 +194,7 @@ func Draw(canvas Canvas, memo Memo, room *Room, within image.Rectangle) *Room {
 		room = room.At(image.Pt(room.HilbertPt.X, room.HilbertPt.Y-1))
 	}
 	// draw rooms in boustrophedon
-	for room.Pt.Y < within.Max.Y {
+	for room.Pt.Y < within.Max.Y+room.Size.Y {
 		for room.Pt.X < within.Max.X+room.Size.X {
 			drawRoom(canvas, memo, room)
 			room = room.At(image.Pt(room.HilbertPt.X+1, room.HilbertPt.Y))
@@ -214,11 +216,11 @@ func drawRoom(canvas Canvas, memo Memo, room *Room) {
 	memo.SetRoomDrawn(room)
 
 	// floor
-	floor := image.Rectangle{
+	room.Floor = image.Rectangle{
 		image.Pt(-room.WestMargin-1, -room.NorthMargin-1),
 		image.Pt(room.EastMargin+2, room.SouthMargin+2),
 	}.Add(room.Pt)
-	canvas.FillFloor(floor)
+	canvas.FillFloor(room.Floor)
 
 	// center
 	canvas.FillAisle(unitRect.Add(room.Pt))
@@ -311,20 +313,79 @@ func drawRoom(canvas Canvas, memo Memo, room *Room) {
 
 	// Display items
 	rng := xorshiftstar.New(room.HilbertNum)
+
+	fillDisplaysUniformly(canvas, room, rng)
+}
+
+func fillDisplaysUniformly(canvas Canvas, room *Room, rng rand.Source64) {
 	itemFloor := image.Rectangle{
-		floor.Min.Add(unitPt),
-		floor.Max.Sub(unitPt),
+		room.Floor.Min.Add(unitPt),
+		room.Floor.Max.Sub(unitPt),
 	}
+
+	// Depending on stride and whether there are walls, a room might be able to
+	// grow into the cells where there would have been walls.
+	// We take the opportunity, one direction or the other, if it arises, but
+	// if there are opportunities in both directions, we choose a direction
+	// randomly.
+	var canGrowLat, canGrowLong int
+	var canGrowSouth, canGrowNorth, canGrowEast, canGrowWest bool
+
+	// For west and north, we are also obliged to ensure that that the aisles
+	// pass between the display items, so we offset the position of the first
+	// item by one in each dimension, depending on whether the margin is even
+	// or odd.
+	// Only if we have bumped the furniture south or east by one is there a
+	// possibility that we can shift north or west by two to fill the floor
+	// where there would have been a wall.
 	if room.WestMargin&1 == 0 {
 		itemFloor.Min.X++
+		if !room.WestWall {
+			canGrowWest = true
+			canGrowLat++
+		}
 	}
 	if room.NorthMargin&1 == 0 {
 		itemFloor.Min.Y++
+		if !room.NorthWall {
+			canGrowNorth = true
+			canGrowLong++
+		}
 	}
-	if !room.EastWall && !room.SouthWall {
-		itemFloor.Max.X++
-		itemFloor.Max.Y++
+	if room.EastMargin&1 == 0 && !room.EastWall {
+		canGrowEast = true
+		canGrowLat++
 	}
+	if room.SouthMargin&1 == 0 && !room.SouthWall {
+		canGrowSouth = true
+		canGrowLong++
+	}
+
+	// All things being equal, we do not favor latitudinal or logintudinal
+	// growth over the other.
+	var favorLong bool
+	if canGrowLong == canGrowLat {
+		favorLong = rng.Uint64()&1 == 0
+	} else {
+		favorLong = canGrowLong > canGrowLat
+	}
+
+	if favorLong {
+		if canGrowSouth {
+			itemFloor.Max.Y++
+		}
+		if canGrowNorth {
+			itemFloor.Min.Y -= 2
+		}
+	} else {
+		if canGrowEast {
+			itemFloor.Max.X++
+		}
+		if canGrowWest {
+			itemFloor.Min.X -= 2
+		}
+	}
+
 	for y := itemFloor.Min.Y; y < itemFloor.Max.Y; y += 2 {
 		for x := itemFloor.Min.X; x < itemFloor.Max.X; x += 2 {
 			i := int(rng.Uint64()>>1) % len(catalog)

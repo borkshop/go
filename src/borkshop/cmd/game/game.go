@@ -122,6 +122,8 @@ func (g *game) describePosition(ent ecs.Entity) string { return g.pos.Get(ent).S
 
 const (
 	floorLayer = iota + 1
+	aisleLayer
+	wallLayer
 	furnishLayer
 	agentLayer
 	blueprintLayer
@@ -141,9 +143,8 @@ var (
 	playerStyle    = renStyle(agentLayer, ')', '(', ansi.SGRAttrBold|ansi.RGB(0x0, 0xb0, 0xd0).FG())
 	spiritStyle    = renStyle(agentLayer, '}', '{', ansi.SGRAttrBold|ansi.RGB(0x60, 0xd0, 0xb0).FG())
 	blueprintStyle = renStyle(blueprintLayer, '?', '¿', ansi.RGB(0x08, 0x18, 0x28).BG()|ansi.RGB(0x50, 0x60, 0x70).FG())
-	doorStyle      = renStyle(furnishLayer, '⫤', '⊫', ansi.RGB(0x18, 0x18, 0x18).BG()|ansi.RGB(0x60, 0x40, 0x30).FG())
-	wallStyle      = renStyle(furnishLayer, '>', '<', ansi.SGRAttrBold|ansi.RGB(0x1f, 0x1f, 0x7f).BG()|ansi.RGB(0, 0, 0x5f).FG())
-	aisleStyle     = renStyle(furnishLayer, '•', '•', ansi.RGB(0x9f, 0x9f, 0x9f).BG()|ansi.RGB(0x7f, 0x7f, 0x7f).FG())
+	wallStyle      = renStyle(wallLayer, '>', '<', ansi.SGRAttrBold|ansi.RGB(0x1f, 0x1f, 0x7f).BG()|ansi.RGB(0, 0, 0x5f).FG())
+	aisleStyle     = renStyle(aisleLayer, '•', '•', ansi.RGB(0x9f, 0x9f, 0x9f).BG()|ansi.RGB(0x7f, 0x7f, 0x7f).FG())
 	floorStyle     = renStyle(floorLayer, '·', '·', ansi.RGB(0x7f, 0x7f, 0x7f).BG()|ansi.RGB(0x18, 0x18, 0x18).FG())
 
 	corporealApp = entApps(playerStyle, addEntityType(gameCollides))
@@ -213,7 +214,6 @@ func newGame() *game {
 		Wall:          entSpec(gameWall, wallStyle),
 		Floor:         entSpec(gameFloor, floorStyle),
 		Aisle:         entSpec(gameFloor, aisleStyle),
-		Door:          entSpec(gameDoor, doorStyle),
 		PlaceAttempts: 3,
 		RoomSize:      image.Rect(5, 3, 21, 13),
 		MinHallSize:   2,
