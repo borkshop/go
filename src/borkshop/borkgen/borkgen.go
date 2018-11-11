@@ -321,10 +321,8 @@ func drawRoom(canvas Canvas, memo Memo, room *Room) {
 	if room.NorthMargin&1 == 0 {
 		itemFloor.Min.Y++
 	}
-	if !room.EastWall {
+	if !room.EastWall && !room.SouthWall {
 		itemFloor.Max.X++
-	}
-	if !room.SouthWall {
 		itemFloor.Max.Y++
 	}
 	for y := itemFloor.Min.Y; y < itemFloor.Max.Y; y += 2 {
