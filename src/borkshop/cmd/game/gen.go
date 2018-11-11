@@ -4,6 +4,7 @@ import (
 	"image"
 	"log"
 	"math/rand"
+	"unicode"
 
 	"borkshop/borkgen"
 	"borkshop/ecs"
@@ -64,6 +65,34 @@ func (gen *roomGen) SetRoomDrawn(room *borkgen.Room) {
 func (gen *roomGen) IsRoomDrawn(room *borkgen.Room) bool {
 	_, ok := gen.drawnRooms[room.HilbertNum]
 	return ok
+}
+
+func (gen *roomGen) FillDisplay(rect image.Rectangle, name string, color borkgen.Color) {
+	var style renderStyle
+	switch color {
+	case borkgen.White:
+		style = whiteStyle
+	case borkgen.Black:
+		style = blackStyle
+	case borkgen.Blond:
+		style = blondStyle
+	case borkgen.Brown:
+		style = brownStyle
+	}
+
+	for i, r := range name {
+		switch i {
+		case 0:
+			style.r = r
+			style.r2 = '!'
+		case 1:
+			style.r2 = unicode.ToLower(r)
+			break
+		}
+	}
+
+	gen.builder.spec = entSpec(gameDisplay, style)
+	gen.builder.fill(rect)
 }
 
 func (gen *roomGen) FillAisle(rect image.Rectangle) {

@@ -8,6 +8,9 @@ import (
 	"borkshop/xorshiftstar"
 )
 
+// Color is a furnishing color.
+type Color int
+
 const (
 	// Scale is the height and width of the warehouse Hilbert curve.
 	Scale = 256
@@ -21,6 +24,17 @@ const (
 	DoorChance = 3
 	// Margin is space between rooms including their walls.
 	Margin = 3
+)
+
+const (
+	// White is a furniture color.
+	White Color = iota
+	// Blond is a furniture color.
+	Blond
+	// Brown is a furniture color.
+	Brown
+	// Black is a furniture color.
+	Black
 )
 
 var (
@@ -159,6 +173,7 @@ type Canvas interface {
 	FillFloor(image.Rectangle)
 	FillWall(image.Rectangle)
 	FillAisle(image.Rectangle)
+	FillDisplay(image.Rectangle, string, Color)
 }
 
 // Memo tracks whether a room has been drawn for the given hilbert point.
@@ -178,7 +193,7 @@ func Draw(canvas Canvas, memo Memo, room *Room, within image.Rectangle) *Room {
 	}
 	// draw rooms in boustrophedon
 	for room.Pt.Y < within.Max.Y {
-		for room.Pt.X < within.Max.X {
+		for room.Pt.X < within.Max.X+room.Size.X {
 			drawRoom(canvas, memo, room)
 			room = room.At(image.Pt(room.HilbertPt.X+1, room.HilbertPt.Y))
 		}
@@ -198,8 +213,29 @@ func drawRoom(canvas Canvas, memo Memo, room *Room) {
 	}
 	memo.SetRoomDrawn(room)
 
+	// floor
+	floor := image.Rectangle{
+		image.Pt(-room.WestMargin-1, -room.NorthMargin-1),
+		image.Pt(room.EastMargin+2, room.SouthMargin+2),
+	}.Add(room.Pt)
+	canvas.FillFloor(floor)
+
 	// center
 	canvas.FillAisle(unitRect.Add(room.Pt))
+
+	// aisles
+	fillAisle(canvas, !room.NorthWall, image.Rectangle{image.ZP, image.Pt(1, room.NorthMargin)}.
+		Add(image.Pt(0, -room.NorthMargin)).
+		Add(room.Pt))
+	fillAisle(canvas, !room.SouthWall, image.Rectangle{image.ZP, image.Pt(1, room.SouthMargin)}.
+		Add(image.Pt(0, 1)).
+		Add(room.Pt))
+	fillAisle(canvas, !room.WestWall, image.Rectangle{image.ZP, image.Pt(room.WestMargin, 1)}.
+		Add(image.Pt(-room.WestMargin, 0)).
+		Add(room.Pt))
+	fillAisle(canvas, !room.EastWall, image.Rectangle{image.ZP, image.Pt(room.EastMargin, 1)}.
+		Add(image.Pt(1, 0)).
+		Add(room.Pt))
 
 	// corners
 	canvas.FillWall(image.Rectangle{image.ZP, image.Pt(1, 1)}.
@@ -215,108 +251,106 @@ func drawRoom(canvas Canvas, memo Memo, room *Room) {
 		Add(image.Pt(room.EastMargin+1, room.SouthMargin+1)).
 		Add(room.Pt))
 
-	// aisles
-	fillFloorOrAisle(canvas, room.NorthWall, image.Rectangle{image.ZP, image.Pt(1, room.NorthMargin)}.
-		Add(image.Pt(0, -room.NorthMargin)).
-		Add(room.Pt))
-	fillFloorOrAisle(canvas, room.SouthWall, image.Rectangle{image.ZP, image.Pt(1, room.SouthMargin)}.
-		Add(image.Pt(0, 1)).
-		Add(room.Pt))
-	fillFloorOrAisle(canvas, room.WestWall, image.Rectangle{image.ZP, image.Pt(room.WestMargin, 1)}.
-		Add(image.Pt(-room.WestMargin, 0)).
-		Add(room.Pt))
-	fillFloorOrAisle(canvas, room.EastWall, image.Rectangle{image.ZP, image.Pt(room.EastMargin, 1)}.
-		Add(image.Pt(1, 0)).
-		Add(room.Pt))
-
-	// floor quadrants
-	canvas.FillFloor(image.Rectangle{image.ZP, image.Pt(room.WestMargin, room.NorthMargin)}.
-		Add(image.Pt(-room.WestMargin, -room.NorthMargin)).
-		Add(room.Pt))
-	canvas.FillFloor(image.Rectangle{image.ZP, image.Pt(room.WestMargin, room.SouthMargin)}.
-		Add(image.Pt(-room.WestMargin, 1)).
-		Add(room.Pt))
-	canvas.FillFloor(image.Rectangle{image.ZP, image.Pt(room.EastMargin, room.NorthMargin)}.
-		Add(image.Pt(1, -room.NorthMargin)).
-		Add(room.Pt))
-	canvas.FillFloor(image.Rectangle{image.ZP, image.Pt(room.EastMargin, room.SouthMargin)}.
-		Add(image.Pt(1, 1)).
-		Add(room.Pt))
-
 	// north wall segments
-	fillWallOrFloor(canvas, room.NorthWall, image.Rectangle{image.ZP, image.Pt(room.WestMargin, 1)}.
+	fillWall(canvas, room.NorthWall, image.Rectangle{image.ZP, image.Pt(room.WestMargin, 1)}.
 		Add(image.Pt(-room.WestMargin, -room.NorthMargin-1)).
 		Add(room.Pt))
-	fillWallOrFloor(canvas, room.NorthWall, image.Rectangle{image.ZP, image.Pt(room.EastMargin, 1)}.
+	fillWall(canvas, room.NorthWall, image.Rectangle{image.ZP, image.Pt(room.EastMargin, 1)}.
 		Add(image.Pt(1, -room.NorthMargin-1)).
 		Add(room.Pt))
-	fillDoorMaybe(canvas, room.NorthWall, room.NorthDoor, image.Rectangle{image.ZP, image.Pt(1, 1)}.
+	fillDoor(canvas, room.NorthWall, room.NorthDoor, image.Rectangle{image.ZP, image.Pt(1, 1)}.
 		Add(image.Pt(0, -room.NorthMargin-1)).
 		Add(room.Pt))
 
 	// south wall segments
-	fillWallOrFloor(canvas, room.SouthWall, image.Rectangle{image.ZP, image.Pt(room.WestMargin, 1)}.
+	fillWall(canvas, room.SouthWall, image.Rectangle{image.ZP, image.Pt(room.WestMargin, 1)}.
 		Add(image.Pt(-room.WestMargin, room.SouthMargin+1)).
 		Add(room.Pt))
-	fillWallOrFloor(canvas, room.SouthWall, image.Rectangle{image.ZP, image.Pt(room.EastMargin, 1)}.
+	fillWall(canvas, room.SouthWall, image.Rectangle{image.ZP, image.Pt(room.EastMargin, 1)}.
 		Add(image.Pt(1, room.SouthMargin+1)).
 		Add(room.Pt))
-	fillDoorMaybe(canvas, room.SouthWall, room.SouthDoor, image.Rectangle{image.ZP, image.Pt(1, 1)}.
+	fillDoor(canvas, room.SouthWall, room.SouthDoor, image.Rectangle{image.ZP, image.Pt(1, 1)}.
 		Add(image.Pt(0, room.SouthMargin+1)).
 		Add(room.Pt))
 
 	// west wall segments
-	fillWallOrFloor(canvas, room.WestWall, image.Rectangle{image.ZP, image.Pt(1, room.NorthMargin)}.
+	fillWall(canvas, room.WestWall, image.Rectangle{image.ZP, image.Pt(1, room.NorthMargin)}.
 		Add(image.Pt(-room.WestMargin-1, -room.NorthMargin)).
 		Add(room.Pt))
-	fillWallOrFloor(canvas, room.WestWall, image.Rectangle{image.ZP, image.Pt(1, room.SouthMargin)}.
+	fillWall(canvas, room.WestWall, image.Rectangle{image.ZP, image.Pt(1, room.SouthMargin)}.
 		Add(image.Pt(-room.WestMargin-1, 1)).
 		Add(room.Pt))
-	fillDoorMaybe(canvas, room.WestWall, room.WestDoor, image.Rectangle{image.ZP, image.Pt(1, 1)}.
+	fillDoor(canvas, room.WestWall, room.WestDoor, image.Rectangle{image.ZP, image.Pt(1, 1)}.
 		Add(image.Pt(-room.WestMargin-1, 0)).
 		Add(room.Pt))
 
 	// east wall segments
-	fillWallOrFloor(canvas, room.EastWall, image.Rectangle{image.ZP, image.Pt(1, room.NorthMargin)}.
+	fillWall(canvas, room.EastWall, image.Rectangle{image.ZP, image.Pt(1, room.NorthMargin)}.
 		Add(image.Pt(room.EastMargin+1, -room.NorthMargin)).
 		Add(room.Pt))
-	fillWallOrFloor(canvas, room.EastWall, image.Rectangle{image.ZP, image.Pt(1, room.SouthMargin)}.
+	fillWall(canvas, room.EastWall, image.Rectangle{image.ZP, image.Pt(1, room.SouthMargin)}.
 		Add(image.Pt(room.EastMargin+1, 1)).
 		Add(room.Pt))
-	fillDoorMaybe(canvas, room.EastWall, room.EastDoor, image.Rectangle{image.ZP, image.Pt(1, 1)}.
+	fillDoor(canvas, room.EastWall, room.EastDoor, image.Rectangle{image.ZP, image.Pt(1, 1)}.
 		Add(image.Pt(room.EastMargin+1, 0)).
 		Add(room.Pt))
-}
 
-func fillWallOrFloor(canvas Canvas, wall bool, rect image.Rectangle) {
-	if wall {
-		canvas.FillWall(rect)
-	} else {
-		canvas.FillFloor(rect)
+	// floor quadrants
+	// canvas.FillFloor(image.Rectangle{image.ZP, image.Pt(room.WestMargin, room.NorthMargin)}.
+	// 	Add(image.Pt(-room.WestMargin, -room.NorthMargin)).
+	// 	Add(room.Pt))
+	// canvas.FillFloor(image.Rectangle{image.ZP, image.Pt(room.WestMargin, room.SouthMargin)}.
+	// 	Add(image.Pt(-room.WestMargin, 1)).
+	// 	Add(room.Pt))
+	// canvas.FillFloor(image.Rectangle{image.ZP, image.Pt(room.EastMargin, room.NorthMargin)}.
+	// 	Add(image.Pt(1, -room.NorthMargin)).
+	// 	Add(room.Pt))
+	// canvas.FillFloor(image.Rectangle{image.ZP, image.Pt(room.EastMargin, room.SouthMargin)}.
+	// 	Add(image.Pt(1, 1)).
+	// 	Add(room.Pt))
+
+	// Display items
+	rng := xorshiftstar.New(room.HilbertNum)
+	itemFloor := image.Rectangle{
+		floor.Min.Add(unitPt),
+		floor.Max.Sub(unitPt),
+	}
+	if room.WestMargin&1 == 0 {
+		itemFloor.Min.X++
+	}
+	if room.NorthMargin&1 == 0 {
+		itemFloor.Min.Y++
+	}
+	if !room.EastWall {
+		itemFloor.Max.X++
+	}
+	if !room.SouthWall {
+		itemFloor.Max.Y++
+	}
+	for y := itemFloor.Min.Y; y < itemFloor.Max.Y; y += 2 {
+		for x := itemFloor.Min.X; x < itemFloor.Max.X; x += 2 {
+			i := int(rng.Uint64()>>1) % len(catalog)
+			c := int(rng.Uint64()>>1) % 4
+			canvas.FillDisplay(unitRect.Add(image.Pt(x, y)), catalog[i], Color(c))
+		}
 	}
 }
 
-func fillWallOrAisle(canvas Canvas, wall bool, rect image.Rectangle) {
+func fillWall(canvas Canvas, wall bool, rect image.Rectangle) {
 	if wall {
 		canvas.FillWall(rect)
-	} else {
+	}
+}
+
+func fillAisle(canvas Canvas, aisle bool, rect image.Rectangle) {
+	if aisle {
 		canvas.FillAisle(rect)
 	}
 }
 
-func fillFloorOrAisle(canvas Canvas, floor bool, rect image.Rectangle) {
-	if floor {
-		canvas.FillFloor(rect)
-	} else {
-		canvas.FillAisle(rect)
-	}
-}
-
-func fillDoorMaybe(canvas Canvas, wall bool, door bool, rect image.Rectangle) {
+func fillDoor(canvas Canvas, wall bool, door bool, rect image.Rectangle) {
 	if wall {
-		if door {
-			canvas.FillFloor(rect)
-		} else {
+		if !door {
 			canvas.FillWall(rect)
 		}
 	} else {

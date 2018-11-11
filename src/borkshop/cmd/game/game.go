@@ -5,6 +5,7 @@ import (
 	"image"
 	"io"
 	"log"
+	"math/rand"
 	"strconv"
 
 	"github.com/jcorbin/anansi"
@@ -87,6 +88,7 @@ const (
 
 	gameWall       = gamePosition | gameRender | gameCollides
 	gameFloor      = gamePosition | gameRender
+	gameDisplay    = gamePosition | gameRender | gameCollides
 	gameSpawnPoint = gamePosition | gameSpawn
 	gameCharacter  = gamePosition | gameRender | gameCollides
 	gamePlayer     = gameCharacter | gameInput
@@ -118,14 +120,31 @@ func (g *game) describe(w io.Writer, ent ecs.Entity) {
 func (g *game) describeRender(ent ecs.Entity) string   { return g.ren.Get(ent).describe("\r\n     ") }
 func (g *game) describePosition(ent ecs.Entity) string { return g.pos.Get(ent).String() }
 
+const (
+	floorLayer = iota + 1
+	furnishLayer
+	agentLayer
+	blueprintLayer
+)
+
 var (
-	playerStyle    = renStyle(50, ')', '(', ansi.SGRAttrBold|ansi.RGB(0x0, 0xb0, 0xd0).FG())
-	spiritStyle    = renStyle(50, '}', '{', ansi.SGRAttrBold|ansi.RGB(0x60, 0xd0, 0xb0).FG())
-	wallStyle      = renStyle(5, '>', '<', ansi.SGRAttrBold|ansi.RGB(0x1f, 0x1f, 0x7f).BG()|ansi.RGB(0, 0, 0x5f).FG())
-	floorStyle     = renStyle(4, '·', '·', ansi.RGB(0x7f, 0x7f, 0x7f).BG()|ansi.RGB(0x18, 0x18, 0x18).FG())
-	aisleStyle     = renStyle(4, '•', '•', ansi.RGB(0x9f, 0x9f, 0x9f).BG()|ansi.RGB(0x7f, 0x7f, 0x7f).FG())
-	doorStyle      = renStyle(6, '⫤', '⊫', ansi.RGB(0x18, 0x18, 0x18).BG()|ansi.RGB(0x60, 0x40, 0x30).FG())
-	blueprintStyle = renStyle(15, '?', '¿', ansi.RGB(0x08, 0x18, 0x28).BG()|ansi.RGB(0x50, 0x60, 0x70).FG())
+	white = ansi.RGB(0xff, 0xff, 0xff)
+	blond = ansi.RGB(216, 156, 57)
+	brown = ansi.RGB(78, 44, 10)
+	black = ansi.RGB(27, 28, 4)
+
+	blackStyle = renStyle(furnishLayer, '[', ']', white.FG()|black.BG())
+	whiteStyle = renStyle(furnishLayer, '[', ']', black.FG()|white.BG())
+	blondStyle = renStyle(furnishLayer, '[', ']', brown.FG()|blond.BG())
+	brownStyle = renStyle(furnishLayer, '[', ']', blond.FG()|brown.BG())
+
+	playerStyle    = renStyle(agentLayer, ')', '(', ansi.SGRAttrBold|ansi.RGB(0x0, 0xb0, 0xd0).FG())
+	spiritStyle    = renStyle(agentLayer, '}', '{', ansi.SGRAttrBold|ansi.RGB(0x60, 0xd0, 0xb0).FG())
+	blueprintStyle = renStyle(blueprintLayer, '?', '¿', ansi.RGB(0x08, 0x18, 0x28).BG()|ansi.RGB(0x50, 0x60, 0x70).FG())
+	doorStyle      = renStyle(furnishLayer, '⫤', '⊫', ansi.RGB(0x18, 0x18, 0x18).BG()|ansi.RGB(0x60, 0x40, 0x30).FG())
+	wallStyle      = renStyle(furnishLayer, '>', '<', ansi.SGRAttrBold|ansi.RGB(0x1f, 0x1f, 0x7f).BG()|ansi.RGB(0, 0, 0x5f).FG())
+	aisleStyle     = renStyle(furnishLayer, '•', '•', ansi.RGB(0x9f, 0x9f, 0x9f).BG()|ansi.RGB(0x7f, 0x7f, 0x7f).FG())
+	floorStyle     = renStyle(floorLayer, '·', '·', ansi.RGB(0x7f, 0x7f, 0x7f).BG()|ansi.RGB(0x18, 0x18, 0x18).FG())
 
 	corporealApp = entApps(playerStyle, addEntityType(gameCollides))
 	ghostApp     = entApps(spiritStyle, deleteEntityType(gameCollides))
