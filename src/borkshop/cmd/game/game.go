@@ -120,7 +120,7 @@ func (g *game) describeRender(ent ecs.Entity) string   { return g.ren.Get(ent).d
 func (g *game) describePosition(ent ecs.Entity) string { return g.pos.Get(ent).String() }
 
 var (
-	playerStyle    = renStyle(50, ')', '(', ansi.SGRAttrBold|ansi.RGB(0x60, 0xb0, 0xd0).FG())
+	playerStyle    = renStyle(50, ')', '(', ansi.SGRAttrBold|ansi.RGB(0x0, 0xb0, 0xd0).FG())
 	spiritStyle    = renStyle(50, '}', '{', ansi.SGRAttrBold|ansi.RGB(0x60, 0xd0, 0xb0).FG())
 	wallStyle      = renStyle(5, '>', '<', ansi.SGRAttrBold|ansi.RGB(0x1f, 0x1f, 0x7f).BG()|ansi.RGB(0, 0, 0x5f).FG())
 	floorStyle     = renStyle(4, '·', '·', ansi.RGB(0x7f, 0x7f, 0x7f).BG()|ansi.RGB(0x18, 0x18, 0x18).FG())
