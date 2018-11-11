@@ -90,6 +90,11 @@ func DescribeRoom(hpt image.Point) *Room {
 	height := int(1 + room.NorthMargin + room.SouthMargin)
 	room.Size = image.Point{width, height}
 
+	room.Floor = image.Rectangle{
+		image.Pt(-room.WestMargin-1, -room.NorthMargin-1),
+		image.Pt(room.EastMargin+2, room.SouthMargin+2),
+	}
+
 	north := Space.Add(hpt, North)
 	south := Space.Add(hpt, South)
 	west := Space.Add(hpt, West)
@@ -170,12 +175,25 @@ func isDoor(a, b int) bool {
 	// return a&1 == 0
 }
 
+func containingRoom(room *Room) *Room {
+	if isWarehouse(room.HilbertNum) {
+		start := room.HilbertNum & ^0xf
+		at := Hilbert.Decode(start)
+		return room.At(at)
+	}
+	return room
+}
+
 func warehouseNum(n int) int {
-	return (n >> 4) / 3
+	return (n >> 4) / 5
 }
 
 func isWarehouse(n int) bool {
-	return (n>>4)%3 == 0
+	return (n>>4)%5 == 0
+}
+
+func isWarehouseStart(n int) bool {
+	return isWarehouse(n) && n&0xf == 0
 }
 
 // Canvas is a surface on which to draw a showroom.
@@ -218,22 +236,46 @@ func Draw(canvas Canvas, memo Memo, room *Room, within image.Rectangle) *Room {
 }
 
 func drawRoom(canvas Canvas, memo Memo, room *Room) {
+	room = containingRoom(room)
+
 	if memo.IsRoomDrawn(room) {
 		return
 	}
 	memo.SetRoomDrawn(room)
 
-	// floor
-	room.Floor = image.Rectangle{
-		image.Pt(-room.WestMargin-1, -room.NorthMargin-1),
-		image.Pt(room.EastMargin+2, room.SouthMargin+2),
-	}.Add(room.Pt)
-	canvas.FillFloor(room.Floor)
+	if room.IsWarehouse {
+		drawWarehouse(canvas, room)
+	} else {
+		drawWalls(canvas, room, image.ZR)
+		drawShowroom(canvas, room)
+	}
+}
 
-	// center
+func drawWarehouse(canvas Canvas, start *Room) {
+	floor := start.Floor.Add(start.Pt)
+	room := start
+	for i := 0; i < 16; i++ {
+		floor = floor.Union(room.Floor.Add(room.Pt))
+		room = room.At(room.Next)
+	}
+	room = start
+	for i := 0; i < 16; i++ {
+		drawWalls(canvas, room, floor.Inset(1))
+		room = room.At(room.Next)
+	}
+	canvas.FillAisle(floor)
+}
+
+func drawShowroom(canvas Canvas, room *Room) {
+
+	// Floor
+	floor := room.Floor.Add(room.Pt)
+	canvas.FillFloor(floor)
+
+	// Center
 	canvas.FillAisle(unitRect.Add(room.Pt))
 
-	// aisles
+	// Aisles
 	fillAisle(canvas, !room.NorthWall, image.Rectangle{image.ZP, image.Pt(1, room.NorthMargin)}.
 		Add(image.Pt(0, -room.NorthMargin)).
 		Add(room.Pt))
@@ -247,90 +289,91 @@ func drawRoom(canvas Canvas, memo Memo, room *Room) {
 		Add(image.Pt(1, 0)).
 		Add(room.Pt))
 
-	// corners
-	canvas.FillWall(image.Rectangle{image.ZP, image.Pt(1, 1)}.
-		Add(image.Pt(-room.WestMargin-1, -room.NorthMargin-1)).
-		Add(room.Pt))
-	canvas.FillWall(image.Rectangle{image.ZP, image.Pt(1, 1)}.
-		Add(image.Pt(room.EastMargin+1, -room.NorthMargin-1)).
-		Add(room.Pt))
-	canvas.FillWall(image.Rectangle{image.ZP, image.Pt(1, 1)}.
-		Add(image.Pt(-room.WestMargin-1, room.SouthMargin+1)).
-		Add(room.Pt))
-	canvas.FillWall(image.Rectangle{image.ZP, image.Pt(1, 1)}.
-		Add(image.Pt(room.EastMargin+1, room.SouthMargin+1)).
-		Add(room.Pt))
+	// Display items
+	rng := xorshiftstar.New(room.HilbertNum)
 
-	// north wall segments
+	fillDisplaysUniformly(canvas, room, rng)
+}
+
+func drawWalls(canvas Canvas, room *Room, mask image.Rectangle) {
+	// North wall segments
 	fillWall(canvas, room.NorthWall, image.Rectangle{image.ZP, image.Pt(room.WestMargin, 1)}.
 		Add(image.Pt(-room.WestMargin, -room.NorthMargin-1)).
 		Add(room.Pt))
 	fillWall(canvas, room.NorthWall, image.Rectangle{image.ZP, image.Pt(room.EastMargin, 1)}.
 		Add(image.Pt(1, -room.NorthMargin-1)).
 		Add(room.Pt))
-	fillDoor(canvas, room.NorthWall, room.NorthDoor, image.Rectangle{image.ZP, image.Pt(1, 1)}.
+	fillDoor(canvas, room.NorthWall, room.NorthDoor, room.IsWarehouse, image.Rectangle{image.ZP, image.Pt(1, 1)}.
 		Add(image.Pt(0, -room.NorthMargin-1)).
 		Add(room.Pt))
 
-	// south wall segments
+	// South wall segments
 	fillWall(canvas, room.SouthWall, image.Rectangle{image.ZP, image.Pt(room.WestMargin, 1)}.
 		Add(image.Pt(-room.WestMargin, room.SouthMargin+1)).
 		Add(room.Pt))
 	fillWall(canvas, room.SouthWall, image.Rectangle{image.ZP, image.Pt(room.EastMargin, 1)}.
 		Add(image.Pt(1, room.SouthMargin+1)).
 		Add(room.Pt))
-	fillDoor(canvas, room.SouthWall, room.SouthDoor, image.Rectangle{image.ZP, image.Pt(1, 1)}.
+	fillDoor(canvas, room.SouthWall, room.SouthDoor, room.IsWarehouse, image.Rectangle{image.ZP, image.Pt(1, 1)}.
 		Add(image.Pt(0, room.SouthMargin+1)).
 		Add(room.Pt))
 
-	// west wall segments
+	// West wall segments
 	fillWall(canvas, room.WestWall, image.Rectangle{image.ZP, image.Pt(1, room.NorthMargin)}.
 		Add(image.Pt(-room.WestMargin-1, -room.NorthMargin)).
 		Add(room.Pt))
 	fillWall(canvas, room.WestWall, image.Rectangle{image.ZP, image.Pt(1, room.SouthMargin)}.
 		Add(image.Pt(-room.WestMargin-1, 1)).
 		Add(room.Pt))
-	fillDoor(canvas, room.WestWall, room.WestDoor, image.Rectangle{image.ZP, image.Pt(1, 1)}.
+	fillDoor(canvas, room.WestWall, room.WestDoor, room.IsWarehouse, image.Rectangle{image.ZP, image.Pt(1, 1)}.
 		Add(image.Pt(-room.WestMargin-1, 0)).
 		Add(room.Pt))
 
-	// east wall segments
+	// East wall segments
 	fillWall(canvas, room.EastWall, image.Rectangle{image.ZP, image.Pt(1, room.NorthMargin)}.
 		Add(image.Pt(room.EastMargin+1, -room.NorthMargin)).
 		Add(room.Pt))
 	fillWall(canvas, room.EastWall, image.Rectangle{image.ZP, image.Pt(1, room.SouthMargin)}.
 		Add(image.Pt(room.EastMargin+1, 1)).
 		Add(room.Pt))
-	fillDoor(canvas, room.EastWall, room.EastDoor, image.Rectangle{image.ZP, image.Pt(1, 1)}.
+	fillDoor(canvas, room.EastWall, room.EastDoor, room.IsWarehouse, image.Rectangle{image.ZP, image.Pt(1, 1)}.
 		Add(image.Pt(room.EastMargin+1, 0)).
 		Add(room.Pt))
 
-	// floor quadrants
-	// canvas.FillFloor(image.Rectangle{image.ZP, image.Pt(room.WestMargin, room.NorthMargin)}.
-	// 	Add(image.Pt(-room.WestMargin, -room.NorthMargin)).
-	// 	Add(room.Pt))
-	// canvas.FillFloor(image.Rectangle{image.ZP, image.Pt(room.WestMargin, room.SouthMargin)}.
-	// 	Add(image.Pt(-room.WestMargin, 1)).
-	// 	Add(room.Pt))
-	// canvas.FillFloor(image.Rectangle{image.ZP, image.Pt(room.EastMargin, room.NorthMargin)}.
-	// 	Add(image.Pt(1, -room.NorthMargin)).
-	// 	Add(room.Pt))
-	// canvas.FillFloor(image.Rectangle{image.ZP, image.Pt(room.EastMargin, room.SouthMargin)}.
-	// 	Add(image.Pt(1, 1)).
-	// 	Add(room.Pt))
-
-	// Display items
-	rng := xorshiftstar.New(room.HilbertNum)
-
-	if !room.IsWarehouse {
-		fillDisplaysUniformly(canvas, room, rng)
+	// Corners
+	nw := image.Rectangle{image.ZP, image.Pt(1, 1)}.
+		Add(image.Pt(-room.WestMargin-1, -room.NorthMargin-1)).
+		Add(room.Pt)
+	ne := image.Rectangle{image.ZP, image.Pt(1, 1)}.
+		Add(image.Pt(room.EastMargin+1, -room.NorthMargin-1)).
+		Add(room.Pt)
+	sw := image.Rectangle{image.ZP, image.Pt(1, 1)}.
+		Add(image.Pt(-room.WestMargin-1, room.SouthMargin+1)).
+		Add(room.Pt)
+	se := image.Rectangle{image.ZP, image.Pt(1, 1)}.
+		Add(image.Pt(room.EastMargin+1, room.SouthMargin+1)).
+		Add(room.Pt)
+	// Except, to avoid drawing columns inside a warehouse, elide those columns
+	// that overlap the mask.
+	if !nw.Overlaps(mask) {
+		canvas.FillWall(nw)
+	}
+	if !ne.Overlaps(mask) {
+		canvas.FillWall(ne)
+	}
+	if !sw.Overlaps(mask) {
+		canvas.FillWall(sw)
+	}
+	if !se.Overlaps(mask) {
+		canvas.FillWall(se)
 	}
 }
 
 func fillDisplaysUniformly(canvas Canvas, room *Room, rng rand.Source64) {
+	floor := room.Floor.Add(room.Pt)
 	itemFloor := image.Rectangle{
-		room.Floor.Min.Add(unitPt),
-		room.Floor.Max.Sub(unitPt),
+		floor.Min.Add(unitPt),
+		floor.Max.Sub(unitPt),
 	}
 
 	// Depending on stride and whether there are walls, a room might be able to
@@ -417,12 +460,12 @@ func fillAisle(canvas Canvas, aisle bool, rect image.Rectangle) {
 	}
 }
 
-func fillDoor(canvas Canvas, wall bool, door bool, rect image.Rectangle) {
+func fillDoor(canvas Canvas, wall bool, door bool, warehouse bool, rect image.Rectangle) {
 	if wall {
 		if !door {
 			canvas.FillWall(rect)
 		}
-	} else {
+	} else if !warehouse {
 		canvas.FillAisle(rect)
 	}
 }

@@ -130,22 +130,25 @@ const (
 )
 
 var (
-	white = ansi.RGB(0xff, 0xff, 0xff)
-	blond = ansi.RGB(216, 156, 57)
-	brown = ansi.RGB(78, 44, 10)
-	black = ansi.RGB(27, 28, 4)
+	white      = ansi.RGB(0xff, 0xff, 0xff)
+	blond      = ansi.RGB(216, 156, 57)
+	brown      = ansi.RGB(78, 44, 10)
+	black      = ansi.RGB(27, 28, 4)
+	yellow     = ansi.RGB(0xef, 0xef, 0x00)
+	aisleColor = ansi.RGB(0x9f, 0x9f, 0x9f)
+	floorColor = ansi.RGB(0x8f, 0x8f, 0x8f)
 
 	blackStyle = renStyle(furnishLayer, '[', ']', white.FG()|black.BG())
 	whiteStyle = renStyle(furnishLayer, '[', ']', black.FG()|white.BG())
 	blondStyle = renStyle(furnishLayer, '[', ']', brown.FG()|blond.BG())
 	brownStyle = renStyle(furnishLayer, '[', ']', blond.FG()|brown.BG())
 
-	playerStyle    = renStyle(agentLayer, ')', '(', ansi.SGRAttrBold|ansi.RGB(0x0, 0xb0, 0xd0).FG())
+	playerStyle    = renStyle(agentLayer, ')', '(', ansi.SGRAttrBold|yellow.FG())
 	spiritStyle    = renStyle(agentLayer, '}', '{', ansi.SGRAttrBold|ansi.RGB(0x60, 0xd0, 0xb0).FG())
 	blueprintStyle = renStyle(blueprintLayer, '?', '¿', ansi.RGB(0x08, 0x18, 0x28).BG()|ansi.RGB(0x50, 0x60, 0x70).FG())
 	wallStyle      = renStyle(wallLayer, '>', '<', ansi.SGRAttrBold|ansi.RGB(0x1f, 0x1f, 0x7f).BG()|ansi.RGB(0, 0, 0x5f).FG())
-	aisleStyle     = renStyle(aisleLayer, '•', '•', ansi.RGB(0x9f, 0x9f, 0x9f).BG()|ansi.RGB(0x7f, 0x7f, 0x7f).FG())
-	floorStyle     = renStyle(floorLayer, '·', '·', ansi.RGB(0x7f, 0x7f, 0x7f).BG()|ansi.RGB(0x18, 0x18, 0x18).FG())
+	aisleStyle     = renStyle(aisleLayer, '•', '•', aisleColor.BG()|floorColor.FG())
+	floorStyle     = renStyle(floorLayer, '·', '·', floorColor.BG()|black.FG())
 
 	corporealApp = entApps(playerStyle, addEntityType(gameCollides))
 	ghostApp     = entApps(spiritStyle, deleteEntityType(gameCollides))
