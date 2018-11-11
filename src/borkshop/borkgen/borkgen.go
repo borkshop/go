@@ -63,6 +63,8 @@ type Room struct {
 	NorthMargin, SouthMargin, WestMargin, EastMargin int
 	NorthWall, SouthWall, WestWall, EastWall         bool
 	NorthDoor, SouthDoor, WestDoor, EastDoor         bool
+	IsWarehouse                                      bool
+	WarehouseNum                                     int
 }
 
 // DescribeRoom describes a room at a particular coördinate on a Hilbert space.
@@ -98,30 +100,25 @@ func DescribeRoom(hpt image.Point) *Room {
 	hilbertWest := Hilbert.Encode(west)
 	hilbertEast := Hilbert.Encode(east)
 
-	switch north {
-	case room.Next, room.Prev:
-	default:
+	room.IsWarehouse = isWarehouse(room.HilbertNum)
+	room.WarehouseNum = warehouseNum(room.HilbertNum)
+
+	if north != room.Next && north != room.Prev && !(room.IsWarehouse && isWarehouse(hilbertNorth) && room.WarehouseNum == warehouseNum(hilbertNorth)) {
 		room.NorthWall = true
 		room.NorthDoor = isDoor(room.HilbertNum, hilbertNorth)
 	}
 
-	switch south {
-	case room.Next, room.Prev:
-	default:
+	if south != room.Next && south != room.Prev && !(room.IsWarehouse && isWarehouse(hilbertSouth) && room.WarehouseNum == warehouseNum(hilbertSouth)) {
 		room.SouthWall = true
 		room.SouthDoor = isDoor(room.HilbertNum, hilbertSouth)
 	}
 
-	switch west {
-	case room.Next, room.Prev:
-	default:
+	if west != room.Next && west != room.Prev && !(room.IsWarehouse && isWarehouse(hilbertWest) && room.WarehouseNum == warehouseNum(hilbertWest)) {
 		room.WestWall = true
 		room.WestDoor = isDoor(room.HilbertNum, hilbertWest)
 	}
 
-	switch east {
-	case room.Next, room.Prev:
-	default:
+	if east != room.Next && east != room.Prev && !(room.IsWarehouse && isWarehouse(hilbertEast) && room.WarehouseNum == warehouseNum(hilbertEast)) {
 		room.EastWall = true
 		room.EastDoor = isDoor(room.HilbertNum, hilbertEast)
 	}
@@ -159,6 +156,9 @@ func (r *Room) At(hpt image.Point) *Room {
 }
 
 func isDoor(a, b int) bool {
+	if isWarehouse(a) || isWarehouse(b) {
+		return false
+	}
 	if b < a {
 		a, b = b, a
 	}
@@ -168,6 +168,14 @@ func isDoor(a, b int) bool {
 	rng := xorshiftstar.New(a)
 	return a&1 == 0 && int(rng.Uint64())&1 == 0
 	// return a&1 == 0
+}
+
+func warehouseNum(n int) int {
+	return (n >> 4) / 3
+}
+
+func isWarehouse(n int) bool {
+	return (n>>4)%3 == 0
 }
 
 // Canvas is a surface on which to draw a showroom.
@@ -314,7 +322,9 @@ func drawRoom(canvas Canvas, memo Memo, room *Room) {
 	// Display items
 	rng := xorshiftstar.New(room.HilbertNum)
 
-	fillDisplaysUniformly(canvas, room, rng)
+	if !room.IsWarehouse {
+		fillDisplaysUniformly(canvas, room, rng)
+	}
 }
 
 func fillDisplaysUniformly(canvas Canvas, room *Room, rng rand.Source64) {
