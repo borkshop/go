@@ -1,5 +1,11 @@
 package borkgen
 
+// CityForRoom returns the city that the current segment of the warehouse
+// starts and ends in.
+func CityForRoom(room *Room) *City {
+	return &Cities[room.WarehouseNum*len(Cities)/WarehouseCount%len(Cities)]
+}
+
 // City represents a city.
 type City struct {
 	Name    string

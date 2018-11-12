@@ -3,7 +3,6 @@ package main
 import (
 	"image"
 	"log"
-	"math/rand"
 	"unicode"
 
 	"borkshop/borkgen"
@@ -16,6 +15,7 @@ type roomGenConfig struct {
 	Floor  entitySpec
 	Aisle  entitySpec
 	Wall   entitySpec
+	Stack  entitySpec
 	Door   entitySpec
 	Player entitySpec
 
@@ -49,16 +49,18 @@ func (gen *roomGen) logf(mess string, args ...interface{}) {
 
 func (gen *roomGen) run(within image.Rectangle) bool {
 	if gen.lastDrawnRoom == nil {
-		spawn := image.Pt(rand.Intn(borkgen.Scale), rand.Intn(borkgen.Scale))
-		gen.logf("player spawns at %v\n", spawn)
-		gen.lastDrawnRoom = borkgen.DescribeRoom(spawn)
+		spawn := borkgen.Spawn()
+		room := borkgen.DescribeRoom(spawn)
+		city := borkgen.CityForRoom(room)
+		gen.lastDrawnRoom = room
+		gen.logf("Welcome to BØRK %s, %s, %s at %v\n", city.Name, city.Region, city.Country, spawn)
 	}
 	gen.lastDrawnRoom = borkgen.Draw(gen, gen, gen.lastDrawnRoom, within)
 	return false
 }
 
 func (gen *roomGen) SetRoomDrawn(room *borkgen.Room) {
-	gen.logf("room drawn %v\n", room.HilbertPt)
+	// gen.logf("room drawn %v\n", room.HilbertPt)
 	gen.drawnRooms[room.HilbertNum] = struct{}{}
 }
 
@@ -107,5 +109,10 @@ func (gen *roomGen) FillWall(rect image.Rectangle) {
 
 func (gen *roomGen) FillFloor(rect image.Rectangle) {
 	gen.builder.spec = gen.Floor
+	gen.builder.fill(rect)
+}
+
+func (gen *roomGen) FillStack(rect image.Rectangle) {
+	gen.builder.spec = gen.Stack
 	gen.builder.fill(rect)
 }

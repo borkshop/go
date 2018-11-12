@@ -87,6 +87,7 @@ const (
 	gameBlueprint = gamePosition | gameRender | gameGoal
 
 	gameWall       = gamePosition | gameRender | gameCollides
+	gameStack      = gamePosition | gameRender | gameCollides
 	gameFloor      = gamePosition | gameRender
 	gameDisplay    = gamePosition | gameRender | gameCollides
 	gameSpawnPoint = gamePosition | gameSpawn
@@ -134,6 +135,7 @@ var (
 	blond      = ansi.RGB(216, 156, 57)
 	brown      = ansi.RGB(78, 44, 10)
 	black      = ansi.RGB(27, 28, 4)
+	blue       = ansi.RGB(0x1f, 0x1f, 0x7f)
 	yellow     = ansi.RGB(0xef, 0xef, 0x00)
 	aisleColor = ansi.RGB(0x9f, 0x9f, 0x9f)
 	floorColor = ansi.RGB(0x8f, 0x8f, 0x8f)
@@ -146,7 +148,8 @@ var (
 	playerStyle    = renStyle(agentLayer, ')', '(', ansi.SGRAttrBold|yellow.FG())
 	spiritStyle    = renStyle(agentLayer, '}', '{', ansi.SGRAttrBold|ansi.RGB(0x60, 0xd0, 0xb0).FG())
 	blueprintStyle = renStyle(blueprintLayer, '?', '¿', ansi.RGB(0x08, 0x18, 0x28).BG()|ansi.RGB(0x50, 0x60, 0x70).FG())
-	wallStyle      = renStyle(wallLayer, '>', '<', ansi.SGRAttrBold|ansi.RGB(0x1f, 0x1f, 0x7f).BG()|ansi.RGB(0, 0, 0x5f).FG())
+	wallStyle      = renStyle(wallLayer, '>', '<', ansi.SGRAttrBold|blue.BG()|ansi.RGB(0, 0, 0x5f).FG())
+	stackStyle     = renStyle(wallLayer, 'X', 'X', black.FG()|floorColor.BG())
 	aisleStyle     = renStyle(aisleLayer, '•', '•', aisleColor.BG()|floorColor.FG())
 	floorStyle     = renStyle(floorLayer, '·', '·', floorColor.BG()|black.FG())
 
@@ -215,6 +218,7 @@ func newGame() *game {
 			}),
 		),
 		Wall:          entSpec(gameWall, wallStyle),
+		Stack:         entSpec(gameWall, stackStyle),
 		Floor:         entSpec(gameFloor, floorStyle),
 		Aisle:         entSpec(gameFloor, aisleStyle),
 		PlaceAttempts: 3,

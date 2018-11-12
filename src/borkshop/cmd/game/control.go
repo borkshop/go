@@ -2,7 +2,6 @@ package main
 
 import (
 	"image"
-	"log"
 	"math/rand"
 
 	"github.com/jcorbin/anansi/ansi"
@@ -48,7 +47,7 @@ func (g *game) spawnPlayers(ctx agentContext, es ecs.Entities) (agentContext, er
 		}
 		spawnPos := g.pos.GetID(id).Point()
 		g.gen.Player.create(&g.shard, spawnPos)
-		log.Printf("spawn player @%v", spawnPos)
+		// log.Printf("spawn player @%v", spawnPos)
 	}
 	return ctx, nil
 }
