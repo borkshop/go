@@ -132,7 +132,7 @@ const (
 
 var (
 	white      = ansi.RGB(0xff, 0xff, 0xff)
-	blond      = ansi.RGB(216, 156, 57)
+	blond      = ansi.RGB(216, 168, 57)
 	brown      = ansi.RGB(78, 44, 10)
 	black      = ansi.RGB(27, 28, 4)
 	blue       = ansi.RGB(0x1f, 0x1f, 0x7f)
@@ -149,7 +149,7 @@ var (
 	spiritStyle    = renStyle(agentLayer, '}', '{', ansi.SGRAttrBold|ansi.RGB(0x60, 0xd0, 0xb0).FG())
 	blueprintStyle = renStyle(blueprintLayer, '?', '¿', ansi.RGB(0x08, 0x18, 0x28).BG()|ansi.RGB(0x50, 0x60, 0x70).FG())
 	wallStyle      = renStyle(wallLayer, '>', '<', ansi.SGRAttrBold|blue.BG()|ansi.RGB(0, 0, 0x5f).FG())
-	stackStyle     = renStyle(wallLayer, 'X', 'X', black.FG()|floorColor.BG())
+	stackStyle     = renStyle(wallLayer, '[', ']', brown.FG()|blond.BG())
 	aisleStyle     = renStyle(aisleLayer, '•', '•', aisleColor.BG()|floorColor.FG())
 	floorStyle     = renStyle(floorLayer, '·', '·', floorColor.BG()|black.FG())
 
