@@ -82,10 +82,10 @@ func DescribeRoom(hpt image.Point) *Room {
 	leftMarginRand := xorshiftstar.New(hpt.X * 2)
 	rightMarginRand := xorshiftstar.New(hpt.X*2 + 1)
 
-	room.NorthMargin = int(1 + topMarginRand.Uint64()%3 + topMarginRand.Uint64()%3)
-	room.SouthMargin = int(1 + bottomMarginRand.Uint64()%3 + bottomMarginRand.Uint64()%3)
-	room.WestMargin = int(1 + leftMarginRand.Uint64()%3 + leftMarginRand.Uint64()%3)
-	room.EastMargin = int(1 + rightMarginRand.Uint64()%3 + rightMarginRand.Uint64()%3)
+	room.NorthMargin = int(2 + topMarginRand.Uint64()%3 + topMarginRand.Uint64()%3)
+	room.SouthMargin = int(2 + bottomMarginRand.Uint64()%3 + bottomMarginRand.Uint64()%3)
+	room.WestMargin = int(2 + leftMarginRand.Uint64()%3 + leftMarginRand.Uint64()%3)
+	room.EastMargin = int(2 + rightMarginRand.Uint64()%3 + rightMarginRand.Uint64()%3)
 
 	width := int(1 + room.WestMargin + room.EastMargin)
 	height := int(1 + room.NorthMargin + room.SouthMargin)

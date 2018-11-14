@@ -33,7 +33,14 @@ func drawShowroom(canvas Canvas, room *Room) {
 	// Display items
 	rng := xorshiftstar.New(room.HilbertNum)
 
-	fillDisplaysUniformly(canvas, room, rng)
+	switch int(rng.Uint64()>>1) % 3 {
+	case 0:
+		fillDisplaysVertically(canvas, room, rng)
+	case 1:
+		fillDisplaysHorizontally(canvas, room, rng)
+	case 2:
+		fillDisplaysUniformly(canvas, room, rng)
+	}
 }
 
 func drawWalls(canvas Canvas, room *Room, mask image.Rectangle) {
@@ -110,78 +117,38 @@ func drawWalls(canvas Canvas, room *Room, mask image.Rectangle) {
 	}
 }
 
+func fillDisplaysHorizontally(canvas Canvas, room *Room, rng rand.Source64) {
+	floor := measureFloor(room, rng, horizontal)
+	for y := floor.Min.Y; y < floor.Max.Y; y += 2 {
+		for x := floor.Min.X; x < floor.Max.X; x++ {
+			if x == room.Pt.X {
+				continue
+			}
+			i := int(rng.Uint64()>>1) % len(catalog)
+			c := int(rng.Uint64()>>1) % 4
+			canvas.FillDisplay(unitRect.Add(image.Pt(x, y)), catalog[i], Color(c))
+		}
+	}
+}
+
+func fillDisplaysVertically(canvas Canvas, room *Room, rng rand.Source64) {
+	floor := measureFloor(room, rng, vertical)
+	for x := floor.Min.X; x < floor.Max.X; x += 2 {
+		for y := floor.Min.Y; y < floor.Max.Y; y++ {
+			if y == room.Pt.Y {
+				continue
+			}
+			i := int(rng.Uint64()>>1) % len(catalog)
+			c := int(rng.Uint64()>>1) % 4
+			canvas.FillDisplay(unitRect.Add(image.Pt(x, y)), catalog[i], Color(c))
+		}
+	}
+}
+
 func fillDisplaysUniformly(canvas Canvas, room *Room, rng rand.Source64) {
-	floor := room.Floor.Add(room.Pt)
-	itemFloor := image.Rectangle{
-		floor.Min.Add(unitPt),
-		floor.Max.Sub(unitPt),
-	}
-
-	// Depending on stride and whether there are walls, a room might be able to
-	// grow into the cells where there would have been walls.
-	// We take the opportunity, one direction or the other, if it arises, but
-	// if there are opportunities in both directions, we choose a direction
-	// randomly.
-	var canGrowLat, canGrowLong int
-	var canGrowSouth, canGrowNorth, canGrowEast, canGrowWest bool
-
-	// For west and north, we are also obliged to ensure that that the aisles
-	// pass between the display items, so we offset the position of the first
-	// item by one in each dimension, depending on whether the margin is even
-	// or odd.
-	// Only if we have bumped the furniture south or east by one is there a
-	// possibility that we can shift north or west by two to fill the floor
-	// where there would have been a wall.
-	if room.WestMargin&1 == 0 {
-		itemFloor.Min.X++
-		if !room.WestWall {
-			canGrowWest = true
-			canGrowLat++
-		}
-	}
-	if room.NorthMargin&1 == 0 {
-		itemFloor.Min.Y++
-		if !room.NorthWall {
-			canGrowNorth = true
-			canGrowLong++
-		}
-	}
-	if room.EastMargin&1 == 0 && !room.EastWall {
-		canGrowEast = true
-		canGrowLat++
-	}
-	if room.SouthMargin&1 == 0 && !room.SouthWall {
-		canGrowSouth = true
-		canGrowLong++
-	}
-
-	// All things being equal, we do not favor latitudinal or logintudinal
-	// growth over the other.
-	var favorLong bool
-	if canGrowLong == canGrowLat {
-		favorLong = rng.Uint64()&1 == 0
-	} else {
-		favorLong = canGrowLong > canGrowLat
-	}
-
-	if favorLong {
-		if canGrowSouth {
-			itemFloor.Max.Y++
-		}
-		if canGrowNorth {
-			itemFloor.Min.Y -= 2
-		}
-	} else {
-		if canGrowEast {
-			itemFloor.Max.X++
-		}
-		if canGrowWest {
-			itemFloor.Min.X -= 2
-		}
-	}
-
-	for y := itemFloor.Min.Y; y < itemFloor.Max.Y; y += 2 {
-		for x := itemFloor.Min.X; x < itemFloor.Max.X; x += 2 {
+	floor := measureFloor(room, rng, horizontal|vertical)
+	for y := floor.Min.Y; y < floor.Max.Y; y += 2 {
+		for x := floor.Min.X; x < floor.Max.X; x += 2 {
 			i := int(rng.Uint64()>>1) % len(catalog)
 			c := int(rng.Uint64()>>1) % 4
 			canvas.FillDisplay(unitRect.Add(image.Pt(x, y)), catalog[i], Color(c))

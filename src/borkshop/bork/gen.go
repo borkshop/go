@@ -53,7 +53,7 @@ func (gen *roomGen) run(within image.Rectangle) bool {
 		room := borkgen.DescribeRoom(spawn)
 		city := borkgen.CityForRoom(room)
 		gen.lastDrawnRoom = room
-		gen.logf("Welcome to BØRK %s, %s, %s at %v\n", city.Name, city.Region, city.Country, spawn)
+		gen.logf("Welcome to BØRK #%d %s, %s, %s at %v\n", room.WarehouseNum, city.Name, city.Region, city.Country, spawn)
 	}
 	gen.lastDrawnRoom = borkgen.Draw(gen, gen, gen.lastDrawnRoom, within)
 	return false
