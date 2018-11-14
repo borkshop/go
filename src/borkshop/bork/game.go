@@ -12,6 +12,7 @@ import (
 	"github.com/jcorbin/anansi/ansi"
 	"github.com/jcorbin/anansi/x/platform"
 
+	"borkshop/borkbrand"
 	"borkshop/ecs"
 	"borkshop/ecs/inspect"
 )
@@ -131,27 +132,21 @@ const (
 )
 
 var (
-	white      = ansi.RGB(0xff, 0xff, 0xff)
-	blond      = ansi.RGB(216, 168, 57)
-	brown      = ansi.RGB(78, 44, 10)
-	black      = ansi.RGB(27, 28, 4)
-	blue       = ansi.RGB(0x1f, 0x1f, 0x7f)
-	yellow     = ansi.RGB(0xef, 0xef, 0x00)
-	aisleColor = ansi.RGB(0x9f, 0x9f, 0x9f)
-	floorColor = ansi.RGB(0x8f, 0x8f, 0x8f)
+	blueprintBG = ansi.RGB(0x08, 0x18, 0x28).BG()
+	blueprintFG = ansi.RGB(0x50, 0x60, 0x70).FG()
 
-	blackStyle = renStyle(furnishLayer, '[', ']', white.FG()|black.BG())
-	whiteStyle = renStyle(furnishLayer, '[', ']', black.FG()|white.BG())
-	blondStyle = renStyle(furnishLayer, '[', ']', brown.FG()|blond.BG())
-	brownStyle = renStyle(furnishLayer, '[', ']', blond.FG()|brown.BG())
+	blackStyle = renStyle(furnishLayer, '[', ']', borkbrand.White.FG()|borkbrand.Black.BG())
+	whiteStyle = renStyle(furnishLayer, '[', ']', borkbrand.Black.FG()|borkbrand.White.BG())
+	blondStyle = renStyle(furnishLayer, '[', ']', borkbrand.Brown.FG()|borkbrand.Blond.BG())
+	brownStyle = renStyle(furnishLayer, '[', ']', borkbrand.Blond.FG()|borkbrand.Brown.BG())
 
-	playerStyle    = renStyle(agentLayer, ')', '(', ansi.SGRAttrBold|yellow.FG())
-	spiritStyle    = renStyle(agentLayer, '}', '{', ansi.SGRAttrBold|ansi.RGB(0x60, 0xd0, 0xb0).FG())
-	blueprintStyle = renStyle(blueprintLayer, '?', '¿', ansi.RGB(0x08, 0x18, 0x28).BG()|ansi.RGB(0x50, 0x60, 0x70).FG())
-	wallStyle      = renStyle(wallLayer, '>', '<', ansi.SGRAttrBold|blue.BG()|ansi.RGB(0, 0, 0x5f).FG())
-	stackStyle     = renStyle(wallLayer, '[', ']', brown.FG()|blond.BG())
-	aisleStyle     = renStyle(aisleLayer, '•', '•', aisleColor.BG()|floorColor.FG())
-	floorStyle     = renStyle(floorLayer, '·', '·', floorColor.BG()|black.FG())
+	playerStyle    = renStyle(agentLayer, ')', '(', ansi.SGRAttrBold|borkbrand.Guest.FG())
+	spiritStyle    = renStyle(agentLayer, '}', '{', ansi.SGRAttrBold|borkbrand.WithWorker.FG())
+	blueprintStyle = renStyle(blueprintLayer, '?', '¿', blueprintBG|blueprintFG)
+	wallStyle      = renStyle(wallLayer, '>', '<', ansi.SGRAttrBold|borkbrand.BorkBlue.BG()|borkbrand.DarkBork.FG())
+	stackStyle     = renStyle(wallLayer, '[', ']', borkbrand.Brown.FG()|borkbrand.Blond.BG())
+	aisleStyle     = renStyle(aisleLayer, '•', '•', borkbrand.Aisle.BG()|borkbrand.Floor.FG())
+	floorStyle     = renStyle(floorLayer, '·', '·', borkbrand.Floor.BG()|borkbrand.Black.FG())
 
 	corporealApp = entApps(playerStyle, addEntityType(gameCollides))
 	ghostApp     = entApps(spiritStyle, deleteEntityType(gameCollides))
