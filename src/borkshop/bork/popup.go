@@ -10,10 +10,12 @@ import (
 )
 
 type popup struct {
+	// TODO replace with anansi.Screen
+	anansi.ScreenState
+	buf anansi.Buffer
+
 	active bool
 	at     ansi.Point
-	anansi.ScreenState
-	buf ansi.Buffer
 }
 
 func (pop *popup) setAt(at ansi.Point) {

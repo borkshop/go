@@ -17,7 +17,7 @@ const (
 	bodyHand
 )
 
-var defaultBodyDef = bodyDef(anansi.NewBitmapString('#',
+var defaultBodyDef = bodyDef(anansi.NewBitmap(anansi.MustParseBitmap("#", // TODO "##" for better parity
 	"cc##  hhHH  ##CC",
 	"cc### hhHH ###CC",
 	"cc  ##hhHH##  CC",
@@ -30,7 +30,7 @@ var defaultBodyDef = bodyDef(anansi.NewBitmapString('#',
 	"    ##ttTT##    ",
 	"  ### ttTT ###  ",
 	"  ##  ttTT  ##  ",
-), []bodyPartDef{
+)), []bodyPartDef{
 	{Point: image.Pt(0, 0), name: "left hand slot", t: bodySlot | bodyHand}, // c
 	{Point: image.Pt(1, 0), name: "left hand"},
 	{Point: image.Pt(2, 0), name: "left arm"},
