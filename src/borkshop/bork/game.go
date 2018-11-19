@@ -392,22 +392,18 @@ func (g *game) Update(ctx *platform.Context) (err error) {
 	return err
 }
 
-func (g *game) inspect(at ansi.Point) {
-	any := false
-	pq := g.pos.At(at.ToImage().Add(g.view.Min))
-	if pq.Next() {
-		any = true
-		g.pop.buf.Reset()
+func (g *game) inspect(screenAt ansi.Point) {
+	worldAt := screenAt.ToImage().Add(g.view.Min)
+	g.pop.buf.Reset()
+	if pq := g.pos.At(worldAt); pq.Next() {
 		g.pop.buf.Grow(1024)
 		g.describe(&g.pop.buf, pq.handle().Entity())
 		for pq.Next() {
 			_, _ = g.pop.buf.WriteString("\r\n\n")
 			g.describe(&g.pop.buf, pq.handle().Entity())
 		}
-	}
-	if any {
 		g.pop.processBuf()
-		g.pop.setAt(at.Add(image.Pt(1, 1)))
+		g.pop.setAt(screenAt.Add(image.Pt(1, 1)))
 		g.pop.active = true
 	} else {
 		g.pop.active = false
