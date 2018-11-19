@@ -3,6 +3,10 @@
     "remote": "https://github.com/hsluv/hsluv-go.git",
     "ref": "refs/tags/v2.0.0"
   },
+  "src/vendor/github.com/mattn/go-runewidth": {
+    "remote": "https://github.com/mattn/go-runewidth.git",
+    "ref": "c88d7e5f2e24de48a200a2655ac8a0910be9a0f7"
+  },
   "src/vendor/github.com/nsf/termbox-go": {
     "remote": "https://github.com/nsf/termbox-go.git",
     "ref": "b66b20ab708e289ff1eb3e218478302e6aec28ce"
