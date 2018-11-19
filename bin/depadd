@@ -1,0 +1,32 @@
+#!/bin/bash
+set -ueo pipefail
+
+if [ $# -lt 3 ]; then
+    echo "usage depadd <package> <remote> <ref>" >&2
+    exit 1
+fi
+
+export GIT_INDEX_FILE=.git/VENDOR
+
+PACKAGE=$1
+REMOTE=$2 # TODO infer from standard $PACKAGE prefixes
+REF=$3
+
+DIR=src/vendor/$PACKAGE
+
+jq -r '
+    to_entries
+    + [{"key": $dir, "value": {$remote, $ref}}]
+    | sort_by(.key)
+    | from_entries
+' --arg dir "$DIR" \
+    --arg remote "$REMOTE" \
+    --arg ref "$REF" \
+    vendor.json > .vendor.json.tmp
+mv .vendor.json.tmp vendor.json
+
+git fetch "$REMOTE" "$REF:refs/temp" -f --no-tags --recurse-submodules
+git read-tree --empty
+git read-tree --prefix "$DIR" TEMP
+git checkout-index -af
+
