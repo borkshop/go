@@ -328,26 +328,8 @@ func (g *game) Update(ctx *platform.Context) (err error) {
 
 	// Ctrl-mouse to inspect entities
 	if m, haveMouse := ctx.Input.LastMouse(false); haveMouse && m.State.IsMotion() {
-		any := false
 		if m.State&ansi.MouseModControl != 0 {
-			pq := g.pos.At(m.Point.ToImage().Add(g.view.Min))
-			if pq.Next() {
-				any = true
-				g.pop.buf.Reset()
-				g.pop.buf.Grow(1024)
-				g.describe(&g.pop.buf, pq.handle().Entity())
-				for pq.Next() {
-					_, _ = g.pop.buf.WriteString("\r\n\n")
-					g.describe(&g.pop.buf, pq.handle().Entity())
-				}
-			}
-			if any {
-				g.pop.processBuf()
-				g.pop.setAt(m.Point.Add(image.Pt(1, 1)))
-				g.pop.active = true
-			} else {
-				g.pop.active = false
-			}
+			g.inspect(m.Point)
 		}
 	}
 
@@ -408,6 +390,28 @@ func (g *game) Update(ctx *platform.Context) (err error) {
 	}
 
 	return err
+}
+
+func (g *game) inspect(at ansi.Point) {
+	any := false
+	pq := g.pos.At(at.ToImage().Add(g.view.Min))
+	if pq.Next() {
+		any = true
+		g.pop.buf.Reset()
+		g.pop.buf.Grow(1024)
+		g.describe(&g.pop.buf, pq.handle().Entity())
+		for pq.Next() {
+			_, _ = g.pop.buf.WriteString("\r\n\n")
+			g.describe(&g.pop.buf, pq.handle().Entity())
+		}
+	}
+	if any {
+		g.pop.processBuf()
+		g.pop.setAt(at.Add(image.Pt(1, 1)))
+		g.pop.active = true
+	} else {
+		g.pop.active = false
+	}
 }
 
 type dragState struct {
