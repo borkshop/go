@@ -3,6 +3,10 @@
     "remote": "https://github.com/hsluv/hsluv-go.git",
     "ref": "refs/tags/v2.0.0"
   },
+  "src/vendor/github.com/nsf/termbox-go": {
+    "remote": "https://github.com/nsf/termbox-go.git",
+    "ref": "b66b20ab708e289ff1eb3e218478302e6aec28ce"
+  },
   "src/vendor/go.uber.org/atomic": {
     "remote": "https://github.com/uber-go/atomic.git",
     "ref": "refs/tags/v1.3.2"
