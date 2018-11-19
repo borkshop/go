@@ -10,29 +10,31 @@ import (
 )
 
 type popup struct {
-	// TODO replace with anansi.Screen
-	anansi.ScreenState
-	buf anansi.Buffer
-
+	anansi.Screen
 	active bool
 	at     ansi.Point
-}
-
-func (pop *popup) setAt(at ansi.Point) {
-	pop.at = at
 }
 
 func (pop *popup) drawInto(grid *anansi.Grid) {
 	anansi.DrawGrid(grid.SubAt(pop.at), pop.Grid)
 }
 
-func (pop *popup) processBuf() {
-	b := pop.buf.Bytes()
-	sz := measureTextBounds(b)
-	pop.ScreenState.Clear()
-	pop.ScreenState.Resize(sz)
+func (pop *popup) Reset() {
+	pop.active = false
+	pop.at = ansi.ZP
+	pop.Screen.Reset()
+}
+
+func (pop *popup) Reload(contents []byte, at ansi.Point) {
+	// TODO satisfice size wrt at within bounds
+	sz := measureTextBounds(contents)
+	// +1,1 because at is the location of the subject, which we don't want to occlude
+	pop.at = at.Add(image.Pt(1, 1))
+	pop.Screen.Reset()
+	pop.Screen.Resize(sz)
 	pop.CursorState.Attr = ansi.SGRAttrClear | ansi.RGB(0x20, 0x20, 0x40).BG()
-	pop.buf.Process(&pop.ScreenState)
+	pop.Screen.Write(contents)
+	pop.active = true
 }
 
 func measureTextBounds(b []byte) (sz image.Point) {

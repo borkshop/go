@@ -1,6 +1,7 @@
 package main
 
 import (
+	"bytes"
 	"fmt"
 	"image"
 	"io"
@@ -52,6 +53,9 @@ type game struct {
 	//   component data around to match the spatial index ordering, optimizing
 	//   for spatial locality within each system
 	shard
+
+	// tmp scratch space
+	buf bytes.Buffer
 
 	// ui
 	sim  image.Rectangle
@@ -394,19 +398,17 @@ func (g *game) Update(ctx *platform.Context) (err error) {
 
 func (g *game) inspect(screenAt ansi.Point) {
 	worldAt := screenAt.ToImage().Add(g.view.Min)
-	g.pop.buf.Reset()
+	g.buf.Reset()
 	if pq := g.pos.At(worldAt); pq.Next() {
-		g.pop.buf.Grow(1024)
-		g.describe(&g.pop.buf, pq.handle().Entity())
+		g.buf.Grow(1024)
+		g.describe(&g.buf, pq.handle().Entity())
 		for pq.Next() {
-			_, _ = g.pop.buf.WriteString("\r\n\n")
-			g.describe(&g.pop.buf, pq.handle().Entity())
+			_, _ = g.buf.WriteString("\r\n\n")
+			g.describe(&g.buf, pq.handle().Entity())
 		}
-		g.pop.processBuf()
-		g.pop.setAt(screenAt.Add(image.Pt(1, 1)))
-		g.pop.active = true
+		g.pop.Reload(g.buf.Bytes(), screenAt)
 	} else {
-		g.pop.active = false
+		g.pop.Reset()
 	}
 }
 
