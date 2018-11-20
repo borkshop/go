@@ -69,7 +69,7 @@ func (c *Corpus) Ingest(chain []string) {
 	c.AddTransition(last, term, 1)
 }
 
-func ExampleMarkovChain() {
+func Example_markovChain() {
 	c := NewCorpus()
 	for _, s := range []string{
 		"it was the best of times",

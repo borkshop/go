@@ -1,4 +1,4 @@
-package ecsTime
+package ecstime
 
 import "deathroom/internal/ecs"
 

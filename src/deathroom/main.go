@@ -78,7 +78,7 @@ type world struct {
 	ecs.System
 	pos eps.EPS
 
-	timers ecsTime.Timers
+	timers ecstime.Timers
 	Names  []string
 	Glyphs []rune
 	BG     []termbox.Attribute
@@ -92,7 +92,7 @@ type world struct {
 
 type moves struct {
 	ecs.Relation
-	timers ecsTime.Timers
+	timers ecstime.Timers
 	n      []int
 	p      []point.Point
 }
@@ -664,8 +664,9 @@ func (w *world) dealAttackDamage(
 		if severed.Len() > 0 {
 			w.log("%s's remains have dropped on the floor", targName)
 		} else {
-			w.log("empty severed? %v",
-				w.getName(targ, "?!?"), targBo.DescribePart(bPart),
+			w.log("empty severed? %v from %v",
+				targBo.DescribePart(bPart),
+				w.getName(targ, "?!?"),
 			)
 		}
 	}
