@@ -2,7 +2,9 @@ package view
 
 import (
 	"fmt"
+	"image"
 
+	"github.com/jcorbin/anansi/ansi"
 	termbox "github.com/nsf/termbox-go"
 
 	"deathroom/internal/moremath"
@@ -85,7 +87,8 @@ type Renderable interface {
 }
 
 func (lay *Layout) init() {
-	n := lay.Grid.Size.Y
+	gsz := lay.Grid.Bounds().Size()
+	n := gsz.Y
 	if cap(lay.avail) < n {
 		lay.lused = make([]int, n)
 		lay.rused = make([]int, n)
@@ -97,7 +100,7 @@ func (lay *Layout) init() {
 		lay.cused = lay.cused[:n]
 		lay.avail = lay.avail[:n]
 	}
-	n = lay.Grid.Size.X
+	n = gsz.X
 	for i := range lay.avail {
 		lay.avail[i] = n
 	}
@@ -121,7 +124,8 @@ type LayoutPlacement struct {
 // Place a Renderable into layout, returning false if the placement can't be
 // done.
 func (lay *Layout) Place(ren Renderable, align Align) LayoutPlacement {
-	if len(lay.avail) != lay.Grid.Size.Y {
+	gsz := lay.Grid.Bounds().Size()
+	if len(lay.avail) != gsz.Y {
 		lay.init()
 	}
 	plc := MakeLayoutPlacement(lay, ren)
@@ -259,6 +263,7 @@ func (plc *LayoutPlacement) Render() {
 	if !plc.ok {
 		return
 	}
+	gsz := plc.lay.Grid.Bounds().Size()
 
 	plc.align &= ^AlignHFlush
 	off, used := 0, []int(nil)
@@ -278,17 +283,17 @@ func (plc *LayoutPlacement) Render() {
 		if delta == 0 {
 			plc.align |= AlignHFlush
 		}
-		off = plc.lay.Grid.Size.X - plc.have.X - delta
+		off = gsz.X - plc.have.X - delta
 		used = plc.lay.rused
 
 	default: // NOTE: defaults to AlignCenter:
 		lused := moremath.MaxInt(plc.lay.lused[plc.start : plc.start+plc.have.Y]...)
 		rused := moremath.MaxInt(plc.lay.rused[plc.start : plc.start+plc.have.Y]...)
-		off = lused + (plc.lay.Grid.Size.X-plc.have.X-lused-rused)/2
+		off = lused + (gsz.X-plc.have.X-lused-rused)/2
 		used = plc.lay.cused
 	}
 
-	grid := MakeGrid(plc.have)
+	grid := MakeGrid(image.Point(plc.have))
 	plc.ren.Render(grid)
 	plc.copy(grid, off)
 	delta += plc.have.X
@@ -306,13 +311,16 @@ func (plc *LayoutPlacement) copy(g Grid, off int) {
 		center = plc.align&AlignCenter == AlignCenter
 		lflush = plc.align&AlignHFlush != 0 && left
 		rflush = plc.align&AlignHFlush != 0 && right
-		pad    = plc.sep
 		paded  point.Point
+
+		padRune, padAttr = termbox2ansi(plc.sep)
+
+		gsz   = g.Bounds().Size()
+		lgsz  = plc.lay.Grid.Bounds().Size()
+		bound = trim(g)
 	)
 
-	bound := trim(g)
-
-	if dx := moremath.MaxInt(0, g.Size.X-bound.BottomRight.X) + bound.TopLeft.X; dx > 0 {
+	if dx := moremath.MaxInt(0, gsz.X-bound.BottomRight.X) + bound.TopLeft.X; dx > 0 {
 		if right {
 			off += dx
 		} else if center {
@@ -321,39 +329,42 @@ func (plc *LayoutPlacement) copy(g Grid, off int) {
 	}
 
 	// pad left
-	if pad.Ch != 0 {
+	if padRune != 0 {
 		if left && !lflush {
 			for ly, gy := plc.start, bound.TopLeft.Y; gy < bound.BottomRight.Y; ly, gy = ly+1, gy+1 {
-				li := ly*plc.lay.Grid.Size.X + off
-				plc.lay.Grid.Data[li] = pad
+				li := ly*lgsz.X + off
+				plc.lay.Grid.Rune[li] = padRune
+				plc.lay.Grid.Attr[li] = padAttr
 			}
 			off++
 			paded.X++
-			pad.Ch = 0
+			padRune = 0
 		} else if right && !rflush {
 			off--
 		} else {
-			pad.Ch = 0
+			padRune = 0
 		}
 	}
 
 	// actual copy
 	for ly, gy := plc.start, bound.TopLeft.Y; gy < bound.BottomRight.Y; ly, gy = ly+1, gy+1 {
-		li := ly*plc.lay.Grid.Size.X + off
-		gi := gy*g.Size.X + bound.TopLeft.X
+		li := ly*lgsz.X + off
+		gi := gy*gsz.X + bound.TopLeft.X
 		for gx := bound.TopLeft.X; gx < bound.BottomRight.X; gx++ {
-			plc.lay.Grid.Data[li] = g.Data[gi]
+			plc.lay.Grid.Rune[li] = g.Rune[gi]
+			plc.lay.Grid.Attr[li] = g.Attr[gi]
 			li++
 			gi++
 		}
 	}
 
 	// pad right
-	if pad.Ch != 0 {
+	if padRune != 0 {
 		off += bound.BottomRight.X - bound.TopLeft.X
 		for ly, gy := plc.start, bound.TopLeft.Y; gy < bound.BottomRight.Y; ly, gy = ly+1, gy+1 {
-			li := ly*plc.lay.Grid.Size.X + off
-			plc.lay.Grid.Data[li] = pad
+			li := ly*lgsz.X + off
+			plc.lay.Grid.Rune[li] = padRune
+			plc.lay.Grid.Attr[li] = padAttr
 		}
 		paded.X++
 	}
@@ -363,7 +374,7 @@ func (plc *LayoutPlacement) copy(g Grid, off int) {
 
 func trim(g Grid) (bound point.Box) {
 	anyCol, anyRow := usedColumns(g)
-	bound.BottomRight = g.Size
+	bound.BottomRight = point.Point(g.Bounds().Size())
 
 	// trim top
 	for y := 0; y < bound.BottomRight.Y; y++ {
@@ -401,19 +412,20 @@ func trim(g Grid) (bound point.Box) {
 }
 
 func usedColumns(g Grid) (anyCol, anyRow []bool) {
-	anyCol = make([]bool, g.Size.X)
-	anyRow = make([]bool, g.Size.Y)
-	for y, i := 0, 0; i < len(g.Data); y++ {
-		for x := 0; x < g.Size.X; x++ {
-			if ch := g.Data[i].Ch; ch != 0 {
+	gsz := g.Bounds().Size()
+	anyCol = make([]bool, gsz.X)
+	anyRow = make([]bool, gsz.Y)
+	for y, i := 0, 0; i < len(g.Rune); y++ {
+		for x := 0; x < gsz.X; x++ {
+			if ch := g.Rune[i]; ch != 0 {
 				anyCol[x] = true
 				anyRow[y] = true
 			}
-			if fg := g.Data[i].Fg; fg != 0 {
+			if fg, haveFG := g.Attr[i].FG(); haveFG {
 				anyCol[x] = true
 				anyRow[y] = true
 			}
-			if bg := g.Data[i].Bg; bg != 0 {
+			if bg, haveBG := g.Attr[i].BG(); haveBG {
 				anyCol[x] = true
 				anyRow[y] = true
 			}
@@ -421,4 +433,16 @@ func usedColumns(g Grid) (anyCol, anyRow []bool) {
 		}
 	}
 	return anyCol, anyRow
+}
+
+// TODO move into something like github.com/jcorbin/anansi/compat ?
+func termbox2ansi(c termbox.Cell) (rune, ansi.SGRAttr) {
+	var attr ansi.SGRAttr
+	if c.Fg != 0 {
+		attr |= ansi.SGRColor(c.Fg - 1).FG()
+	}
+	if c.Bg != 0 {
+		attr |= ansi.SGRColor(c.Bg - 1).BG()
+	}
+	return c.Ch, attr
 }

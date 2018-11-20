@@ -7,7 +7,7 @@ import (
 	"os"
 	"strings"
 
-	termbox "github.com/nsf/termbox-go"
+	"github.com/jcorbin/anansi/ansi"
 
 	"deathroom/internal/ecs"
 	"deathroom/internal/ecs/eps"
@@ -81,8 +81,7 @@ type world struct {
 	timers ecstime.Timers
 	Names  []string
 	Glyphs []rune
-	BG     []termbox.Attribute
-	FG     []termbox.Attribute
+	Attr   []ansi.SGRAttr
 	bodies []*body
 	items  []worldItem
 
@@ -176,8 +175,7 @@ func (w *world) init(v *view.View) {
 	// TODO: consider eliminating the padding for EntityID(0)
 	w.Names = []string{""}
 	w.Glyphs = []rune{0}
-	w.BG = []termbox.Attribute{0}
-	w.FG = []termbox.Attribute{0}
+	w.Attr = []ansi.SGRAttr{0}
 	w.bodies = []*body{nil}
 	w.items = []worldItem{nil}
 
@@ -239,8 +237,7 @@ func (rc *rangeChooser) chosen(prior prompt.Prompt, n int) (next prompt.Prompt, 
 func (w *world) allocWorld(id ecs.EntityID, t ecs.ComponentType) {
 	w.Names = append(w.Names, "")
 	w.Glyphs = append(w.Glyphs, 0)
-	w.BG = append(w.BG, 0)
-	w.FG = append(w.FG, 0)
+	w.Attr = append(w.Attr, 0)
 	w.bodies = append(w.bodies, nil)
 	w.items = append(w.items, nil)
 }
@@ -734,13 +731,15 @@ func (w *world) decayRemains(item ecs.Entity) {
 
 func (w *world) dirtyFloorTile(pos point.Point) (ecs.Entity, bool) {
 	for _, tile := range ecs.Filter(w.pos.At(pos), ecs.All(floorTileMask)) {
-		bg := w.BG[tile.ID()]
+		attr := w.Attr[tile.ID()]
+		bg, _ := attr.BG()
 		for i := range floorColors {
 			if floorColors[i] == bg {
 				j := i + 1
 				canDirty := j < len(floorColors)
 				if canDirty {
-					w.BG[tile.ID()] = floorColors[j]
+					attr = attr.SansBG() | floorColors[j].BG()
+					w.Attr[tile.ID()] = attr
 				}
 				return tile, canDirty
 			}
@@ -815,17 +814,16 @@ func (w *world) addBox(box point.Box, glyph rune) {
 			w.Glyphs[wall.ID()] = glyph
 			w.pos.Set(wall, pos)
 			c, _ := wallTable.toColor(last)
-			w.BG[wall.ID()] = c
-			w.FG[wall.ID()] = c + 1
+			w.Attr[wall.ID()] = c.BG() | (c + 1).FG()
 			pos = pos.Add(r.d)
 			last = wallTable.ChooseNext(w.rng, last)
 		}
 	}
 
-	floorTable.genTile(w.rng, box, func(pos point.Point, bg termbox.Attribute) {
+	floorTable.genTile(w.rng, box, func(pos point.Point, c ansi.SGRColor) {
 		floor := w.AddEntity(wcPosition | wcBG | wcFloor)
 		w.pos.Set(floor, pos)
-		w.BG[floor.ID()] = bg
+		w.Attr[floor.ID()] = c.BG()
 	})
 }
 
@@ -912,7 +910,7 @@ func (w *world) addSpawn(x, y int) ecs.Entity {
 	spawn := w.AddEntity(wcPosition | wcGlyph | wcFG | wcSpawn)
 	w.pos.Set(spawn, point.Pt(x, y))
 	w.Glyphs[spawn.ID()] = '✖' // ×
-	w.FG[spawn.ID()] = 54
+	w.Attr[spawn.ID()] = spawnColor.FG()
 	return spawn
 }
 

@@ -3,19 +3,56 @@ package main
 import (
 	"math/rand"
 
-	termbox "github.com/nsf/termbox-go"
+	"github.com/jcorbin/anansi/ansi"
 
 	"deathroom/internal/ecs"
 	"deathroom/internal/markov"
 	"deathroom/internal/point"
 )
 
+const spawnColor = ansi.SGRCube53
+
+// TODO convert to and better utilize 24-bit
 var (
-	aiColors    = []termbox.Attribute{124, 160, 196, 202, 208, 214}
-	soulColors  = []termbox.Attribute{19, 20, 21, 27, 33, 39}
-	itemColors  = []termbox.Attribute{22, 23, 29, 35, 41, 47}
-	wallColors  = []termbox.Attribute{233, 234, 235, 236, 237, 238, 239}
-	floorColors = []termbox.Attribute{232, 233, 234}
+	aiColors = []ansi.SGRColor{
+		ansi.SGRCube123,
+		ansi.SGRCube159,
+		ansi.SGRCube195,
+		ansi.SGRCube201,
+		ansi.SGRCube207,
+		ansi.SGRCube213,
+	}
+	soulColors = []ansi.SGRColor{
+		ansi.SGRCube18,
+		ansi.SGRCube19,
+		ansi.SGRCube20,
+		ansi.SGRCube26,
+		ansi.SGRCube32,
+		ansi.SGRCube38,
+	}
+	itemColors = []ansi.SGRColor{
+		ansi.SGRCube21,
+		ansi.SGRCube22,
+		ansi.SGRCube28,
+		ansi.SGRCube34,
+		ansi.SGRCube40,
+		ansi.SGRCube46,
+	}
+
+	wallColors = []ansi.SGRColor{
+		ansi.SGRGray1,
+		ansi.SGRGray2,
+		ansi.SGRGray3,
+		ansi.SGRGray4,
+		ansi.SGRGray5,
+		ansi.SGRGray6,
+		ansi.SGRGray7,
+	}
+	floorColors = []ansi.SGRColor{
+		ansi.SGRCube231,
+		ansi.SGRGray1,
+		ansi.SGRGray2,
+	}
 
 	wallTable  = newColorTable()
 	floorTable = newColorTable()
@@ -33,15 +70,15 @@ const (
 type colorTable struct {
 	ecs.Core
 	*markov.Table
-	color  []termbox.Attribute
-	lookup map[termbox.Attribute]ecs.EntityID
+	color  []ansi.SGRColor
+	lookup map[ansi.SGRColor]ecs.EntityID
 }
 
 func newColorTable() *colorTable {
 	ct := &colorTable{
 		// TODO: consider eliminating the padding for EntityID(0)
-		color:  []termbox.Attribute{0},
-		lookup: make(map[termbox.Attribute]ecs.EntityID, 1),
+		color:  []ansi.SGRColor{0},
+		lookup: make(map[ansi.SGRColor]ecs.EntityID, 1),
 	}
 	ct.Table = markov.NewTable(&ct.Core)
 	ct.RegisterAllocator(componentTableColor, ct.allocTableColor)
@@ -59,7 +96,7 @@ func (ct *colorTable) destroyTableColor(id ecs.EntityID, t ecs.ComponentType) {
 }
 
 func (ct *colorTable) addLevelTransitions(
-	colors []termbox.Attribute,
+	colors []ansi.SGRColor,
 	zeroOn, zeroUp int,
 	oneDown, oneOn, oneUp int,
 ) {
@@ -85,7 +122,7 @@ func (ct *colorTable) addLevelTransitions(
 	}
 }
 
-func (ct *colorTable) toEntity(a termbox.Attribute) ecs.Entity {
+func (ct *colorTable) toEntity(a ansi.SGRColor) ecs.Entity {
 	if id, def := ct.lookup[a]; def {
 		return ct.Ref(id)
 	}
@@ -96,14 +133,14 @@ func (ct *colorTable) toEntity(a termbox.Attribute) ecs.Entity {
 	return ent
 }
 
-func (ct *colorTable) toColor(ent ecs.Entity) (termbox.Attribute, bool) {
+func (ct *colorTable) toColor(ent ecs.Entity) (ansi.SGRColor, bool) {
 	if !ent.Type().All(componentTableColor) {
 		return 0, false
 	}
 	return ct.color[ent.ID()], true
 }
 
-func (ct *colorTable) addTransition(a, b termbox.Attribute, w int) (ae, be ecs.Entity) {
+func (ct *colorTable) addTransition(a, b ansi.SGRColor, w int) (ae, be ecs.Entity) {
 	ae, be = ct.toEntity(a), ct.toEntity(b)
 	ct.AddTransition(ae, be, w)
 	return
@@ -112,7 +149,7 @@ func (ct *colorTable) addTransition(a, b termbox.Attribute, w int) (ae, be ecs.E
 func (ct *colorTable) genTile(
 	rng *rand.Rand,
 	box point.Box,
-	f func(point.Point, termbox.Attribute),
+	f func(point.Point, ansi.SGRColor),
 ) {
 	// TODO: better 2d generation
 	last := floorTable.Ref(1)

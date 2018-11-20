@@ -14,6 +14,7 @@ import (
 	"deathroom/internal/view/hud"
 	"deathroom/internal/view/hud/prompt"
 
+	"github.com/jcorbin/anansi/ansi"
 	termbox "github.com/nsf/termbox-go"
 )
 
@@ -283,7 +284,7 @@ func (bs bodySummary) RenderSize() (wanted, needed point.Point) {
 	return needed, needed
 }
 
-func (bs bodySummary) partHPColor(part ecs.Entity) termbox.Attribute {
+func (bs bodySummary) partHPColor(part ecs.Entity) ansi.SGRColor {
 	if part == ecs.NilEntity {
 		return itemColors[0]
 	}
@@ -675,7 +676,7 @@ func (bo *body) interact(pr prompt.Prompt, w *world, item, ent ecs.Entity) (prom
 	return pr, true
 }
 
-func safeColorsIX(colors []termbox.Attribute, i int) termbox.Attribute {
+func safeColorsIX(colors []ansi.SGRColor, i int) ansi.SGRColor {
 	if i < 0 {
 		return colors[1]
 	}

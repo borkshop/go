@@ -30,7 +30,7 @@ func (rs renderStringT) RenderSize() (wanted, needed point.Point) {
 func (rs renderStringT) Render(g Grid) {
 	i := 0
 	for _, r := range rs.s {
-		g.Data[i].Ch = r
+		g.Rune[i] = r
 		i++
 	}
 }
