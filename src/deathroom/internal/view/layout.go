@@ -421,11 +421,11 @@ func usedColumns(g Grid) (anyCol, anyRow []bool) {
 				anyCol[x] = true
 				anyRow[y] = true
 			}
-			if fg, haveFG := g.Attr[i].FG(); haveFG {
+			if _, haveFG := g.Attr[i].FG(); haveFG {
 				anyCol[x] = true
 				anyRow[y] = true
 			}
-			if bg, haveBG := g.Attr[i].BG(); haveBG {
+			if _, haveBG := g.Attr[i].BG(); haveBG {
 				anyCol[x] = true
 				anyRow[y] = true
 			}

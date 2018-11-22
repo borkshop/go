@@ -1,189 +1,220 @@
 package view
 
 import (
-	"fmt"
+	"errors"
 	"io"
-	"sync"
+	"os"
+	"os/signal"
+	"syscall"
 	"time"
 
-	termbox "github.com/nsf/termbox-go"
-
-	"deathroom/internal/point"
+	"github.com/jcorbin/anansi"
+	"github.com/jcorbin/anansi/x/platform"
 )
 
-const keyBufferSize = 1100
+type syntheticSignal string
 
-// View implements a terminal user interaction, based around a grid, header,
-// and footer. Additionally a log is provided, whose tail is displayed beneath
-// the header.
+func (ss syntheticSignal) String() string { return string(ss) }
+func (ss syntheticSignal) Signal()        {}
+
+var (
+	ctrlCSignal = syntheticSignal("user Ctrl-C interrupt")
+	quitSignal  = syntheticSignal("user quit")
+)
+
+// View implements terminal user interaction, combining anansi.Input,
+// anansi.Output, signal processing, and other common terminal idioms (like
+// redraw on Ctrl-L, stop on Ctrl-C, etc).
+//
+// Screen layout is organized into a header, footer, and min grid area.
+//
+// A log is provided, whose tail is displayed beneath the header.
+//
+// TODO consider replacing with loosely coupled anansi.Context pieces.
 type View struct {
-	polling bool
-	pollErr error
-	keys    chan KeyEvent
-	redraw  chan struct{}
-	done    chan struct{}
-
-	sizeLock sync.Mutex
-	size     point.Point
-	termGrid Grid
+	term *anansi.Term
+	termEvents
+	events platform.Events
+	out    anansi.Output
+	screen anansi.Screen
+	tick   *time.Timer
 }
 
-func (v *View) runWith(f func() error) (rerr error) {
-	if v.polling {
-		panic("invalid view state")
+const renderDelay = 10 * time.Millisecond
+
+// Enter sets up input event notification, and starts the render timer.
+func (v *View) Enter(term *anansi.Term) error {
+	if v.term != nil {
+		return errors.New("view already active")
 	}
-
-	v.polling = true
-
-	if err := termbox.Init(); err != nil {
-		return err
+	v.term = term
+	err := v.events.Notify(v.sigio)
+	if err == nil {
+		v.RequestFrame(renderDelay)
 	}
-
-	priorInputMode := termbox.SetInputMode(termbox.InputCurrent)
-	defer termbox.SetInputMode(priorInputMode)
-	termbox.SetInputMode(termbox.InputEsc)
-
-	priorOutputMode := termbox.SetOutputMode(termbox.OutputCurrent)
-	defer termbox.SetOutputMode(priorOutputMode)
-	termbox.SetOutputMode(termbox.Output256)
-
-	v.pollErr = nil
-	v.redraw = make(chan struct{}, 1)
-	v.keys = make(chan KeyEvent, keyBufferSize)
-	v.done = make(chan struct{})
-	v.size = termboxSize()
-
-	go v.pollEvents()
-	defer func() {
-		go termbox.Interrupt()
-		v.polling = false
-		if v.done != nil {
-			<-v.done
-		}
-		if rerr == nil {
-			rerr = v.pollErr
-		}
-	}()
-
-	return f()
+	return err
 }
 
-func (v *View) runClient(client Client) (rerr error) {
-	defer func() {
-		if cerr := client.Close(); rerr == nil || rerr == ErrStop {
-			rerr = cerr
-		}
-	}()
-
-	raise(v.redraw)
-
-	// TODO: observability / introspection / other Nice To Haves?
-
-	for {
-		select {
-
-		case <-v.done:
-			return io.EOF
-
-		case <-v.redraw:
-
-		case k := <-v.keys:
-			if err := client.HandleKey(k); err != nil {
-				return err
-			}
-
-		}
-
-		if err := v.render(client); err != nil {
-			return err
-		}
-	}
-}
-
-func (v *View) render(client Client) error {
-	v.sizeLock.Lock()
-	defer v.sizeLock.Unlock()
-
-	if !point.Zero.Less(v.size) {
-		v.size = termboxSize()
-	}
-	if !point.Zero.Less(v.size) {
-		return fmt.Errorf("bogus terminal size %v", v.size)
-	}
-
-	if !v.termGrid.Size.Equal(v.size) {
-		v.termGrid.Resize(v.size)
-	}
-	for i := range v.termGrid.Data {
-		v.termGrid.Data[i] = termbox.Cell{}
-	}
-
-	if err := client.Render(v.termGrid); err != nil {
-		return err
-	}
-
-	if err := termbox.Clear(termbox.ColorDefault, termbox.ColorDefault); err != nil {
-		return fmt.Errorf("termbox.Clear failed: %v", err)
-	}
-	copy(termbox.CellBuffer(), v.termGrid.Data)
-	if err := termbox.Flush(); err != nil {
-		return fmt.Errorf("termbox.Flush failed: %v", err)
+// Exit stops the render timer.
+func (v *View) Exit(term *anansi.Term) error {
+	v.term = nil
+	if v.tick != nil {
+		v.tick = nil
+		v.tick.Stop()
 	}
 	return nil
 }
 
-func (v *View) pollEvents() {
-	defer termbox.Close()
-	defer close(v.done)
+// RequestFrame sets the frame render timer to fire after dur time has elapsed.
+func (v *View) RequestFrame(dur time.Duration) {
+	if v.tick == nil {
+		v.tick = time.NewTimer(dur)
+	} else {
+		// TODO track prior deadline, no-op if will already fire before now+dur?
+		v.tick.Reset(renderDelay)
+	}
+}
 
-	v.pollErr = func() error {
-		for v.polling {
-			switch ev := termbox.PollEvent(); ev.Type {
-			case termbox.EventKey:
-				switch ev.Key {
-				case termbox.KeyCtrlC:
-					return nil
-				case termbox.KeyCtrlL:
-					raise(v.redraw)
-					continue
-				}
-				switch ev.Ch {
-				case 'q', 'Q':
-					return nil
-				}
-				select {
-				case v.keys <- KeyEvent{ev.Mod, ev.Key, ev.Ch}:
-				case <-time.After(10 * time.Millisecond):
-				}
+func (v *View) runClient(client Client) (rerr error) {
+	type initable interface{ Init(Context) error }
+	type terminatable interface{ Terminate() error }
+	type interruptable interface{ Interrupt() error }
+	type closeable interface{ Close() error }
 
-			case termbox.EventResize:
-				// TODO: would rather defer this into the client running code
-				// to coalesce resize events; that seems to be the intent of
-				// termbox.Clear, but we've already built our grid by the time
-				// we clear that... basically a simpler/lower layer than
-				// termbox would be really nice...
-				v.sizeLock.Lock()
-				v.size.X = ev.Width
-				v.size.Y = ev.Height
-				v.sizeLock.Unlock()
-				raise(v.redraw)
+	if closer, ok := client.(closeable); ok {
+		defer func() {
+			if cerr := closer.Close(); cerr != nil {
+				if rerr == nil || rerr == ErrStop || rerr == io.EOF {
+					rerr = cerr
+				}
+			}
+		}()
+	}
 
-			case termbox.EventError:
-				return ev.Err
+	// TODO: observability / introspection / other Nice To Haves? (reconcile with anansi/x/platform)
+
+	if initr, ok := client.(initable); ok {
+		if err := initr.Init(v); err != nil {
+			return err
+		}
+		// NOTE client must request first frame when it implement init
+	} else {
+		v.RequestFrame(renderDelay)
+	}
+
+	for {
+		select {
+		case <-v.sigterm:
+			if termr, ok := client.(terminatable); ok {
+				return termr.Terminate()
+			}
+			return io.EOF // TODO better error?
+
+		case <-v.sigint:
+			if intr, ok := client.(interruptable); ok {
+				return intr.Interrupt()
+			}
+			return io.EOF // TODO better error?
+
+		case <-v.sigwinch:
+			sz, err := v.term.Size()
+			if err != nil {
+				return err
+			}
+			v.screen.Resize(sz)
+			v.RequestFrame(renderDelay)
+
+		case <-v.sigio:
+			if err := v.events.Poll(); err != nil {
+				return err
+			}
+
+			// synthesize interrupt on Ctrl-C
+			if v.events.CountRune(0x03) > 0 {
+				raiseSignal(v.sigint, ctrlCSignal)
+			}
+
+			// force full redraw on Ctrl-L
+			if v.events.CountRune(0x0c) > 0 {
+				v.screen.Invalidate()
+			}
+
+			// quit on Q
+			if n := v.events.CountRune('q', 'Q'); n > 0 {
+				raiseSignal(v.sigterm, quitSignal)
+			}
+
+			// pass remaining input to client
+			if err := client.HandleInput(v, v.events); err != nil {
+				return err
+			}
+
+		case <-v.tick.C:
+			// clear screen grid
+			for i := range v.screen.Rune {
+				v.screen.Grid.Rune[i] = 0
+				v.screen.Grid.Attr[i] = 0
+			}
+
+			// render the client
+			// TODO revamp the client contract:
+			// - pass it the screen directly...
+			// - ...let it decide to (or not) clear the grid
+			err := client.Render(v, Grid{v.screen.Grid})
+
+			// flush output, differentially when possible
+			if ferr := v.out.Flush(&v.screen); err == nil {
+				err = ferr
+			}
+
+			if err != nil {
+				return err
 			}
 		}
-		return nil
-	}()
+	}
 }
 
-func termboxSize() point.Point {
-	w, h := termbox.Size()
-	return point.Point{X: w, Y: h}
+type termEvents struct {
+	sigterm  chan os.Signal
+	sigint   chan os.Signal
+	sigwinch chan os.Signal
+	sigio    chan os.Signal
 }
 
-func raise(ch chan<- struct{}) {
+func (tev *termEvents) Enter(term *anansi.Term) error {
+	tev.sigterm = make(chan os.Signal, 1)
+	tev.sigint = make(chan os.Signal, 1)
+	tev.sigwinch = make(chan os.Signal, 1)
+	tev.sigio = make(chan os.Signal, 1)
+	signal.Notify(tev.sigterm, syscall.SIGTERM)
+	signal.Notify(tev.sigint, syscall.SIGINT)
+	signal.Notify(tev.sigwinch, syscall.SIGWINCH)
+	return nil
+}
+
+func (tev *termEvents) Exit(term *anansi.Term) error {
+	if tev.sigterm != nil {
+		signal.Stop(tev.sigterm)
+		tev.sigterm = nil
+	}
+	if tev.sigint != nil {
+		signal.Stop(tev.sigint)
+		tev.sigint = nil
+	}
+	if tev.sigwinch != nil {
+		signal.Stop(tev.sigwinch)
+		tev.sigwinch = nil
+	}
+	if tev.sigio != nil {
+		signal.Stop(tev.sigio)
+		tev.sigio = nil
+	}
+	return nil
+}
+
+func raiseSignal(ch chan<- os.Signal, sig os.Signal) {
 	select {
-	case ch <- struct{}{}:
+	case ch <- sig:
 	default:
 	}
 }

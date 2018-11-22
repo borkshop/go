@@ -1,9 +1,11 @@
 package view_test
 
 import (
+	"image"
 	"strings"
 	"testing"
 
+	"github.com/jcorbin/anansi/ansi"
 	"github.com/stretchr/testify/assert"
 
 	"deathroom/internal/point"
@@ -24,7 +26,7 @@ func TestLayout(t *testing.T) {
 		{
 			name: "basic top left",
 			init: func() Grid {
-				return MakeGrid(point.Point{X: 25, Y: 10})
+				return MakeGrid(image.Pt(25, 10))
 			},
 			sas: []sa{
 				{"left1", AlignTop | AlignLeft},
@@ -48,7 +50,7 @@ func TestLayout(t *testing.T) {
 		{
 			name: "basic top right",
 			init: func() Grid {
-				return MakeGrid(point.Point{X: 25, Y: 10})
+				return MakeGrid(image.Pt(25, 10))
 			},
 			sas: []sa{
 				{"right1", AlignTop | AlignRight},
@@ -73,7 +75,7 @@ func TestLayout(t *testing.T) {
 		{
 			name: "basic top left&right",
 			init: func() Grid {
-				return MakeGrid(point.Point{X: 25, Y: 10})
+				return MakeGrid(image.Pt(25, 10))
 			},
 			sas: []sa{
 				{"left1", AlignTop | AlignLeft},
@@ -101,7 +103,7 @@ func TestLayout(t *testing.T) {
 		{
 			name: "basic top left&right&center",
 			init: func() Grid {
-				return MakeGrid(point.Point{X: 25, Y: 10})
+				return MakeGrid(image.Pt(25, 10))
 			},
 			sas: []sa{
 				{"left1", AlignTop | AlignLeft},
@@ -130,7 +132,7 @@ func TestLayout(t *testing.T) {
 		{
 			name: "basic bottom left",
 			init: func() Grid {
-				return MakeGrid(point.Point{X: 25, Y: 10})
+				return MakeGrid(image.Pt(25, 10))
 			},
 			sas: []sa{
 				{"left4", AlignBottom | AlignLeft},
@@ -154,7 +156,7 @@ func TestLayout(t *testing.T) {
 		{
 			name: "basic bottom right",
 			init: func() Grid {
-				return MakeGrid(point.Point{X: 25, Y: 10})
+				return MakeGrid(image.Pt(25, 10))
 			},
 			sas: []sa{
 				{"right4", AlignBottom | AlignRight},
@@ -178,7 +180,7 @@ func TestLayout(t *testing.T) {
 		{
 			name: "basic bottom left&right",
 			init: func() Grid {
-				return MakeGrid(point.Point{X: 25, Y: 10})
+				return MakeGrid(image.Pt(25, 10))
 			},
 			sas: []sa{
 				{"left4", AlignBottom | AlignLeft},
@@ -205,7 +207,7 @@ func TestLayout(t *testing.T) {
 		{
 			name: "basic bottom left&right&center",
 			init: func() Grid {
-				return MakeGrid(point.Point{X: 25, Y: 10})
+				return MakeGrid(image.Pt(25, 10))
 			},
 			sas: []sa{
 				{"left4", AlignBottom | AlignLeft},
@@ -235,7 +237,7 @@ func TestLayout(t *testing.T) {
 		{
 			name: "basic middle left",
 			init: func() Grid {
-				return MakeGrid(point.Point{X: 25, Y: 10})
+				return MakeGrid(image.Pt(25, 10))
 			},
 			sas: []sa{
 				{"left7", AlignMiddle | AlignLeft},
@@ -259,7 +261,7 @@ func TestLayout(t *testing.T) {
 		{
 			name: "basic middle right",
 			init: func() Grid {
-				return MakeGrid(point.Point{X: 25, Y: 10})
+				return MakeGrid(image.Pt(25, 10))
 			},
 			sas: []sa{
 				{"right7", AlignMiddle | AlignRight},
@@ -283,7 +285,7 @@ func TestLayout(t *testing.T) {
 		{
 			name: "basic middle left&right",
 			init: func() Grid {
-				return MakeGrid(point.Point{X: 25, Y: 10})
+				return MakeGrid(image.Pt(25, 10))
 			},
 			sas: []sa{
 				{"left7", AlignMiddle | AlignLeft},
@@ -310,7 +312,7 @@ func TestLayout(t *testing.T) {
 		{
 			name: "basic middle left&right&center",
 			init: func() Grid {
-				return MakeGrid(point.Point{X: 25, Y: 10})
+				return MakeGrid(image.Pt(25, 10))
 			},
 			sas: []sa{
 				{"left7", AlignMiddle | AlignLeft},
@@ -338,7 +340,7 @@ func TestLayout(t *testing.T) {
 		{
 			name: "basic full-up",
 			init: func() Grid {
-				return MakeGrid(point.Point{X: 25, Y: 10})
+				return MakeGrid(image.Pt(25, 10))
 			},
 			sas: []sa{
 				{"left1", AlignTop | AlignLeft},
@@ -381,7 +383,7 @@ func TestLayout(t *testing.T) {
 		{
 			name: "multi-line top left",
 			init: func() Grid {
-				return MakeGrid(point.Point{X: 35, Y: 15})
+				return MakeGrid(image.Pt(35, 15))
 			},
 			sas: []sa{
 				{lshaped('a', 1, 2, 3), AlignTop | AlignLeft},
@@ -408,7 +410,7 @@ func TestLayout(t *testing.T) {
 		{
 			name: "multi-line top right",
 			init: func() Grid {
-				return MakeGrid(point.Point{X: 35, Y: 15})
+				return MakeGrid(image.Pt(35, 15))
 			},
 			sas: []sa{
 				{rshaped('b', 2, 3, 1), AlignTop | AlignRight},
@@ -435,7 +437,7 @@ func TestLayout(t *testing.T) {
 		{
 			name: "multi-line bottom left",
 			init: func() Grid {
-				return MakeGrid(point.Point{X: 35, Y: 15})
+				return MakeGrid(image.Pt(35, 15))
 			},
 			sas: []sa{
 				{lshaped('c', 3, 2, 1), AlignBottom | AlignLeft},
@@ -462,7 +464,7 @@ func TestLayout(t *testing.T) {
 		{
 			name: "multi-line bottom right",
 			init: func() Grid {
-				return MakeGrid(point.Point{X: 35, Y: 15})
+				return MakeGrid(image.Pt(35, 15))
 			},
 			sas: []sa{
 				{rshaped('d', 2, 1, 3), AlignBottom | AlignRight},
@@ -489,7 +491,7 @@ func TestLayout(t *testing.T) {
 		{
 			name: "multi-line middle center",
 			init: func() Grid {
-				return MakeGrid(point.Point{X: 35, Y: 15})
+				return MakeGrid(image.Pt(35, 15))
 			},
 			sas: []sa{
 				{lshaped('e', 3, 5, 8, 5, 3), AlignMiddle | AlignCenter},
@@ -518,7 +520,7 @@ func TestLayout(t *testing.T) {
 		{
 			name: "multi-line full-up",
 			init: func() Grid {
-				return MakeGrid(point.Point{X: 35, Y: 15})
+				return MakeGrid(image.Pt(35, 15))
 			},
 			sas: []sa{
 				{lshaped('a', 1, 2, 3), AlignTop | AlignLeft},
@@ -551,7 +553,7 @@ func TestLayout(t *testing.T) {
 		{
 			name: "single over wanted",
 			init: func() Grid {
-				return MakeGrid(point.Point{X: 16, Y: 6})
+				return MakeGrid(image.Pt(16, 6))
 			},
 			sas: []sa{
 				{overWant(lshaped('a', 3, 2, 1), 2, 0), AlignTop | AlignLeft},
@@ -569,7 +571,7 @@ func TestLayout(t *testing.T) {
 		{
 			name: "single over needed",
 			init: func() Grid {
-				return MakeGrid(point.Point{X: 16, Y: 6})
+				return MakeGrid(image.Pt(16, 6))
 			},
 			sas: []sa{
 				{overNeed(lshaped('a', 3, 2, 1), 2, 0), AlignTop | AlignLeft},
@@ -587,7 +589,7 @@ func TestLayout(t *testing.T) {
 		{
 			name: "over wanted&needed w/company",
 			init: func() Grid {
-				return MakeGrid(point.Point{X: 16, Y: 6})
+				return MakeGrid(image.Pt(16, 6))
 			},
 			sas: []sa{
 				{lshaped('a', 3, 2, 1), AlignTop | AlignLeft},
@@ -640,13 +642,14 @@ func (sh shape) RenderSize() (wanted, needed point.Point) {
 }
 
 func (sh shape) Render(g Grid) {
+	w := g.Bounds().Dx()
 	for y, n := range sh.ns {
 		switch s := strings.Repeat(string(sh.r), n); sh.a {
 		case AlignRight:
-			g.WriteStringRTL(g.Size.X-1, y, s)
+			g.WriteStringRTL(ansi.Pt(w-1, y+1), s)
 
 		default: // AlignLeft:
-			g.WriteString(0, y, s)
+			g.WriteString(ansi.Pt(0, y+1), s)
 		}
 	}
 }

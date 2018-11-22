@@ -15,6 +15,7 @@ import (
 	"deathroom/internal/view/hud/prompt"
 
 	"github.com/jcorbin/anansi/ansi"
+	"github.com/jcorbin/anansi/x/platform"
 	termbox "github.com/nsf/termbox-go"
 )
 
@@ -370,7 +371,8 @@ func (ui *ui) init(v *view.View, perf *perf.Perf) {
 	ui.perfDash.Perf = perf
 }
 
-func (ui *ui) handle(k view.KeyEvent) (proc, handled bool, err error) {
+func (ui *ui) HandleInput(ctx view.Context, input platform.Events) error {
+	// handle(k view.KeyEvent) (proc, handled bool, err error)
 	if ui.perfDash.HandleKey(k) {
 		return false, true, nil
 	}
@@ -514,7 +516,7 @@ func parseMove(k view.KeyEvent) (point.Point, bool) {
 	return point.Zero, false
 }
 
-func (w *world) Render(termGrid view.Grid) error {
+func (w *world) Render(ctx view.Context, termGrid view.Grid) error {
 	hud := hud.HUD{
 		Logs:  w.ui.Logs,
 		World: w.renderViewport(termGrid.Size),

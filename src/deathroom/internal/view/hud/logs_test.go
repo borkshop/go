@@ -2,9 +2,9 @@ package hud_test
 
 import (
 	"fmt"
+	"image"
 	"testing"
 
-	"deathroom/internal/point"
 	"deathroom/internal/view"
 	. "deathroom/internal/view/hud"
 
@@ -12,7 +12,7 @@ import (
 )
 
 func TestHUDLogs(t *testing.T) {
-	termSize := point.Point{X: 60, Y: 15}
+	termSize := image.Pt(60, 15)
 	header := []string{
 		">banner",
 	}
@@ -273,7 +273,7 @@ func TestHUDLogs(t *testing.T) {
 				wanted, needed := logs.RenderSize()
 
 				t.Logf("logs render needed=%v", needed)
-				g := view.MakeGrid(needed)
+				g := view.MakeGrid(image.Point(needed))
 				logs.Render(g)
 				for i, line := range g.Lines('Ø') {
 					t.Logf("min[%v] %q", i, line)
@@ -281,7 +281,7 @@ func TestHUDLogs(t *testing.T) {
 
 				if wanted != needed {
 					t.Logf("logs render wanted=%v", wanted)
-					g := view.MakeGrid(needed)
+					g := view.MakeGrid(image.Point(needed))
 					logs.Render(g)
 					for i, line := range g.Lines('Ø') {
 						t.Logf("max[%v] %q", i, line)
