@@ -13,6 +13,7 @@ test:
 lint:
 	export GOPATH=$(GOPATH)
 	./bin/go_list_sources.sh $(PACKAGES) | xargs gofmt -e -d
+	golint $(PACKAGES)
 
 .PHONY: fmt
 fmt:
