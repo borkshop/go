@@ -5,7 +5,7 @@ PACKAGES+=deathroom/...
 PACKAGES+=github.com/jcorbin/anansi/...
 
 .PHONY: test
-test:
+test: lint
 	export GOPATH=$(GOPATH)
 	go test $(PACKAGES)
 
