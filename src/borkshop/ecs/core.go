@@ -85,7 +85,7 @@ type Entity struct {
 
 func (ent Entity) String() string {
 	if ent == ZE {
-		   return "ZeroEntity"
+		return "ZeroEntity"
 	}
 	return fmt.Sprintf("entity(%p %v %v)", ent.Scope, ent.ID, ent.Type())
 }
@@ -103,7 +103,7 @@ type EntityWatcherFuncs struct {
 
 // EntityWatcher is a further conenience for created an EntityWatcherFuncs value.
 func EntityWatcher(c, d func(e Entity, t Type)) EntityWatcherFuncs {
-	return EntityWatcherFuncs{ c, d }
+	return EntityWatcherFuncs{c, d}
 }
 
 // EntityCreated calls the aliased function.
