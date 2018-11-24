@@ -28,8 +28,7 @@ const (
 	wcCollide
 	wcSolid
 	wcGlyph
-	wcBG
-	wcFG
+	wcAttr
 	wcInput
 	wcWaiting
 	wcBody
@@ -47,7 +46,7 @@ const (
 	charMask      = wcName | wcGlyph | wcBody | wcSolid
 	collMask      = wcPosition | wcCollide
 	combatMask    = wcCollide | wcBody
-	floorTileMask = wcPosition | wcBG | wcFloor
+	floorTileMask = wcPosition | wcAttr | wcFloor
 )
 
 type worldItem interface {
@@ -179,7 +178,7 @@ func (w *world) init(v *view.View) {
 	w.bodies = []*body{nil}
 	w.items = []worldItem{nil}
 
-	w.RegisterAllocator(wcName|wcGlyph|wcBG|wcFG|wcBody|wcItem, w.allocWorld)
+	w.RegisterAllocator(wcName|wcGlyph|wcAttr|wcBody|wcItem, w.allocWorld)
 	w.RegisterCreator(wcInput, w.createInput)
 	w.RegisterCreator(wcBody, w.createBody)
 	w.RegisterDestroyer(wcBody, w.destroyBody)
@@ -810,7 +809,7 @@ func (w *world) addBox(box point.Box, glyph rune) {
 		{n: sz.Y, d: point.Point{Y: -1}},
 	} {
 		for i := 0; i < r.n; i++ {
-			wall := w.AddEntity(wcPosition | wcCollide | wcSolid | wcGlyph | wcBG | wcFG | wcWall)
+			wall := w.AddEntity(wcPosition | wcCollide | wcSolid | wcGlyph | wcAttr | wcWall)
 			w.Glyphs[wall.ID()] = glyph
 			w.pos.Set(wall, pos)
 			c, _ := wallTable.toColor(last)
@@ -821,7 +820,7 @@ func (w *world) addBox(box point.Box, glyph rune) {
 	}
 
 	floorTable.genTile(w.rng, box, func(pos point.Point, c ansi.SGRColor) {
-		floor := w.AddEntity(wcPosition | wcBG | wcFloor)
+		floor := w.AddEntity(wcPosition | wcAttr | wcFloor)
 		w.pos.Set(floor, pos)
 		w.Attr[floor.ID()] = c.BG()
 	})
@@ -907,7 +906,7 @@ func (w *world) getFrustration(ent ecs.Entity) (n int) {
 }
 
 func (w *world) addSpawn(x, y int) ecs.Entity {
-	spawn := w.AddEntity(wcPosition | wcGlyph | wcFG | wcSpawn)
+	spawn := w.AddEntity(wcPosition | wcGlyph | wcAttr | wcSpawn)
 	w.pos.Set(spawn, point.Pt(x, y))
 	w.Glyphs[spawn.ID()] = '✖' // ×
 	w.Attr[spawn.ID()] = spawnColor.FG()

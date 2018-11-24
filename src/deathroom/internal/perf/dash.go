@@ -6,6 +6,8 @@ import (
 
 	"deathroom/internal/point"
 	"deathroom/internal/view"
+
+	"github.com/jcorbin/anansi/ansi"
 )
 
 // Dash is a summary widget that can be triggered to show a perf dialog.
@@ -40,10 +42,13 @@ func (da Dash) Render(g view.Grid) {
 	i := da.lastI()
 	lastElapsed := da.Perf.time[i].end.Sub(da.Perf.time[i].start)
 	ms := &da.Perf.memStats[i]
-	x := 0
-	g.Set(x, 0, da.status(), 0, 0)
-	x++
-	g.WriteString(x, 0, "t=%d Δt=%v heap=%v/%v",
+	pt := ansi.Pt(1, 1)
+	if i, ok := g.CellOffset(pt); ok {
+		g.Rune[i] = da.status()
+		g.Attr[i] = 0
+	}
+	pt.X++
+	g.WriteString(pt, "t=%d Δt=%v heap=%v/%v",
 		da.Perf.round, lastElapsed,
 		siBytes(ms.HeapAlloc), ms.HeapObjects,
 	)

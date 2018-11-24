@@ -2,6 +2,7 @@ package main
 
 import (
 	"fmt"
+	"image"
 	"sort"
 	"strings"
 	"unicode/utf8"
@@ -157,18 +158,22 @@ func (ab *actionBar) Render(g view.Grid) {
 	// TODO: maybe use EITHER one row OR one column, not a mix (grid of action
 	// items)
 
-	x, y, i := 0, 0, 0
-	x += g.WriteString(x, y, ab.label(i))
+	gsz := g.Bounds().Size()
+
+	pt, i := ansi.Pt(1, 1), 0
+
+	pt.X += g.WriteString(pt, ab.label(i))
 	i++
 	// TODO: missing seps
 	for ; i < len(ab.items); i++ {
 		lb := ab.label(i)
-		if rem := g.Size.X - x; rem >= utf8.RuneCountInString(ab.sep)+utf8.RuneCountInString(lb) {
-			x += g.WriteString(x, y, ab.sep)
-			x += g.WriteString(x, y, lb)
+		if rem := gsz.X - pt.X; rem >= utf8.RuneCountInString(ab.sep)+utf8.RuneCountInString(lb) {
+			pt.X += g.WriteString(pt, ab.sep)
+			pt.X += g.WriteString(pt, lb)
 		} else {
-			y++
-			x = g.WriteString(0, y, lb)
+			pt.X = 1
+			pt.Y++
+			pt.X = g.WriteString(pt, lb)
 		}
 	}
 }
@@ -302,11 +307,12 @@ func (bs bodySummary) Render(g view.Grid) {
 	// TODO: bodyHPColors ?
 	// TODO: support scaling body with grafting
 
-	w := g.Size.X
-	y := 0
+	w := g.Bounds().Dx()
+	pt := ansi.Pt(1, 1)
 	mess := fmt.Sprintf("%.0f%%", float64(bs.hp)/float64(bs.maxHP)*100)
-	g.WriteString((w-len(mess))/2, y, mess)
-	y++
+	pt.X = (w - len(mess)) / 2
+	g.WriteString(pt, mess)
+	pt.Y++
 
 	//  0123456
 	// 0  _O_
@@ -316,49 +322,54 @@ func (bs bodySummary) Render(g view.Grid) {
 	// 4_/   \_
 
 	xo := (w - 7) / 2
-	for _, pt := range []struct {
-		x, y int
-		ch   rune
-		t    ecs.ComponentType
+	for _, part := range []struct {
+		off image.Point
+		ch  rune
+		t   ecs.ComponentType
 	}{
-		{xo + 2, y + 0, '_', bcUpperArm | bcLeft},
-		{xo + 3, y + 0, 'O', bcHead},
-		{xo + 4, y + 0, '_', bcUpperArm | bcRight},
+		{image.Pt(2, 0), '_', bcUpperArm | bcLeft},
+		{image.Pt(3, 0), 'O', bcHead},
+		{image.Pt(4, 0), '_', bcUpperArm | bcRight},
 
-		{xo + 1, y + 1, '/', bcForeArm | bcLeft},
-		{xo + 3, y + 1, '|', bcTorso},
-		{xo + 5, y + 1, '\\', bcForeArm | bcRight},
+		{image.Pt(1, 1), '/', bcForeArm | bcLeft},
+		{image.Pt(3, 1), '|', bcTorso},
+		{image.Pt(5, 1), '\\', bcForeArm | bcRight},
 
-		{xo + 1, y + 2, '=', bcHand | bcLeft},
-		{xo + 3, y + 2, '|', bcTorso},
-		{xo + 5, y + 2, '=', bcHand | bcRight},
+		{image.Pt(1, 2), '=', bcHand | bcLeft},
+		{image.Pt(3, 2), '|', bcTorso},
+		{image.Pt(5, 2), '=', bcHand | bcRight},
 
-		{xo + 2, y + 3, '/', bcThigh | bcLeft},
-		{xo + 4, y + 3, '\\', bcThigh | bcRight},
+		{image.Pt(2, 3), '/', bcThigh | bcLeft},
+		{image.Pt(4, 3), '\\', bcThigh | bcRight},
 
-		{xo + 0, y + 4, '_', bcFoot | bcLeft},
-		{xo + 1, y + 4, '/', bcCalf | bcLeft},
-		{xo + 5, y + 4, '\\', bcCalf | bcRight},
-		{xo + 6, y + 4, '_', bcFoot | bcRight},
+		{image.Pt(0, 4), '_', bcFoot | bcLeft},
+		{image.Pt(1, 4), '/', bcCalf | bcLeft},
+		{image.Pt(5, 4), '\\', bcCalf | bcRight},
+		{image.Pt(6, 4), '_', bcFoot | bcRight},
 	} {
-		it := bs.bo.Iter(ecs.All(bcPart | pt.t))
+		it := bs.bo.Iter(ecs.All(bcPart | part.t))
 		if it.Next() {
-			g.Set(pt.x, pt.y, pt.ch, bs.partHPColor(it.Entity()), 0)
+			if i, ok := g.CellOffset(pt.Add(part.off)); ok {
+				g.Rune[i] = part.ch
+				g.Attr[i] = bs.partHPColor(it.Entity()).FG()
+			}
 		}
 	}
 
-	y += 5
+	pt.Y += 5
 
-	g.WriteString(0, y, strings.Join(bs.chargeParts, " "))
-	y++
+	pt.X = 1
+	g.WriteString(pt, strings.Join(bs.chargeParts, " "))
+	pt.Y++
 
 	for i := 0; i < len(bs.damageParts); {
 		j := i + 2
 		if j > len(bs.damageParts) {
 			j = len(bs.damageParts)
 		}
-		g.WriteString(0, y, strings.Join(bs.damageParts[i:j], " "))
-		y++
+		pt.X = 1
+		g.WriteString(pt, strings.Join(bs.damageParts[i:j], " "))
+		pt.Y++
 		i = j
 	}
 }
@@ -519,7 +530,7 @@ func parseMove(k view.KeyEvent) (point.Point, bool) {
 func (w *world) Render(ctx view.Context, termGrid view.Grid) error {
 	hud := hud.HUD{
 		Logs:  w.ui.Logs,
-		World: w.renderViewport(termGrid.Size),
+		World: w.renderViewport(termGrid.Bounds().Size()),
 	}
 
 	hud.HeaderF(">%v souls v %v demons", w.Iter(ecs.All(wcSoul)).Count(), w.Iter(ecs.All(wcAI)).Count())
@@ -538,7 +549,7 @@ func (w *world) Render(ctx view.Context, termGrid view.Grid) error {
 	return nil
 }
 
-func (w *world) renderViewport(max point.Point) view.Grid {
+func (w *world) renderViewport(size image.Point) view.Grid {
 	// collect world extent, and compute a viewport focus position
 	var (
 		bbox  point.Box
@@ -564,22 +575,28 @@ func (w *world) renderViewport(max point.Point) view.Grid {
 		offset.Y -= ofbox.TopLeft.Y
 	}
 
+	if dx := ofbox.Size().X; size.X > dx {
+		size.X = dx
+	}
+	if dy := ofbox.Size().Y; size.Y > dy {
+		size.Y = dy
+	}
+
 	// TODO: re-use
-	grid := view.MakeGrid(ofbox.Size().Min(max))
-	zVals := make([]uint8, len(grid.Data))
+	grid := view.MakeGrid(size)
+	zVals := make([]uint8, len(grid.Rune))
 
 	// TODO: use an pos range query
-	for it := w.Iter(ecs.Clause(wcPosition, wcGlyph|wcBG)); it.Next(); {
+	for it := w.Iter(ecs.Clause(wcPosition, wcGlyph|wcAttr)); it.Next(); {
 		pos, _ := w.pos.Get(it.Entity())
 		pos = pos.Add(offset)
-		gi := pos.Y*grid.Size.X + pos.X
-		if gi < 0 || gi >= len(grid.Data) {
-			// TODO: debug
+		gi, ok := grid.CellOffset(ansi.PtFromImage(image.Point(pos)))
+		if !ok {
 			continue
 		}
 
 		if it.Type().All(wcGlyph) {
-			var fg termbox.Attribute
+			var attr ansi.SGRAttr
 			var zVal uint8
 
 			zVal = 1
@@ -590,48 +607,44 @@ func (w *world) renderViewport(max point.Point) view.Grid {
 				hp, maxHP := w.bodies[it.ID()].HPRange()
 				if !it.Type().All(wcSoul) {
 					zVal--
-					fg = safeColorsIX(aiColors, 1+(len(aiColors)-2)*hp/maxHP)
+					attr = safeColorsIX(aiColors, 1+(len(aiColors)-2)*hp/maxHP).FG()
 				} else {
-					fg = safeColorsIX(soulColors, 1+(len(soulColors)-2)*hp/maxHP)
+					attr = safeColorsIX(soulColors, 1+(len(soulColors)-2)*hp/maxHP).FG()
 				}
 			} else if it.Type().All(wcSoul) {
 				zVal = 127
-				fg = soulColors[0]
+				attr = soulColors[0].FG()
 			} else if it.Type().All(wcAI) {
 				zVal = 126
-				fg = aiColors[0]
+				attr = aiColors[0].FG()
 			} else if it.Type().All(wcItem) {
 				zVal = 10
-				fg = itemColors[len(itemColors)-1]
+				attr = itemColors[len(itemColors)-1].FG()
 				if dur, ok := w.items[it.ID()].(durableItem); ok {
-					fg = itemColors[0]
+					attr = itemColors[0].FG()
 					if hp, maxHP := dur.HPRange(); maxHP > 0 {
-						fg = safeColorsIX(itemColors, (len(itemColors)-1)*hp/maxHP)
+						attr = safeColorsIX(itemColors, (len(itemColors)-1)*hp/maxHP).FG()
 					}
 				}
 			} else {
 				zVal = 2
-				if it.Type().All(wcFG) {
-					fg = w.FG[it.ID()]
+				if it.Type().All(wcAttr) {
+					attr = w.Attr[it.ID()]
 				}
 			}
 
 			if ch := w.Glyphs[it.ID()]; zVal >= zVals[gi] && ch != 0 {
-				grid.Data[gi].Ch = ch
+				grid.Rune[gi] = ch
+				grid.Attr[gi] = attr
 				zVals[gi] = zVal
-				if fg != 0 {
-					grid.Data[gi].Fg = fg + 1
-				} else {
-					grid.Data[gi].Fg = 0
-				}
 			} else {
 				continue
 			}
 		}
 
-		if it.Type().All(wcBG) {
-			if bg := w.BG[it.ID()]; bg != 0 {
-				grid.Data[gi].Bg = bg + 1
+		if it.Type().All(wcAttr) {
+			if attr := w.Attr[it.ID()]; attr != 0 {
+				grid.Attr[gi] = attr.SansFG()
 			}
 		}
 	}

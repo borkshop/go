@@ -7,6 +7,8 @@ import (
 	"deathroom/internal/moremath"
 	"deathroom/internal/point"
 	"deathroom/internal/view"
+
+	"github.com/jcorbin/anansi/ansi"
 )
 
 // Logs represents a renderable buffer of log messages.
@@ -43,12 +45,12 @@ func (logs Logs) RenderSize() (wanted, needed point.Point) {
 
 // Render renders the log buffer.
 func (logs Logs) Render(g view.Grid) {
-	off := len(logs.Buffer) - g.Size.Y
+	off := len(logs.Buffer) - g.Bounds().Dy()
 	if off < 0 {
 		off = 0
 	}
-	for i, y := off, 0; i < len(logs.Buffer); i, y = i+1, y+1 {
-		g.WriteString(0, y, logs.Buffer[i])
+	for i, pt := off, ansi.Pt(1, 1); i < len(logs.Buffer); i, pt = i+1, ansi.Pt(1, pt.Y+1) {
+		g.WriteString(pt, logs.Buffer[i])
 	}
 }
 

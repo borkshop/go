@@ -8,6 +8,7 @@ import (
 	"deathroom/internal/point"
 	"deathroom/internal/view"
 
+	"github.com/jcorbin/anansi/ansi"
 	termbox "github.com/nsf/termbox-go"
 )
 
@@ -98,24 +99,34 @@ func (pr *Prompt) RenderSize() (wanted, needed point.Point) {
 
 // Render the prompt within the given space.
 func (pr *Prompt) Render(g view.Grid) {
-	i, y := 0, 0
-	if pr.mess != "" {
-		g.WriteString(0, y, headerFmt, pr.mess)
-		y++
-	}
-	for ; y < g.Size.Y && i < len(pr.action); y, i = y+1, i+1 {
-		act := pr.action[i]
-		if pr.align&view.AlignCenter == view.AlignRight {
-			g.WriteStringRTL(g.Size.X-1, y, act.renderActionRight())
-		} else {
-			g.WriteString(0, y, act.renderActionLeft())
+	gsz := g.Bounds().Size()
+
+	i, pt := 0, ansi.Pt(1, 1)
+
+	var write func(mess string, args ...interface{})
+	var exitMess string
+
+	if pr.align&view.AlignCenter == view.AlignRight {
+		exitMess = exitRightMess
+		write = func(mess string, args ...interface{}) {
+			pt.X = gsz.X - 1
+			g.WriteStringRTL(pt, mess, args...)
+		}
+	} else {
+		exitMess = exitLeftMess
+		write = func(mess string, args ...interface{}) {
+			g.WriteString(pt, mess, args...)
 		}
 	}
-	if pr.align&view.AlignCenter == view.AlignRight {
-		g.WriteStringRTL(g.Size.X-1, y, exitRightMess)
-	} else {
-		g.WriteString(0, y, exitLeftMess)
+
+	if pr.mess != "" {
+		g.WriteString(pt, headerFmt, pr.mess) // TODO y not write() ?
+		pt.Y++
 	}
+	for ; pt.Y < gsz.Y && i < len(pr.action); pt, i = ansi.Pt(1, pt.Y+1), i+1 {
+		write(pr.action[i].renderActionRight())
+	}
+	write(exitMess)
 	// if i < len(pr.action) TODO: paginate
 }
 
