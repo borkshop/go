@@ -69,6 +69,23 @@ func (es *Events) HasTerminal(r rune) bool {
 	return false
 }
 
+// TakeRune strikes and returns the first defined rune, only if it equals one
+// of the argument runes.
+func (es *Events) TakeRune(rs ...rune) rune {
+	for i := 0; i < len(es.Type); i++ {
+		if es.Type[i] == EventRune {
+			for _, r := range rs {
+				if es.esc[i] == ansi.Escape(r) {
+					es.Type[i] = EventNone
+					return rune(es.esc[i])
+				}
+			}
+			break
+		}
+	}
+	return 0
+}
+
 // CountRune counts occurrences of any of the given runes, striking them out.
 func (es *Events) CountRune(rs ...rune) (n int) {
 	for i := 0; i < len(es.Type); i++ {

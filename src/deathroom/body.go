@@ -456,7 +456,7 @@ func (rem bodyRemains) describeScavenge() string {
 		rem.bo.dmg[rem.part.ID()])
 }
 
-func (rem bodyRemains) scavenge(pr prompt.Prompt) (prompt.Prompt, bool) {
+func (rem bodyRemains) scavenge(pr prompt.Prompt) prompt.Prompt {
 	defer rem.part.Destroy()
 
 	entBo := rem.w.bodies[rem.ent.ID()]
@@ -487,5 +487,5 @@ func (rem bodyRemains) scavenge(pr prompt.Prompt) (prompt.Prompt, bool) {
 	}
 
 	pr, _ = rem.w.itemPrompt(pr.Unwind(), rem.ent)
-	return pr, false
+	return pr
 }

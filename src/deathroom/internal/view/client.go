@@ -9,7 +9,6 @@ import (
 	"github.com/jcorbin/anansi"
 	"github.com/jcorbin/anansi/ansi"
 	"github.com/jcorbin/anansi/x/platform"
-	termbox "github.com/nsf/termbox-go"
 )
 
 // ErrStop may be returned by a client method to mean "we're done, break run loop".
@@ -28,15 +27,8 @@ type Context interface {
 //
 // NOTE may optionally implement Terminate() error and Interrupt() error methods.
 type Client interface {
-	HandleInput(Context, platform.Events) error
-	Render(Context, Grid) error
-}
-
-// KeyEvent represents a terminal key event.
-type KeyEvent struct {
-	Mod termbox.Modifier
-	Key termbox.Key
-	Ch  rune
+	HandleInput(ctx Context, input platform.Events) error
+	Render(ctx Context, viewport Grid) error
 }
 
 // JustKeepRunning starts a view, and then running newly minted Clients

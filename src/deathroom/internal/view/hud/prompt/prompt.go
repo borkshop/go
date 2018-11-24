@@ -9,7 +9,7 @@ import (
 	"deathroom/internal/view"
 
 	"github.com/jcorbin/anansi/ansi"
-	termbox "github.com/nsf/termbox-go"
+	"github.com/jcorbin/anansi/x/platform"
 )
 
 // Prompt represents a set of actions that the user may select from. Each
@@ -17,27 +17,29 @@ import (
 // chained, i.e. the user is being shown a sub-prompt. Prompts may be left or
 // right aligned when rendered.
 type Prompt struct {
-	prior  *Prompt
-	mess   string
-	align  view.Align
-	action []promptAction
+	prior    *Prompt
+	canceled bool
+	mess     string
+	align    view.Align
+	action   []promptAction
+	keys     []rune
 }
 
 // Runner represents an action invoked by a Prompt. RunPrompt is called when a
 // Prompt action has been invoked by the user. It gets the prior Prompt value,
-// and is expected to return a new Prompt value to display to the user. The
-// `required` boolean argument indicates whether, semantically, an action was
-// taken or whether further input is needed from the user (presumably
-// underneath the returned `next` Prompt).
+// and is expected to return a new Prompt value to display to the user.
+//
+// If the returned prompt value has no actions, this indicates that an action
+// was taken.
 type Runner interface {
-	RunPrompt(prior Prompt) (next Prompt, required bool)
+	RunPrompt(prior Prompt) Prompt
 }
 
 // Func is a convenient way to implement Runner arounnd a single function.
-type Func func(prior Prompt) (next Prompt, required bool)
+type Func func(prior Prompt) Prompt
 
 // RunPrompt calls the aliased function.
-func (f Func) RunPrompt(pr Prompt) (Prompt, bool) { return f(pr) }
+func (f Func) RunPrompt(pr Prompt) Prompt { return f(pr) }
 
 type promptAction struct {
 	ch   rune
@@ -67,7 +69,7 @@ func (act promptAction) renderActionRight() string {
 // RenderSize calculates how much space the prompt could use and how much it
 // needs. TODO: not yet paginated.
 func (pr *Prompt) RenderSize() (wanted, needed point.Point) {
-	if len(pr.action) == 0 {
+	if pr.Len() == 0 {
 		return
 	}
 
@@ -109,7 +111,7 @@ func (pr *Prompt) Render(g view.Grid) {
 	if pr.align&view.AlignCenter == view.AlignRight {
 		exitMess = exitRightMess
 		write = func(mess string, args ...interface{}) {
-			pt.X = gsz.X - 1
+			pt.X = gsz.X
 			g.WriteStringRTL(pt, mess, args...)
 		}
 	} else {
@@ -123,54 +125,67 @@ func (pr *Prompt) Render(g view.Grid) {
 		g.WriteString(pt, headerFmt, pr.mess) // TODO y not write() ?
 		pt.Y++
 	}
-	for ; pt.Y < gsz.Y && i < len(pr.action); pt, i = ansi.Pt(1, pt.Y+1), i+1 {
+	for ; pt.Y < gsz.Y && i < pr.Len(); pt, i = ansi.Pt(1, pt.Y+1), i+1 {
 		write(pr.action[i].renderActionRight())
 	}
 	write(exitMess)
-	// if i < len(pr.action) TODO: paginate
+	// if i < pr.Len() TODO: paginate
 }
 
-// Handle a key event, returning: whether the event was handled, if the prompt
-// was canceled, and whether more user input is required (to take semantically
-// take an action).
-func (pr *Prompt) Handle(k view.KeyEvent) (handled, canceled, required bool) {
-	if len(pr.action) == 0 {
-		return false, false, false
-	}
-
-	if k.Key == termbox.KeyEsc {
-		*pr = pr.Unwind()
-		return true, true, false
-	}
-
-	if k.Ch == exitRune {
-		*pr = pr.Pop()
-		return true, true, false
-	}
-
+// HandleInput processes input events for the prompt.
+func (pr *Prompt) HandleInput(ctx view.Context, input platform.Events) error {
 	// TODO: pagination support
 
-	if k.Ch != 0 {
-		for i := range pr.action {
-			if k.Ch == pr.action[i].ch {
-				*pr, required = pr.action[i].run.RunPrompt(*pr)
-				return true, false, required
+	for pr.prior != nil && pr.Len() > 0 {
+		pr.canceled = false
+		pr.collectKeys()
+		switch r := input.TakeRune(pr.keys...); r {
+		case 0x1b:
+			*pr = pr.Unwind()
+			pr.canceled = true
+		case exitRune:
+			*pr = pr.Pop()
+		default:
+			if next, ok := pr.runKey(r); ok {
+				*pr = next
+			} else {
+				*pr = pr.Unwind()
+				pr.canceled = true
 			}
 		}
 	}
 
-	return false, false, true
+	return nil
 }
 
-// Run runs the i( >= 0 && <= Len())-th action, returning its next and required
-// return values with handled=true if there is an ith-action; the current
-// prompt, required=false and handled=false are retured if i is invalid.
-func (pr Prompt) Run(i int) (next Prompt, required, handled bool) {
-	if i < 0 || i >= len(pr.action) {
-		return pr, false, false
+// Run runs the i-th action, returning the resulting next prompt state and
+// true; if i is invalid, the current prompt and fals.
+func (pr Prompt) Run(i int) (next Prompt, ok bool) {
+	if i < 0 || i >= pr.Len() {
+		return pr, false
 	}
-	next, required = pr.action[i].run.RunPrompt(pr)
-	return next, required, true
+	return pr.action[i].run.RunPrompt(pr), true
+}
+
+func (pr Prompt) runKey(r rune) (next Prompt, ok bool) {
+	for i := 0; i < len(pr.keys); i++ {
+		if r == pr.keys[i] {
+			return pr.Run(i)
+		}
+	}
+	return pr, false
+}
+
+func (pr *Prompt) collectKeys() {
+	n := 2 + pr.Len()
+	if cap(pr.keys) < n {
+		pr.keys = make([]rune, 0, 2*n)
+	}
+	pr.keys = pr.keys[:0]
+	for i := range pr.action {
+		pr.keys = append(pr.keys, pr.action[i].ch)
+	}
+	pr.keys = append(pr.keys, 0x1b, exitRune)
 }
 
 // SetMess sets the header message.
@@ -223,6 +238,14 @@ func (pr *Prompt) Clear() {
 	pr.mess = ""
 	pr.action = pr.action[:0]
 }
+
+// Canceled returns true only if the prompt was just de-activated (e.g. by
+// user backing out of all prompts, ESC-aping).
+func (pr Prompt) Canceled() bool { return pr.canceled }
+
+// Active returns true if the prompt needs further user input to take an
+// action.
+func (pr Prompt) Active() bool { return len(pr.action) > 0 }
 
 // Len returns how many actions are in this prompt.
 func (pr Prompt) Len() int { return len(pr.action) }
@@ -280,11 +303,11 @@ func (pr *Prompt) SetActionMess(ch rune, run Runner, mess string, args ...interf
 
 // RunPrompt runs the prompt as a sub-prompt of another; causes Prompt to
 // implement Runner, allowing prompts to be added as actions to other prompts.
-func (pr Prompt) RunPrompt(prior Prompt) (Prompt, bool) {
+func (pr Prompt) RunPrompt(prior Prompt) Prompt {
 	return Prompt{
 		prior:  &prior,
 		align:  prior.align,
 		mess:   pr.mess,
 		action: pr.action,
-	}, true
+	}
 }

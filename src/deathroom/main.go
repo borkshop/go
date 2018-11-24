@@ -50,7 +50,7 @@ const (
 )
 
 type worldItem interface {
-	interact(pr prompt.Prompt, w *world, item, ent ecs.Entity) (prompt.Prompt, bool)
+	interact(pr prompt.Prompt, w *world, item, ent ecs.Entity) prompt.Prompt
 }
 
 type durableItem interface {
@@ -209,12 +209,12 @@ func (rc *rangeChooser) label() string {
 	return movementRangeLabels[n-1]
 }
 
-func (rc *rangeChooser) RunPrompt(prior prompt.Prompt) (next prompt.Prompt, required bool) {
-	next = prior.Sub("Set Movement Range")
+func (rc *rangeChooser) RunPrompt(prior prompt.Prompt) prompt.Prompt {
+	next := prior.Sub("Set Movement Range")
 	for i, label := range movementRangeLabels {
 		n := i + 1
 		r := '0' + rune(n)
-		run := prompt.Func(func(prior prompt.Prompt) (next prompt.Prompt, required bool) {
+		run := prompt.Func(func(prior prompt.Prompt) prompt.Prompt {
 			return rc.chosen(prior, n)
 		})
 		if n == 1 {
@@ -223,14 +223,14 @@ func (rc *rangeChooser) RunPrompt(prior prompt.Prompt) (next prompt.Prompt, requ
 			next.AddAction(r, run, "%s (%d cells, consumes %d charges)", label, n, n)
 		}
 	}
-	return next, true
+	return next
 }
 
-func (rc *rangeChooser) chosen(prior prompt.Prompt, n int) (next prompt.Prompt, required bool) {
+func (rc *rangeChooser) chosen(prior prompt.Prompt, n int) prompt.Prompt {
 	rc.w.setMovementRange(rc.ent, n)
-	next = prior.Unwind()
+	next := prior.Unwind()
 	next.SetActionMess(0, rc, movementRangeLabels[n-1])
-	return next, false
+	return next
 }
 
 func (w *world) allocWorld(id ecs.EntityID, t ecs.ComponentType) {
@@ -516,13 +516,6 @@ func (w *world) processCombat() {
 			w.dealAttackDamage(src, aPart, targ, bPart, dmg)
 		}
 	}
-}
-
-func (w *world) findPlayer() ecs.Entity {
-	if it := w.Iter(ecs.All(playMoveMask)); it.Next() {
-		return it.Entity()
-	}
-	return ecs.NilEntity
 }
 
 func (w *world) firstSoulBody() ecs.Entity {
@@ -914,6 +907,13 @@ func (w *world) addSpawn(x, y int) ecs.Entity {
 }
 
 func main() {
+	// TODO do better
+	f, err := os.Create("game.log")
+	if err != nil {
+		panic(err)
+	}
+	log.SetOutput(f)
+
 	if err := view.JustKeepRunning(func(v *view.View) (view.Client, error) {
 		w, err := newWorld(v)
 		if err != nil {

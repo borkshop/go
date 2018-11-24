@@ -172,8 +172,8 @@ func (w *world) processAIItems() {
 
 func (w *world) runAIInteraction(pr prompt.Prompt, ai ecs.Entity) {
 	for n := pr.Len(); n > 0; n = pr.Len() {
-		next, prompting, valid := pr.Run(w.rng.Intn(n))
-		if !valid || !prompting {
+		next, valid := pr.Run(w.rng.Intn(n))
+		if !valid {
 			return
 		}
 		pr = next

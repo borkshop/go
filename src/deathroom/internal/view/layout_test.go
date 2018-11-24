@@ -646,10 +646,10 @@ func (sh shape) Render(g Grid) {
 	for y, n := range sh.ns {
 		switch s := strings.Repeat(string(sh.r), n); sh.a {
 		case AlignRight:
-			g.WriteStringRTL(ansi.Pt(w-1, y+1), s)
+			g.WriteStringRTL(ansi.Pt(w, y+1), s)
 
 		default: // AlignLeft:
-			g.WriteString(ansi.Pt(0, y+1), s)
+			g.WriteString(ansi.Pt(1, y+1), s)
 		}
 	}
 }

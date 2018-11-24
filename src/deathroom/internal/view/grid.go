@@ -55,7 +55,7 @@ func (g Grid) WriteString(pt ansi.Point, mess string, args ...interface{}) int {
 	var n int
 	if i, valid := g.CellOffset(pt); valid {
 		gsz := g.Bounds().Size()
-		for j := i; len(mess) > 0 && pt.X < gsz.X; {
+		for j := i; len(mess) > 0 && pt.X <= gsz.X; {
 			r, n := utf8.DecodeRuneInString(mess)
 			mess = mess[n:]
 			g.Rune[j] = r
@@ -93,16 +93,16 @@ func (g Grid) Lines(fillZero rune) []string {
 	gsz := g.Bounds().Size()
 	lines := make([]string, gsz.Y)
 	line := make([]rune, gsz.X)
-	for y, i := 1, 0; y < gsz.Y; y++ {
-		for x := 1; x < gsz.X; x++ {
+	for y, i := 1, 0; y <= gsz.Y; y++ {
+		for x := 1; x <= gsz.X; x++ {
 			if ch := g.Rune[i]; ch != 0 {
-				line[x] = ch
+				line[x-1] = ch
 			} else {
-				line[x] = fillZero
+				line[x-1] = fillZero
 			}
 			i++
 		}
-		lines[y] = string(line)
+		lines[y-1] = string(line)
 	}
 	return lines
 }

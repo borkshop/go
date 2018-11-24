@@ -8,6 +8,7 @@ import (
 	"deathroom/internal/view"
 
 	"github.com/jcorbin/anansi/ansi"
+	"github.com/jcorbin/anansi/x/platform"
 )
 
 // Dash is a summary widget that can be triggered to show a perf dialog.
@@ -15,14 +16,12 @@ type Dash struct {
 	*Perf
 }
 
-// HandleKey handles key input for the perf dashboard.
-func (da Dash) HandleKey(k view.KeyEvent) bool {
-	switch k.Ch {
-	case '*':
+// HandleInput processes input for the perf dashboard.
+func (da Dash) HandleInput(ctx view.Context, input platform.Events) error {
+	if input.CountRune('*')%2 == 1 {
 		da.Perf.shouldProfile = !da.Perf.shouldProfile
-		return true
 	}
-	return false
+	return nil
 }
 
 // RenderSize calculates the wanted/needed size render the dashboard.

@@ -28,6 +28,9 @@ func (it *Iterator) Next() bool {
 // Reset resets the iterator, causing it to start over.
 func (it *Iterator) Reset() { it.i = -1 }
 
+// Any returns true if the iterator can (still) be advanced.
+func (it Iterator) Any() bool { return it.Next() }
+
 // Count counts how many entities remain to be iterated, without advancing the
 // iterator.
 func (it Iterator) Count() int {

@@ -4,11 +4,10 @@ import (
 	"fmt"
 	"image"
 
-	"github.com/jcorbin/anansi/ansi"
-	termbox "github.com/nsf/termbox-go"
-
 	"deathroom/internal/moremath"
 	"deathroom/internal/point"
+
+	"github.com/jcorbin/anansi/ansi"
 )
 
 // Layout places Renderables in a Grid, keeping track of used left/right/center
@@ -114,7 +113,7 @@ type LayoutPlacement struct {
 	align  Align
 	wanted point.Point
 	needed point.Point
-	sep    termbox.Cell // TODO: give user an option
+	sep    rune // TODO: give user an option
 
 	ok    bool
 	start int
@@ -154,7 +153,7 @@ func MakeLayoutPlacement(lay *Layout, ren Renderable) LayoutPlacement {
 }
 
 func (plc *LayoutPlacement) setSep(ch rune) {
-	plc.sep = termbox.Cell{Ch: ch}
+	plc.sep = ch
 }
 
 // Try attempts to (re)resolve the placement with an other alignment.
@@ -212,7 +211,7 @@ seekStart:
 	plc.have = point.Zero
 	for plc.start >= 0 && plc.start < len(plc.lay.avail) {
 		needed = plc.needed.X
-		if plc.sep.Ch != 0 && ((left && plc.lay.lused[plc.start] > 0) ||
+		if plc.sep != 0 && ((left && plc.lay.lused[plc.start] > 0) ||
 			(right && plc.lay.rused[plc.start] > 0)) {
 			needed++
 		}
@@ -313,7 +312,8 @@ func (plc *LayoutPlacement) copy(g Grid, off int) {
 		rflush = plc.align&AlignHFlush != 0 && right
 		paded  point.Point
 
-		padRune, padAttr = termbox2ansi(plc.sep)
+		padRune = plc.sep
+		padAttr = ansi.SGRAttr(0)
 
 		gsz   = g.Bounds().Size()
 		lgsz  = plc.lay.Grid.Bounds().Size()
@@ -433,16 +433,4 @@ func usedColumns(g Grid) (anyCol, anyRow []bool) {
 		}
 	}
 	return anyCol, anyRow
-}
-
-// TODO move into something like github.com/jcorbin/anansi/compat ?
-func termbox2ansi(c termbox.Cell) (rune, ansi.SGRAttr) {
-	var attr ansi.SGRAttr
-	if c.Fg != 0 {
-		attr |= ansi.SGRColor(c.Fg - 1).FG()
-	}
-	if c.Bg != 0 {
-		attr |= ansi.SGRColor(c.Bg - 1).BG()
-	}
-	return c.Ch, attr
 }

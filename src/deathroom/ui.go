@@ -5,6 +5,7 @@ import (
 	"image"
 	"sort"
 	"strings"
+	"time"
 	"unicode/utf8"
 
 	"deathroom/internal/ecs"
@@ -17,8 +18,63 @@ import (
 
 	"github.com/jcorbin/anansi/ansi"
 	"github.com/jcorbin/anansi/x/platform"
-	termbox "github.com/nsf/termbox-go"
 )
+
+// TODO refactor action keys / items / bar / prompt etc; should be able to
+// support adom-style diagonal keys.
+
+var actionKeys = map[rune]action{
+	// arrow keys
+	rune(ansi.CUD): moveAction(0, 1),
+	rune(ansi.CUU): moveAction(0, -1),
+	rune(ansi.CUB): moveAction(-1, 0),
+	rune(ansi.CUF): moveAction(1, 0),
+
+	// nethack vi keys
+	'y': moveAction(-1, -1),
+	'u': moveAction(1, -1),
+	'n': moveAction(1, 1),
+	'b': moveAction(-1, 1),
+	'h': moveAction(-1, 0),
+	'j': moveAction(0, 1),
+	'k': moveAction(0, -1),
+	'l': moveAction(1, 0),
+
+	// stay key
+	'.': moveAction(0, 0),
+
+	// phase shift
+	'_': actionFunc((*world).phaseShift),
+
+	// item inspection
+	',': actionFunc((*world).inspectHere),
+}
+
+type action interface {
+	act(w *world, subject ecs.Iterator) bool
+}
+
+type actionFunc func(w *world, subject ecs.Iterator) bool
+
+func (f actionFunc) act(w *world, subject ecs.Iterator) bool { return f(w, subject) }
+
+func moveAction(x, y int) movementAction {
+	return movementAction{point.Point{X: x, Y: y}}
+}
+
+type movementAction struct {
+	pt point.Point
+}
+
+func (move movementAction) act(w *world, subject ecs.Iterator) bool {
+	for subject.Next() {
+		w.addPendingMove(subject.Entity(), move.pt)
+	}
+	if w.ui.bar.IsRoot() {
+		w.updateInspectAction(subject)
+	}
+	return true
+}
 
 type actionItem interface {
 	prompt.Runner
@@ -50,7 +106,7 @@ func labeled(run prompt.Runner, mess string, args ...interface{}) actionItem {
 	return labeldRunner{run, mess}
 }
 
-func (ab *actionBar) reset() {
+func (ab *actionBar) Clear() {
 	ab.Prompt = ab.Prompt.Unwind()
 }
 
@@ -188,15 +244,17 @@ func (wia worldItemAction) addAction(pr *prompt.Prompt, ch rune) bool {
 	return pr.AddAction(ch, wia, name)
 }
 
-func (wia worldItemAction) RunPrompt(pr prompt.Prompt) (prompt.Prompt, bool) {
+func (wia worldItemAction) RunPrompt(pr prompt.Prompt) prompt.Prompt {
 	if item := wia.w.items[wia.item.ID()]; item != nil {
 		return item.interact(pr, wia.w, wia.item, wia.ent)
 	}
-	return pr.Unwind(), false
+	return pr.Unwind()
 }
 
 type ui struct {
 	View *view.View
+
+	shouldProc bool // TODO refactor
 
 	hud.Logs
 	perfDash perf.Dash
@@ -349,7 +407,7 @@ func (bs bodySummary) Render(g view.Grid) {
 	} {
 		it := bs.bo.Iter(ecs.All(bcPart | part.t))
 		if it.Next() {
-			if i, ok := g.CellOffset(pt.Add(part.off)); ok {
+			if i, ok := g.CellOffset(pt.Add(image.Pt(xo, 0)).Add(part.off)); ok {
 				g.Rune[i] = part.ch
 				g.Attr[i] = bs.partHPColor(it.Entity()).FG()
 			}
@@ -382,40 +440,65 @@ func (ui *ui) init(v *view.View, perf *perf.Perf) {
 	ui.perfDash.Perf = perf
 }
 
-func (ui *ui) HandleInput(ctx view.Context, input platform.Events) error {
-	// handle(k view.KeyEvent) (proc, handled bool, err error)
-	if ui.perfDash.HandleKey(k) {
-		return false, true, nil
-	}
-
-	defer func() {
-		if !handled {
-			ui.prompt.Clear()
-			ui.bar.reset()
-		}
-	}()
-
-	if k.Key == termbox.KeyEsc {
-		return false, true, view.ErrStop
-	}
-
-	if handled, canceled, prompting := ui.prompt.Handle(k); handled {
-		proc = !prompting && !canceled
-		if proc {
-			ui.prompt.Clear()
-		}
-		return proc, true, nil
-	}
-
-	if handled, canceled, prompting := ui.bar.Handle(k); handled {
-		return !prompting && !canceled, true, nil
-	}
-
-	return false, false, nil
+type inputHandler interface {
+	HandleInput(ctx view.Context, input platform.Events) error
 }
 
-func (w *world) HandleKey(k view.KeyEvent) (rerr error) {
-	proc, handled, err := w.ui.handle(k)
+type uiPrompt interface {
+	inputHandler
+	Active() bool
+	Canceled() bool
+	Clear()
+}
+
+func (ui *ui) HandleInput(ctx view.Context, input platform.Events) error {
+	ui.shouldProc = false
+
+	// run perf dashboard ui
+	if err := ui.perfDash.HandleInput(ctx, input); err != nil {
+		return err
+	}
+
+	// run prompt ui
+	if err := ui.runPrompt(&ui.prompt, ctx, input); err != nil {
+		return err
+	}
+
+	// escape to stop
+	var rerr error
+	if input.HasTerminal(0x1b) {
+		rerr = view.ErrStop
+	}
+
+	// run action bar
+	if err := ui.runPrompt(&ui.bar, ctx, input); err != nil {
+		return err
+	}
+
+	return rerr
+}
+
+func (ui *ui) runPrompt(p uiPrompt, ctx view.Context, input platform.Events) error {
+	// run prompt only if a significant action hasn't been taken
+	if !ui.shouldProc {
+		wasPrompting := p.Active()
+		if err := p.HandleInput(ctx, input); err != nil {
+			return err
+		}
+		stillPrompting := p.Active()
+		if acted := wasPrompting && !stillPrompting; acted {
+			ui.shouldProc = !p.Canceled()
+		}
+		if !stillPrompting {
+			p.Clear()
+		}
+	}
+	return nil
+}
+
+func (w *world) HandleInput(ctx view.Context, input platform.Events) (rerr error) {
+	ctx.RequestFrame(10 * time.Millisecond) // TODO need-based
+
 	defer func() {
 		if rerr != nil {
 			_ = w.perf.Close()
@@ -424,107 +507,93 @@ func (w *world) HandleKey(k view.KeyEvent) (rerr error) {
 		}
 	}()
 
-	if err != nil {
-		return err
-	}
-
+	// game over check
 	if w.over {
 		return nil
 	}
 
-	player := w.findPlayer()
-
-	if player != ecs.NilEntity && w.ui.bar.IsRoot() {
-		defer func() {
-			if rerr != nil {
-				return
+	// advance the world once we get through input processing, if a significant action was taken, and no error
+	w.shouldProc = false
+	defer func() {
+		if w.shouldProc {
+			if rerr == nil {
+				w.Process()
 			}
-			if itemPrompt, haveItemsHere := w.itemPrompt(w.prompt, player); haveItemsHere {
-				w.ui.bar.replaceLabel("Inspect", labeled(itemPrompt, "Inspect"))
-			} else {
-				w.ui.bar.removeLabel("Inspect")
-			}
-		}()
-	}
-
-	// special keys
-	if !handled {
-		switch k.Ch {
-		case ',':
-			if player != ecs.NilEntity {
-				if itemPrompt, haveItemsHere := w.itemPrompt(w.prompt, player); haveItemsHere {
-					w.prompt, _ = itemPrompt.RunPrompt(w.prompt.Unwind())
-				}
-			}
-			proc, handled = false, true
-		case '_':
-			if player != ecs.NilEntity {
-				if player.Type().All(wcCollide) {
-					player.Delete(wcCollide)
-					w.Glyphs[player.ID()] = '~'
-				} else {
-					player.Add(wcCollide)
-					w.Glyphs[player.ID()] = 'X'
-				}
-			}
-			proc, handled = true, true
+			w.shouldProc = false
 		}
+	}()
+
+	// run ui
+	if err := w.ui.HandleInput(ctx, input); err != nil {
+		return err
 	}
 
-	// parse player move
-	if !handled {
-		if move, ok := parseMove(k); ok {
-			for it := w.Iter(ecs.All(playMoveMask)); it.Next(); {
-				w.addPendingMove(it.Entity(), move)
-			}
-			proc, handled = true, true
-		}
-	}
-
-	// default to resting
-	if !handled {
-		proc = true
-	}
-
-	if proc {
-		w.Process()
+	// player action dispatch
+	if !w.shouldProc {
+		w.runActions(w.Iter(ecs.All(playMoveMask)), actionKeys, ctx, input)
 	}
 
 	return nil
 }
 
-func parseMove(k view.KeyEvent) (point.Point, bool) {
-	switch k.Key {
-	case termbox.KeyArrowDown:
-		return point.Point{X: 0, Y: 1}, true
-	case termbox.KeyArrowUp:
-		return point.Point{X: 0, Y: -1}, true
-	case termbox.KeyArrowLeft:
-		return point.Point{X: -1, Y: 0}, true
-	case termbox.KeyArrowRight:
-		return point.Point{X: 1, Y: 0}, true
+func (w *world) runActions(
+	subject ecs.Iterator, actionKeys map[rune]action,
+	ctx view.Context, input platform.Events,
+) {
+	if !subject.Any() {
+		return
 	}
-	switch k.Ch {
-	case 'y':
-		return point.Point{X: -1, Y: -1}, true
-	case 'u':
-		return point.Point{X: 1, Y: -1}, true
-	case 'n':
-		return point.Point{X: 1, Y: 1}, true
-	case 'b':
-		return point.Point{X: -1, Y: 1}, true
-	case 'h':
-		return point.Point{X: -1, Y: 0}, true
-	case 'j':
-		return point.Point{X: 0, Y: 1}, true
-	case 'k':
-		return point.Point{X: 0, Y: -1}, true
-	case 'l':
-		return point.Point{X: 1, Y: 0}, true
-	case '.':
-		return point.Zero, true
+	for i := 0; i < len(input.Type); i++ {
+		if input.Type[i] == platform.EventRune {
+			r := input.Rune(i)
+			if act, def := actionKeys[r]; def {
+				input.Type[i] = platform.EventNone
+				if w.shouldProc = act.act(w, subject); !w.shouldProc {
+					continue
+				}
+			}
+			break
+		}
 	}
-	return point.Zero, false
+}
+
+func (w *world) phaseShift(subject ecs.Iterator) bool {
+	for subject.Next() {
+		ent := subject.Entity()
+		if ent.Type().All(wcCollide) {
+			ent.Delete(wcCollide)
+			w.Glyphs[ent.ID()] = '~'
+		} else {
+			ent.Add(wcCollide)
+			w.Glyphs[ent.ID()] = 'X'
+		}
+		// TODO more flexible glyph mapping
+	}
+	return true
+}
+
+func (w *world) updateInspectAction(subject ecs.Iterator) bool {
+	subject.Next()
+	player := subject.Entity()
+	if itemPrompt, haveItemsHere := w.itemPrompt(w.prompt, player); haveItemsHere {
+		w.ui.bar.replaceLabel("Inspect", labeled(itemPrompt, "Inspect"))
+	} else {
+		w.ui.bar.removeLabel("Inspect")
+	}
+	return false
+}
+
+func (w *world) inspectHere(subject ecs.Iterator) bool {
+	// TODO properly integrate as bar action
+	// TODO re-use itemPrompt built by updateInspectAction
+
+	subject.Next()
+	player := subject.Entity()
+
+	if itemPrompt, haveItemsHere := w.itemPrompt(w.prompt, player); haveItemsHere {
+		w.prompt = itemPrompt.RunPrompt(w.prompt.Unwind())
+	}
+	return false
 }
 
 func (w *world) Render(ctx view.Context, termGrid view.Grid) error {
@@ -669,26 +738,23 @@ func (w *world) itemPrompt(pr prompt.Prompt, ent ecs.Entity) (prompt.Prompt, boo
 	return pr, prompting
 }
 
-func (bo *body) interact(pr prompt.Prompt, w *world, item, ent ecs.Entity) (prompt.Prompt, bool) {
-	if !ent.Type().All(wcBody) {
-		if ent.Type().All(wcSoul) {
-			w.log("you have no body!")
+func (bo *body) interact(pr prompt.Prompt, w *world, item, ent ecs.Entity) prompt.Prompt {
+	if ent.Type().All(wcBody) {
+		pr = pr.Sub(w.getName(item, "unknown item"))
+
+		for i, it := 0, bo.Iter(ecs.All(bcPart)); i < 9 && it.Next(); i++ {
+			part := it.Entity()
+			rem := bodyRemains{w, bo, part, item, ent}
+			// TODO: inspect menu when more than just scavengable
+
+			// any part can be scavenged
+			pr.AddAction('1'+rune(i), prompt.Func(rem.scavenge), rem.describeScavenge())
 		}
-		return pr, false
+
+	} else if ent.Type().All(wcSoul) {
+		w.log("you have no body!")
 	}
-
-	pr = pr.Sub(w.getName(item, "unknown item"))
-
-	for i, it := 0, bo.Iter(ecs.All(bcPart)); i < 9 && it.Next(); i++ {
-		part := it.Entity()
-		rem := bodyRemains{w, bo, part, item, ent}
-		// TODO: inspect menu when more than just scavengable
-
-		// any part can be scavenged
-		pr.AddAction('1'+rune(i), prompt.Func(rem.scavenge), rem.describeScavenge())
-	}
-
-	return pr, true
+	return pr
 }
 
 func safeColorsIX(colors []ansi.SGRColor, i int) ansi.SGRColor {
