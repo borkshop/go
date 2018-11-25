@@ -111,27 +111,29 @@ func (v *View) runClient(client Client) (rerr error) {
 	}
 
 	/* TODO: punch list
-	 * - async sigio polling is busted
+	 * - async sigio polling is SLOW (laggy)
+	 * - cursor isn't re-shown after exiting
+	 * - body head is detached
 	 * - color problem with floor tiles at least; TBD where
 	 */
 	for {
 		select {
-		case <-v.sigterm:
-			log.Printf("sigterm")
+		case sig := <-v.sigterm:
+			log.Printf("sigterm: %v", sig)
 			if termr, ok := client.(terminatable); ok {
 				return termr.Terminate()
 			}
-			return io.EOF // TODO better error?
+			return clientTerminalError(sig)
 
-		case <-v.sigint:
-			log.Printf("sigint")
+		case sig := <-v.sigint:
+			log.Printf("sigint: %v", sig)
 			if intr, ok := client.(interruptable); ok {
 				return intr.Interrupt()
 			}
-			return io.EOF // TODO better error?
+			return clientTerminalError(sig)
 
-		case <-v.sigwinch:
-			log.Printf("sigwinch")
+		case sig := <-v.sigwinch:
+			log.Printf("sigwinch: %v", sig)
 			sz, err := v.term.Size()
 			if err != nil {
 				return err
@@ -139,8 +141,8 @@ func (v *View) runClient(client Client) (rerr error) {
 			v.screen.Resize(sz)
 			v.RequestFrame(renderDelay)
 
-		case <-v.sigio:
-			log.Printf("sigio")
+		case sig := <-v.sigio:
+			log.Printf("sigio: %v", sig)
 			if err := v.events.Poll(); err != nil {
 				return err
 			}

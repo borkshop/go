@@ -3,6 +3,7 @@ package view
 import (
 	"errors"
 	"io"
+	"log"
 	"os"
 	"time"
 
@@ -36,19 +37,21 @@ type Client interface {
 // Useful for implementing main.main.
 func JustKeepRunning(factory func(v *View) (Client, error)) error {
 	var v View
+	log.Printf("view run loop: creating terminal")
 	return v.newTerm(os.Stdout).RunWith(func(term *anansi.Term) error {
 		for {
+			log.Printf("view run loop: creating client")
 			client, err := factory(&v)
 			if err == nil {
+				log.Printf("view run loop: running client")
 				err = v.runClient(client)
 			}
-			switch err {
-			case nil, ErrStop:
-				continue
-			case io.EOF:
-				return nil
-			default:
-				return err
+
+			if stop, halt, rerr := isStopErr(err); halt {
+				log.Printf("view run loop: terminal client error: %v", err)
+				return rerr
+			} else if stop {
+				log.Printf("view run loop: client stopped: %v", err)
 			}
 		}
 	})
@@ -58,22 +61,55 @@ func JustKeepRunning(factory func(v *View) (Client, error)) error {
 // caused by the client, or view).
 func (v *View) Run(client Client) error {
 	if v.term != nil {
-		switch err := v.runClient(client); err {
-		case nil, ErrStop, io.EOF:
-			return nil
-		default:
-			return err
+		log.Printf("view run: running client")
+		err := v.runClient(client)
+		stop, halt, rerr := isStopErr(err)
+		if halt {
+			log.Printf("view run: terminal client error: %v", err)
+		} else if stop {
+			log.Printf("view run: client stopped: %v", err)
 		}
+		return rerr
 	}
 
 	return v.newTerm(os.Stdout).RunWith(func(term *anansi.Term) error {
+		log.Printf("view run: creating terminal")
 		return v.Run(client)
 	})
 }
 
+type clientSignaledError struct {
+	sig  os.Signal
+	term bool
+}
+
+func clientTerminalError(sig os.Signal) clientSignaledError { return clientSignaledError{sig, true} }
+func clientStopError(sig os.Signal) clientSignaledError     { return clientSignaledError{sig, false} }
+
+func (sigErr clientSignaledError) Error() string { return sigErr.sig.String() }
+
+func isStopErr(err error) (stop, halt bool, _ error) {
+	switch err {
+	case io.EOF:
+		return true, true, nil
+	case ErrStop:
+		return true, false, nil
+	case nil:
+		return false, false, nil
+	}
+	switch impl := err.(type) {
+	case clientSignaledError:
+		return true, impl.term, nil
+	}
+	return true, true, err
+}
+
 func (v *View) newTerm(f *os.File) *anansi.Term {
 	term := anansi.NewTerm(f,
-		&v.out, &v.events, &v.termEvents, v,
+		&v.termEvents,
+		&v.events,
+		&v.out,
+		v,
 	)
 	term.SetEcho(false)
 	term.SetRaw(true)
