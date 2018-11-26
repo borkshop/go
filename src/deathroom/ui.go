@@ -1,6 +1,7 @@
 package main
 
 import (
+	"errors"
 	"fmt"
 	"image"
 	"sort"
@@ -16,6 +17,7 @@ import (
 	"deathroom/internal/view/hud"
 	"deathroom/internal/view/hud/prompt"
 
+	"github.com/jcorbin/anansi"
 	"github.com/jcorbin/anansi/ansi"
 	"github.com/jcorbin/anansi/x/platform"
 )
@@ -441,7 +443,7 @@ func (ui *ui) init(v *view.View, perf *perf.Perf) {
 }
 
 type inputHandler interface {
-	HandleInput(ctx view.Context, input platform.Events) error
+	HandleInput(ctx view.Context, input *platform.Events) error
 }
 
 type uiPrompt interface {
@@ -451,7 +453,7 @@ type uiPrompt interface {
 	Clear()
 }
 
-func (ui *ui) HandleInput(ctx view.Context, input platform.Events) error {
+func (ui *ui) HandleInput(ctx view.Context, input *platform.Events) error {
 	ui.shouldProc = false
 
 	// run perf dashboard ui
@@ -478,7 +480,7 @@ func (ui *ui) HandleInput(ctx view.Context, input platform.Events) error {
 	return rerr
 }
 
-func (ui *ui) runPrompt(p uiPrompt, ctx view.Context, input platform.Events) error {
+func (ui *ui) runPrompt(p uiPrompt, ctx view.Context, input *platform.Events) error {
 	// run prompt only if a significant action hasn't been taken
 	if !ui.shouldProc {
 		wasPrompting := p.Active()
@@ -496,7 +498,12 @@ func (ui *ui) runPrompt(p uiPrompt, ctx view.Context, input platform.Events) err
 	return nil
 }
 
-func (w *world) HandleInput(ctx view.Context, input platform.Events) (rerr error) {
+func (w *world) HandleInput(ctx view.Context, input *platform.Events) (rerr error) {
+	// quit on Q
+	if n := input.CountRune('q', 'Q'); n > 0 {
+		return errors.New("user quit")
+	}
+
 	ctx.RequestFrame(10 * time.Millisecond) // TODO need-based
 
 	defer func() {
@@ -538,7 +545,7 @@ func (w *world) HandleInput(ctx view.Context, input platform.Events) (rerr error
 
 func (w *world) runActions(
 	subject ecs.Iterator, actionKeys map[rune]action,
-	ctx view.Context, input platform.Events,
+	ctx view.Context, input *platform.Events,
 ) {
 	if !subject.Any() {
 		return
@@ -596,7 +603,15 @@ func (w *world) inspectHere(subject ecs.Iterator) bool {
 	return false
 }
 
-func (w *world) Render(ctx view.Context, termGrid view.Grid) error {
+func (w *world) Render(ctx view.Context, _ time.Time, screen *anansi.Screen) error {
+	// clear screen grid
+	for i := range screen.Rune {
+		screen.Grid.Rune[i] = 0
+		screen.Grid.Attr[i] = 0
+	}
+
+	termGrid := view.Grid{Grid: screen.Grid} // TODO eliminate legacy view.Grid struct
+
 	hud := hud.HUD{
 		Logs:  w.ui.Logs,
 		World: w.renderViewport(termGrid.Bounds().Size()),

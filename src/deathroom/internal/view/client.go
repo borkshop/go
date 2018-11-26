@@ -2,13 +2,11 @@ package view
 
 import (
 	"errors"
-	"io"
 	"log"
 	"os"
 	"time"
 
 	"github.com/jcorbin/anansi"
-	"github.com/jcorbin/anansi/ansi"
 	"github.com/jcorbin/anansi/x/platform"
 )
 
@@ -21,6 +19,10 @@ var ErrStop = errors.New("client stop")
 // TODO support custom signal notification
 type Context interface {
 	RequestFrame(time.Duration)
+
+	// TODO proper logging interface
+	Debugf(string, ...interface{})
+	Infof(string, ...interface{})
 }
 
 // Client is the interface exposed to the user of View; its various methods are
@@ -28,8 +30,8 @@ type Context interface {
 //
 // NOTE may optionally implement Terminate() error and Interrupt() error methods.
 type Client interface {
-	HandleInput(ctx Context, input platform.Events) error
-	Render(ctx Context, viewport Grid) error
+	HandleInput(ctx Context, input *platform.Events) error
+	Render(ctx Context, t time.Time, screen *anansi.Screen) error
 }
 
 // JustKeepRunning starts a view, and then running newly minted Clients
@@ -78,49 +80,90 @@ func (v *View) Run(client Client) error {
 	})
 }
 
+func (v *View) runClient(client Client) error {
+	return v.run(clientView{v, client})
+}
+
+type clientView struct {
+	*View
+	Client
+}
+
+type clientInit interface {
+	Client
+	Init(Context) error
+}
+
+func (cv clientView) Init(ctx Context) error {
+	ctx.Infof("running %T client", cv.Client)
+	if initr, ok := cv.Client.(clientInit); ok {
+		ctx.Debugf("initializing %T client", cv.Client)
+		if err := initr.Init(ctx); err != nil {
+			return err
+		}
+		// NOTE client must request first frame when it implement init
+	} else {
+		ctx.Debugf("requesting initial frame")
+		ctx.RequestFrame(renderDelay)
+	}
+	return nil
+}
+
+type clientClose interface {
+	Client
+	Close(Context) error
+}
+
+func (cv clientView) Close(ctx Context) error {
+	if closer, ok := cv.Client.(clientClose); ok {
+		ctx.Debugf("closing %T client", cv.Client)
+		return closer.Close(ctx)
+	}
+	return nil
+}
+
+type clientTerminate interface {
+	Client
+	Terminate(Context, os.Signal) error
+}
+
+func (cv clientView) Terminate(ctx Context, sig os.Signal) error {
+	if termr, ok := cv.Client.(clientTerminate); ok {
+		ctx.Infof("terminate %T client: %v", cv.Client, sig)
+		return termr.Terminate(ctx, sig)
+	}
+	cv.Infof("terminate: %v", sig)
+	return clientTerminalError(sig)
+}
+
+type clientInterrupt interface {
+	Client
+	Interrupt(Context, os.Signal) error
+}
+
+func (cv clientView) Interrupt(ctx Context, sig os.Signal) error {
+	if intr, ok := cv.Client.(clientInterrupt); ok {
+		ctx.Infof("interrupt %T client: %v", cv.Client, sig)
+		return intr.Interrupt(ctx, sig)
+	}
+	cv.Infof("interrupt: %v", sig)
+	return clientTerminalError(sig)
+}
+
+func (cv clientView) Resized(ctx Context, sig os.Signal) error {
+	ctx.Debugf("resized: %v", sig)
+	err := cv.screen.SizeToTerm(cv.term)
+	if err == nil {
+		ctx.RequestFrame(renderDelay)
+	}
+	return err
+}
+
 type clientSignaledError struct {
 	sig  os.Signal
 	term bool
 }
 
 func clientTerminalError(sig os.Signal) clientSignaledError { return clientSignaledError{sig, true} }
-func clientStopError(sig os.Signal) clientSignaledError     { return clientSignaledError{sig, false} }
 
 func (sigErr clientSignaledError) Error() string { return sigErr.sig.String() }
-
-func isStopErr(err error) (stop, halt bool, _ error) {
-	switch err {
-	case io.EOF:
-		return true, true, nil
-	case ErrStop:
-		return true, false, nil
-	case nil:
-		return false, false, nil
-	}
-	switch impl := err.(type) {
-	case clientSignaledError:
-		return true, impl.term, nil
-	}
-	return true, true, err
-}
-
-func (v *View) newTerm(f *os.File) *anansi.Term {
-	term := anansi.NewTerm(f,
-		&v.termEvents,
-		&v.events,
-		&v.out,
-		v,
-	)
-	term.SetEcho(false)
-	term.SetRaw(true)
-	term.AddMode(
-
-		// TODO if mouse enabled
-		// ansi.ModeMouseSgrExt,
-		// ansi.ModeMouseBtnEvent,
-		// ansi.ModeMouseAnyEvent,
-
-		ansi.ModeAlternateScreen,
-	)
-	return term
-}

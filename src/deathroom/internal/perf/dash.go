@@ -17,7 +17,7 @@ type Dash struct {
 }
 
 // HandleInput processes input for the perf dashboard.
-func (da Dash) HandleInput(ctx view.Context, input platform.Events) error {
+func (da Dash) HandleInput(ctx view.Context, input *platform.Events) error {
 	if input.CountRune('*')%2 == 1 {
 		da.Perf.shouldProfile = !da.Perf.shouldProfile
 	}

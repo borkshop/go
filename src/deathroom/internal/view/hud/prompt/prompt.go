@@ -133,7 +133,7 @@ func (pr *Prompt) Render(g view.Grid) {
 }
 
 // HandleInput processes input events for the prompt.
-func (pr *Prompt) HandleInput(ctx view.Context, input platform.Events) error {
+func (pr *Prompt) HandleInput(ctx view.Context, input *platform.Events) error {
 	// TODO: pagination support
 
 	for pr.prior != nil && pr.Len() > 0 {

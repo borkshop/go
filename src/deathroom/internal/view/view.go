@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/jcorbin/anansi"
+	"github.com/jcorbin/anansi/ansi"
 	"github.com/jcorbin/anansi/x/platform"
 )
 
@@ -19,11 +20,7 @@ type syntheticSignal string
 func (ss syntheticSignal) String() string { return string(ss) }
 func (ss syntheticSignal) Signal()        {}
 
-var (
-	ctrlCSignal = syntheticSignal("user Ctrl-C interrupt")
-	sizeSignal  = syntheticSignal("acquire size")
-	quitSignal  = syntheticSignal("user quit")
-)
+var ctrlCSignal = syntheticSignal("user Ctrl-C interrupt")
 
 // View implements terminal user interaction, combining anansi.Input,
 // anansi.Output, signal processing, and other common terminal idioms (like
@@ -34,13 +31,17 @@ var (
 // A log is provided, whose tail is displayed beneath the header.
 //
 // TODO consider replacing with loosely coupled anansi.Context pieces.
+//
+// TODO observability / introspection / other Nice To Haves? (reconcile with anansi/x/platform)
 type View struct {
-	termEvents
-	term   *anansi.Term
-	events platform.Events
-	out    anansi.Output
-	screen anansi.Screen
-	tick   *time.Timer
+	term     *anansi.Term
+	sigterm  termSignal
+	sigint   termSignal
+	sigwinch termSignal
+	screen   anansi.Screen
+	input    termAsyncInput
+	out      anansi.Output
+	tick     *time.Timer
 }
 
 const renderDelay = 10 * time.Millisecond
@@ -51,20 +52,17 @@ func (v *View) Enter(term *anansi.Term) error {
 		return errors.New("view already active")
 	}
 	v.term = term
-	err := v.events.Notify(v.sigio)
-	if err == nil {
-		raiseSignal(v.sigwinch, sizeSignal)
-	}
-	return err
+	v.RequestFrame(0)
+	return nil
 }
 
 // Exit stops the render timer.
 func (v *View) Exit(term *anansi.Term) error {
-	v.term = nil
 	if v.tick != nil {
 		v.tick.Stop()
 		v.tick = nil
 	}
+	v.term = nil
 	return nil
 }
 
@@ -78,178 +76,186 @@ func (v *View) RequestFrame(dur time.Duration) {
 	}
 }
 
-func (v *View) runClient(client Client) (rerr error) {
-	type initable interface{ Init(Context) error }
-	type terminatable interface{ Terminate() error }
-	type interruptable interface{ Interrupt() error }
-	type closeable interface{ Close() error }
-
-	log.Printf("running client %T %v", client, client)
-
-	if closer, ok := client.(closeable); ok {
-		log.Printf("deferring closer.Close")
-		defer func() {
-			if cerr := closer.Close(); cerr != nil {
-				if rerr == nil || rerr == ErrStop || rerr == io.EOF {
-					rerr = cerr
-				}
-			}
-		}()
-	}
-
-	// TODO: observability / introspection / other Nice To Haves? (reconcile with anansi/x/platform)
-
-	if initr, ok := client.(initable); ok {
-		log.Printf("running initable.Init")
-		if err := initr.Init(v); err != nil {
-			return err
-		}
-		// NOTE client must request first frame when it implement init
-	} else {
-		log.Printf("requesting initial frame")
-		v.RequestFrame(renderDelay)
-	}
-
-	/* TODO: punch list
-	 * - async sigio polling is SLOW (laggy)
-	 * - cursor isn't re-shown after exiting
-	 * - body head is detached
-	 * - color problem with floor tiles at least; TBD where
-	 */
-	for {
-		select {
-		case sig := <-v.sigterm:
-			log.Printf("sigterm: %v", sig)
-			if termr, ok := client.(terminatable); ok {
-				return termr.Terminate()
-			}
-			return clientTerminalError(sig)
-
-		case sig := <-v.sigint:
-			log.Printf("sigint: %v", sig)
-			if intr, ok := client.(interruptable); ok {
-				return intr.Interrupt()
-			}
-			return clientTerminalError(sig)
-
-		case sig := <-v.sigwinch:
-			log.Printf("sigwinch: %v", sig)
-			sz, err := v.term.Size()
-			if err != nil {
-				return err
-			}
-			v.screen.Resize(sz)
-			v.RequestFrame(renderDelay)
-
-		case sig := <-v.sigio:
-			log.Printf("sigio: %v", sig)
-			if err := v.events.Poll(); err != nil {
-				return err
-			}
-			log.Printf("polled input %v", dumpEvents(&v.events))
-
-			// synthesize interrupt on Ctrl-C
-			if v.events.CountRune(0x03) > 0 {
-				log.Printf("Ctrl-C -> sigint")
-				raiseSignal(v.sigint, ctrlCSignal)
-			}
-
-			// force full redraw on Ctrl-L
-			if v.events.CountRune(0x0c) > 0 {
-				log.Printf("Ctrl-L -> invalidate")
-				v.screen.Invalidate()
-				v.RequestFrame(renderDelay)
-			}
-
-			// quit on Q
-			if n := v.events.CountRune('q', 'Q'); n > 0 {
-				log.Printf("Quit -> sigterm")
-				raiseSignal(v.sigterm, quitSignal)
-			}
-
-			// pass remaining input to client
-			log.Printf("handling input %v", dumpEvents(&v.events))
-			if err := client.HandleInput(v, v.events); err != nil {
-				return err
-			}
-
-		case <-v.tick.C:
-			log.Printf("tick")
-			// clear screen grid
-			for i := range v.screen.Rune {
-				v.screen.Grid.Rune[i] = 0
-				v.screen.Grid.Attr[i] = 0
-			}
-
-			// render the client
-			// TODO revamp the client contract:
-			// - pass it the screen directly...
-			// - ...let it decide to (or not) clear the grid
-			err := client.Render(v, Grid{v.screen.Grid})
-
-			// flush output, differentially when possible
-			if ferr := v.out.Flush(&v.screen); err == nil {
-				err = ferr
-			}
-
-			if err != nil {
-				return err
-			}
-		}
-	}
+// Debugf logs a debug message.
+func (v *View) Debugf(mess string, args ...interface{}) {
+	// TODO standard annotations
+	// TODO log control / toggle
+	log.Printf(mess, args...)
 }
 
-func dumpEvents(es *platform.Events) []string {
-	ss := make([]string, 0, len(es.Type))
-	for i := 0; i < len(es.Type); i++ {
-		switch es.Type[i] {
+// Infof logs an info message.
+func (v *View) Infof(mess string, args ...interface{}) {
+	// TODO standard annotations
+	// TODO log control / toggle
+	log.Printf(mess, args...)
+}
+
+type viewApp interface {
+	Init(Context) error
+	Close(Context) error
+	Terminate(Context, os.Signal) error
+	Interrupt(Context, os.Signal) error
+	Resized(Context, os.Signal) error
+	HandleInput(ctx Context, input *platform.Events) error
+	Render(ctx Context, t time.Time, screen *anansi.Screen) error
+}
+
+func (v *View) run(app viewApp) error {
+	ctx := Context(v)
+	err := app.Init(ctx)
+	if err != nil {
+		return nil
+	}
+	defer func() {
+		isStop, _, _ := isStopErr(err)
+		if cerr := app.Close(ctx); isStop {
+			err = cerr
+		}
+	}()
+	for err == nil {
+		select {
+		case sig := <-v.sigterm.sig:
+			err = app.Terminate(ctx, sig)
+		case sig := <-v.sigint.sig:
+			err = app.Interrupt(ctx, sig)
+		case sig := <-v.sigwinch.sig:
+			err = app.Resized(ctx, sig)
+		case sig := <-v.input.sig:
+			ctx.Debugf("input ready: %v", sig)
+			err = v.processInput(ctx, app)
+		case t := <-v.tick.C:
+			ctx.Debugf("tick t:%v", t)
+			err = v.render(ctx, t, app)
+		}
+	}
+	return err
+}
+
+func (v *View) processInput(ctx Context, app viewApp) error {
+	if err := v.input.Poll(); err != nil {
+		return err
+	}
+	if haveAnyInput(&v.input.Events) {
+		ctx.Debugf("polled input: %v", v.input.dump())
+		return v.handleInput(ctx, app)
+	}
+	return nil
+}
+
+func (v *View) handleInput(ctx Context, app viewApp) error {
+	// synthesize interrupt on Ctrl-C
+	if v.input.CountRune(0x03) > 0 {
+		ctx.Infof("Ctrl-C -> sigint")
+		raiseSignal(v.sigint.sig, ctrlCSignal)
+	}
+
+	// force full redraw on Ctrl-L
+	if v.input.CountRune(0x0c) > 0 {
+		ctx.Infof("Ctrl-L -> invalidate")
+		v.screen.Invalidate()
+		ctx.RequestFrame(renderDelay)
+	}
+
+	// pass remaining input to app
+	if haveAnyInput(&v.input.Events) {
+		return app.HandleInput(ctx, &v.input.Events)
+	}
+	return nil
+}
+
+func (v *View) render(ctx Context, t time.Time, app viewApp) error {
+	err := app.Render(ctx, t, &v.screen)
+	if ferr := v.out.Flush(&v.screen); err == nil {
+		err = ferr
+	}
+	return err
+}
+
+type termSignal struct {
+	notify os.Signal
+	sig    chan os.Signal
+}
+
+func (ts *termSignal) Enter(term *anansi.Term) error {
+	ts.sig = make(chan os.Signal, 1)
+	if ts.notify != nil {
+		signal.Notify(ts.sig, ts.notify)
+	}
+	return nil
+}
+
+func (ts *termSignal) Exit(term *anansi.Term) error {
+	if ts.sig != nil {
+		signal.Stop(ts.sig)
+		ts.sig = nil
+	}
+	return nil
+}
+
+type termAsyncInput struct {
+	platform.Events
+	termSignal
+}
+
+func (tai *termAsyncInput) Enter(term *anansi.Term) error {
+	err := tai.termSignal.Enter(term)
+	if err == nil {
+		err = tai.Events.Enter(term)
+	}
+	if err == nil {
+		err = tai.Notify(tai.sig)
+	}
+	return err
+}
+
+func (tai *termAsyncInput) Exit(term *anansi.Term) error {
+	err := tai.Events.Exit(term)
+	if err2 := tai.termSignal.Exit(term); err == nil {
+		err = err2
+	}
+	return err
+}
+
+func (tai *termAsyncInput) dump() []string {
+	ss := make([]string, 0, len(tai.Events.Type))
+	for i := 0; i < len(tai.Events.Type); i++ {
+		switch tai.Events.Type[i] {
 		case platform.EventRune:
-			ss = append(ss, fmt.Sprintf("%q", es.Rune(i)))
+			ss = append(ss, fmt.Sprintf("%q", tai.Events.Rune(i)))
 		case platform.EventEscape:
-			ss = append(ss, es.Escape(i).String())
+			ss = append(ss, tai.Events.Escape(i).String())
 		case platform.EventMouse:
-			ss = append(ss, es.Mouse(i).String())
+			ss = append(ss, tai.Events.Mouse(i).String())
 		}
 	}
 	return ss
 }
 
-type termEvents struct {
-	sigterm  chan os.Signal
-	sigint   chan os.Signal
-	sigwinch chan os.Signal
-	sigio    chan os.Signal
-}
+func (v *View) newTerm(f *os.File) *anansi.Term {
+	v.sigterm.notify = syscall.SIGTERM
+	v.sigint.notify = syscall.SIGINT
+	v.sigwinch.notify = syscall.SIGWINCH
+	term := anansi.NewTerm(f,
+		&v.sigterm,
+		&v.sigint,
+		&v.sigwinch,
+		&v.screen,
+		&v.input,
+		&v.out,
+		v,
+	)
+	term.SetEcho(false)
+	term.SetRaw(true)
+	term.AddMode(
 
-func (tev *termEvents) Enter(term *anansi.Term) error {
-	tev.sigterm = make(chan os.Signal, 1)
-	tev.sigint = make(chan os.Signal, 1)
-	tev.sigwinch = make(chan os.Signal, 1)
-	tev.sigio = make(chan os.Signal, 1)
-	signal.Notify(tev.sigterm, syscall.SIGTERM)
-	signal.Notify(tev.sigint, syscall.SIGINT)
-	signal.Notify(tev.sigwinch, syscall.SIGWINCH)
-	return nil
-}
+		// TODO if mouse enabled
+		// ansi.ModeMouseSgrExt,
+		// ansi.ModeMouseBtnEvent,
+		// ansi.ModeMouseAnyEvent,
 
-func (tev *termEvents) Exit(term *anansi.Term) error {
-	if tev.sigterm != nil {
-		signal.Stop(tev.sigterm)
-		tev.sigterm = nil
-	}
-	if tev.sigint != nil {
-		signal.Stop(tev.sigint)
-		tev.sigint = nil
-	}
-	if tev.sigwinch != nil {
-		signal.Stop(tev.sigwinch)
-		tev.sigwinch = nil
-	}
-	if tev.sigio != nil {
-		signal.Stop(tev.sigio)
-		tev.sigio = nil
-	}
-	return nil
+		ansi.ModeAlternateScreen,
+	)
+	return term
 }
 
 func raiseSignal(ch chan<- os.Signal, sig os.Signal) {
@@ -257,4 +263,29 @@ func raiseSignal(ch chan<- os.Signal, sig os.Signal) {
 	case ch <- sig:
 	default:
 	}
+}
+
+func isStopErr(err error) (stop, halt bool, _ error) {
+	switch err {
+	case io.EOF:
+		return true, true, nil
+	case ErrStop:
+		return true, false, nil
+	case nil:
+		return false, false, nil
+	}
+	switch impl := err.(type) {
+	case clientSignaledError:
+		return true, impl.term, nil
+	}
+	return true, true, err
+}
+
+func haveAnyInput(es *platform.Events) bool {
+	for i := 0; i < len(es.Type); i++ {
+		if es.Type[i] != platform.EventNone {
+			return true
+		}
+	}
+	return false
 }

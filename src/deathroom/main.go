@@ -1,3 +1,13 @@
+/* TODO: punch list
+- arrow key aren't registering
+- color problem with wall glyphs... check off-by one XXX's in colors.go tables
+- body head is detached
+- prompt display is broken...
+- ...as is prompt interaction
+- cursor isn't re-shown after exiting
+- async sigio polling seems okay... still validate with an anansi/cmd
+*/
+
 package main
 
 import (

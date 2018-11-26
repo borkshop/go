@@ -15,7 +15,7 @@ const spawnColor = ansi.SGRCube53
 // TODO convert to and better utilize 24-bit
 var (
 	aiColors = []ansi.SGRColor{
-		ansi.SGRCube123,
+		ansi.SGRCube123, // XXX maybe off by -1
 		ansi.SGRCube159,
 		ansi.SGRCube195,
 		ansi.SGRCube201,
@@ -23,7 +23,7 @@ var (
 		ansi.SGRCube213,
 	}
 	soulColors = []ansi.SGRColor{
-		ansi.SGRCube18,
+		ansi.SGRCube18, // XXX maybe off by -1
 		ansi.SGRCube19,
 		ansi.SGRCube20,
 		ansi.SGRCube26,
@@ -31,7 +31,7 @@ var (
 		ansi.SGRCube38,
 	}
 	itemColors = []ansi.SGRColor{
-		ansi.SGRCube21,
+		ansi.SGRCube21, // XXX maybe off by -1
 		ansi.SGRCube22,
 		ansi.SGRCube28,
 		ansi.SGRCube34,
@@ -40,18 +40,18 @@ var (
 	}
 
 	wallColors = []ansi.SGRColor{
-		ansi.SGRGray1,
 		ansi.SGRGray2,
 		ansi.SGRGray3,
 		ansi.SGRGray4,
 		ansi.SGRGray5,
 		ansi.SGRGray6,
 		ansi.SGRGray7,
+		ansi.SGRGray8,
 	}
 	floorColors = []ansi.SGRColor{
-		ansi.SGRCube231,
 		ansi.SGRGray1,
 		ansi.SGRGray2,
+		ansi.SGRGray3,
 	}
 
 	wallTable  = newColorTable()
