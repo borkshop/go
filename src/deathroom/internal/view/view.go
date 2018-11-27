@@ -114,13 +114,13 @@ func (v *View) run(app viewApp) error {
 	}()
 	for err == nil {
 		select {
-		case sig := <-v.sigterm.sig:
+		case sig := <-v.sigterm.Signal:
 			err = app.Terminate(ctx, sig)
-		case sig := <-v.sigint.sig:
+		case sig := <-v.sigint.Signal:
 			err = app.Interrupt(ctx, sig)
-		case sig := <-v.sigwinch.sig:
+		case sig := <-v.sigwinch.Signal:
 			err = app.Resized(ctx, sig)
-		case sig := <-v.input.sig:
+		case sig := <-v.input.Signal:
 			ctx.Debugf("input ready: %v", sig)
 			err = v.processInput(ctx, app)
 		case t := <-v.tick.C:
@@ -146,7 +146,7 @@ func (v *View) handleInput(ctx Context, app viewApp) error {
 	// synthesize interrupt on Ctrl-C
 	if v.input.CountRune(0x03) > 0 {
 		ctx.Infof("Ctrl-C -> sigint")
-		raiseSignal(v.sigint.sig, ctrlCSignal)
+		raiseSignal(v.sigint.Signal, ctrlCSignal)
 	}
 
 	// force full redraw on Ctrl-L
@@ -172,22 +172,26 @@ func (v *View) render(ctx Context, t time.Time, app viewApp) error {
 }
 
 type termSignal struct {
-	notify os.Signal
-	sig    chan os.Signal
+	Notify os.Signal
+	Signal chan os.Signal
 }
 
 func (ts *termSignal) Enter(term *anansi.Term) error {
-	ts.sig = make(chan os.Signal, 1)
-	if ts.notify != nil {
-		signal.Notify(ts.sig, ts.notify)
+	ts.Signal = make(chan os.Signal, 1)
+	if ts.Notify != nil {
+		signal.Notify(ts.Signal, ts.Notify)
 	}
 	return nil
 }
 
 func (ts *termSignal) Exit(term *anansi.Term) error {
-	if ts.sig != nil {
-		signal.Stop(ts.sig)
-		ts.sig = nil
+	return nil
+}
+
+func (ts *termSignal) Close() error {
+	if ts.Signal != nil {
+		signal.Stop(ts.Signal)
+		ts.Signal = nil
 	}
 	return nil
 }
@@ -203,7 +207,7 @@ func (tai *termAsyncInput) Enter(term *anansi.Term) error {
 		err = tai.Events.Enter(term)
 	}
 	if err == nil {
-		err = tai.Notify(tai.sig)
+		err = tai.Events.Notify(tai.Signal)
 	}
 	return err
 }
@@ -232,9 +236,9 @@ func (tai *termAsyncInput) dump() []string {
 }
 
 func (v *View) newTerm(f *os.File) *anansi.Term {
-	v.sigterm.notify = syscall.SIGTERM
-	v.sigint.notify = syscall.SIGINT
-	v.sigwinch.notify = syscall.SIGWINCH
+	v.sigterm.Notify = syscall.SIGTERM
+	v.sigint.Notify = syscall.SIGINT
+	v.sigwinch.Notify = syscall.SIGWINCH
 	term := anansi.NewTerm(f,
 		&v.sigterm,
 		&v.sigint,
