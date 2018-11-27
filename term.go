@@ -64,6 +64,11 @@ func (term *Term) RunWith(within func(*Term) error) (err error) {
 		if cerr := term.ctx.Exit(term); cerr == nil {
 			err = cerr
 		}
+		if cl, ok := term.ctx.(interface{ Close() error }); ok {
+			if cerr := cl.Close(); err == nil {
+				err = cerr
+			}
+		}
 		term.active = false
 	}()
 	term.active = true
