@@ -7,7 +7,8 @@ import (
 // NewTerm creates a new Term attached to the given file, and with optional
 // associated context.
 func NewTerm(f *os.File, cs ...Context) *Term {
-	term := &Term{File: f}
+	term := &Term{}
+	term.File = f
 	term.AddContext(cs...)
 	return term
 }
@@ -15,7 +16,6 @@ func NewTerm(f *os.File, cs ...Context) *Term {
 // Term combines a terminal file handle with attribute control and further
 // Context-ual state.
 type Term struct {
-	*os.File
 	Attr
 	Mode
 

@@ -7,17 +7,21 @@ import (
 	"syscall"
 )
 
-var errAttrNoFile = errors.New("anansi.Attr.ioctl: no File set")
+var (
+	errAttrForeignTerm = errors.New("invalid use of foreign terminal with anansi.Attr")
+	errAttrNoFile      = errors.New("anansi.Attr.ioctl: no File set")
+)
 
 // Attr implements Context-ual manipulation and interrogation of terminal
 // state, using the termios IOCTLs and ANSI control sequences where possible.
 type Attr struct {
+	*os.File
+	active bool // true after Enter() before Exit()
+
 	orig syscall.Termios
 	cur  syscall.Termios
 	raw  bool
 	echo bool
-
-	f *os.File
 }
 
 // IsTerminal returns true only if the given file is attached to an interactive
@@ -48,7 +52,7 @@ func (at *Attr) SetRaw(raw bool) error {
 		return nil
 	}
 	at.raw = raw
-	if at.f != nil {
+	if at.active {
 		at.cur = at.modifyTermios(at.orig)
 		return at.setAttr(at.cur)
 	}
@@ -62,7 +66,7 @@ func (at *Attr) SetEcho(echo bool) error {
 		return nil
 	}
 	at.echo = echo
-	if at.f != nil {
+	if at.active {
 		if echo {
 			at.cur.Lflag |= syscall.ECHO
 		} else {
@@ -95,34 +99,36 @@ func (at Attr) modifyTermios(attr syscall.Termios) syscall.Termios {
 	return attr
 }
 
-// Enter applies termios attributes, retaining the file handle so that all
-// future calls to Set* now immediately.
+// Enter records original termios attributes, and then applies termios
+// attributes.
 func (at *Attr) Enter(term *Term) (err error) {
-	at.f = term.File
+	if at != &term.Attr {
+		return errAttrForeignTerm
+	}
 	if at.orig, err = at.getAttr(); err == nil {
 		at.cur = at.modifyTermios(at.orig)
 		err = at.setAttr(at.cur)
+		if err == nil {
+			at.active = true
+		}
 	}
 	return err
 }
 
-// Exit restores termios attributes only if the given file is the retained one,
-// clearing the retained file pointer to transition out of immediate
-// application mode.
+// Exit restores termios attributes only.
 func (at *Attr) Exit(term *Term) error {
-	if at.f == term.File {
-		err := at.setAttr(at.orig)
-		at.f = nil
-		return err
+	if at == &term.Attr {
+		at.active = false
+		return at.setAttr(at.orig)
 	}
 	return nil
 }
 
 func (at Attr) ioctl(request, arg1, arg2, arg3, arg4 uintptr) error {
-	if at.f == nil {
+	if at.File == nil {
 		return errAttrNoFile
 	}
-	if _, _, e := syscall.Syscall6(syscall.SYS_IOCTL, at.f.Fd(), request, arg1, arg2, arg3, arg4); e != 0 {
+	if _, _, e := syscall.Syscall6(syscall.SYS_IOCTL, at.File.Fd(), request, arg1, arg2, arg3, arg4); e != 0 {
 		return e
 	}
 	return nil
