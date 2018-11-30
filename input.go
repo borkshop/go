@@ -23,6 +23,7 @@ type Input struct {
 	File        *os.File
 	MinReadSize int
 
+	ownFile  bool
 	oldFlags uintptr
 	ateof    bool
 	nonblock bool
@@ -233,14 +234,20 @@ func (in *Input) ReadAny() (n int, err error) {
 	return n, err
 }
 
-// Enter retains the passed the terminal file handle if one isn't already,
-// returns an error otherwise.  Either way, it then gets the current fcntl
-// flags for restoration during exit, and parses them fur current state.
+// Enter retains the passed the terminal file handle if one isn't already;
+// otherwise an error is returned if the retained file handle differs from the
+// temrinal's. Either way, it then gets the current fcntl flags for restoration
+// during exit, and parses them fur current state.
 func (in *Input) Enter(term *Term) error {
 	if in.File != nil {
-		return errors.New("anansi.Input may only only be attached to one terminal")
+		if in.File != term.File {
+			return errors.New("anansi.Input may only only be attached to one file")
+		}
+		in.ownFile = true
+	} else {
+		in.File = term.File
+		in.ownFile = false
 	}
-	in.File = term.File
 	return in.getFlags()
 }
 
@@ -253,9 +260,11 @@ func (in *Input) Exit(term *Term) error {
 	if _, _, err := in.fcntl(syscall.F_SETFL, in.oldFlags); err != nil {
 		return err
 	}
-	in.oldFlags = 0
-	in.nonblock = false
-	in.File = nil
+	if !in.ownFile {
+		in.oldFlags = 0
+		in.nonblock = false
+		in.File = nil
+	}
 	return nil
 }
 
