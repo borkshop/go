@@ -40,7 +40,11 @@ type Client interface {
 func JustKeepRunning(factory func(v *View) (Client, error)) error {
 	var v View
 	log.Printf("view run loop: creating terminal")
-	return v.newTerm(os.Stdout).RunWith(func(term *anansi.Term) error {
+	term, err := v.newTerm(os.Stdin, os.Stdout)
+	if err != nil {
+		return err
+	}
+	return term.RunWith(func(term *anansi.Term) error {
 		for {
 			log.Printf("view run loop: creating client")
 			client, err := factory(&v)
@@ -73,8 +77,11 @@ func (v *View) Run(client Client) error {
 		}
 		return rerr
 	}
-
-	return v.newTerm(os.Stdout).RunWith(func(term *anansi.Term) error {
+	term, err := v.newTerm(os.Stdin, os.Stdout)
+	if err != nil {
+		return err
+	}
+	return term.RunWith(func(term *anansi.Term) error {
 		log.Printf("view run: creating terminal")
 		return v.Run(client)
 	})

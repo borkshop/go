@@ -38,9 +38,9 @@ type View struct {
 	sigterm  termSignal
 	sigint   termSignal
 	sigwinch termSignal
+	sigio    termSignal
 	screen   anansi.Screen
-	input    termAsyncInput
-	out      anansi.Output
+	events   platform.Events
 	tick     *time.Timer
 }
 
@@ -120,7 +120,7 @@ func (v *View) run(app viewApp) error {
 			err = app.Interrupt(ctx, sig)
 		case sig := <-v.sigwinch.Signal:
 			err = app.Resized(ctx, sig)
-		case sig := <-v.input.Signal:
+		case sig := <-v.sigio.Signal:
 			ctx.Debugf("input ready: %v", sig)
 			err = v.processInput(ctx, app)
 		case t := <-v.tick.C:
@@ -132,11 +132,11 @@ func (v *View) run(app viewApp) error {
 }
 
 func (v *View) processInput(ctx Context, app viewApp) error {
-	if err := v.input.Poll(); err != nil {
+	if err := v.events.Poll(); err != nil {
 		return err
 	}
-	if haveAnyInput(&v.input.Events) {
-		ctx.Debugf("polled input: %v", v.input.dump())
+	if haveAnyInput(&v.events) {
+		ctx.Debugf("polled input: %v", dumpEvents(&v.events))
 		return v.handleInput(ctx, app)
 	}
 	return nil
@@ -144,28 +144,28 @@ func (v *View) processInput(ctx Context, app viewApp) error {
 
 func (v *View) handleInput(ctx Context, app viewApp) error {
 	// synthesize interrupt on Ctrl-C
-	if v.input.CountRune(0x03) > 0 {
+	if v.events.CountRune(0x03) > 0 {
 		ctx.Infof("Ctrl-C -> sigint")
 		raiseSignal(v.sigint.Signal, ctrlCSignal)
 	}
 
 	// force full redraw on Ctrl-L
-	if v.input.CountRune(0x0c) > 0 {
+	if v.events.CountRune(0x0c) > 0 {
 		ctx.Infof("Ctrl-L -> invalidate")
 		v.screen.Invalidate()
 		ctx.RequestFrame(renderDelay)
 	}
 
 	// pass remaining input to app
-	if haveAnyInput(&v.input.Events) {
-		return app.HandleInput(ctx, &v.input.Events)
+	if haveAnyInput(&v.events) {
+		return app.HandleInput(ctx, &v.events)
 	}
 	return nil
 }
 
 func (v *View) render(ctx Context, t time.Time, app viewApp) error {
 	err := app.Render(ctx, t, &v.screen)
-	if ferr := v.out.Flush(&v.screen); err == nil {
+	if ferr := v.term.Flush(&v.screen); err == nil {
 		err = ferr
 	}
 	return err
@@ -196,60 +196,20 @@ func (ts *termSignal) Close() error {
 	return nil
 }
 
-type termAsyncInput struct {
-	platform.Events
-	termSignal
-}
-
-func (tai *termAsyncInput) Enter(term *anansi.Term) error {
-	err := tai.termSignal.Enter(term)
-	if err == nil {
-		err = tai.Events.Enter(term)
-	}
-	if err == nil {
-		err = tai.Events.Notify(tai.Signal)
-	}
-	return err
-}
-
-func (tai *termAsyncInput) Exit(term *anansi.Term) error {
-	err := tai.Events.Exit(term)
-	if err2 := tai.termSignal.Exit(term); err == nil {
-		err = err2
-	}
-	return err
-}
-
-func (tai *termAsyncInput) dump() []string {
-	ss := make([]string, 0, len(tai.Events.Type))
-	for i := 0; i < len(tai.Events.Type); i++ {
-		switch tai.Events.Type[i] {
-		case platform.EventRune:
-			ss = append(ss, fmt.Sprintf("%q", tai.Events.Rune(i)))
-		case platform.EventEscape:
-			ss = append(ss, tai.Events.Escape(i).String())
-		case platform.EventMouse:
-			ss = append(ss, tai.Events.Mouse(i).String())
-		}
-	}
-	return ss
-}
-
-func (v *View) newTerm(f *os.File) *anansi.Term {
+func (v *View) newTerm(in, out *os.File) (*anansi.Term, error) {
 	v.sigterm.Notify = syscall.SIGTERM
 	v.sigint.Notify = syscall.SIGINT
 	v.sigwinch.Notify = syscall.SIGWINCH
-	term := anansi.NewTerm(f,
+
+	term := anansi.NewTerm(in, out,
 		&v.sigterm,
 		&v.sigint,
 		&v.sigwinch,
 		&v.screen,
-		&v.input,
-		&v.out,
 		v,
 	)
-	term.SetEcho(false)
-	term.SetRaw(true)
+	_ = term.SetEcho(false)
+	_ = term.SetRaw(true)
 	term.AddMode(
 
 		// TODO if mouse enabled
@@ -259,7 +219,14 @@ func (v *View) newTerm(f *os.File) *anansi.Term {
 
 		ansi.ModeAlternateScreen,
 	)
-	return term
+
+	v.events.Input = &v.term.Input
+	v.sigio.Signal = make(chan os.Signal, 1)
+	if err := v.term.Notify(v.sigio.Signal); err != nil {
+		return nil, err
+	}
+
+	return term, nil
 }
 
 func raiseSignal(ch chan<- os.Signal, sig os.Signal) {
@@ -292,4 +259,19 @@ func haveAnyInput(es *platform.Events) bool {
 		}
 	}
 	return false
+}
+
+func dumpEvents(es *platform.Events) []string {
+	ss := make([]string, 0, len(es.Type))
+	for i := 0; i < len(es.Type); i++ {
+		switch es.Type[i] {
+		case platform.EventRune:
+			ss = append(ss, fmt.Sprintf("%q", es.Rune(i)))
+		case platform.EventEscape:
+			ss = append(ss, es.Escape(i).String())
+		case platform.EventMouse:
+			ss = append(ss, es.Mouse(i).String())
+		}
+	}
+	return ss
 }
