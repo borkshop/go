@@ -2,7 +2,6 @@ package platform
 
 import (
 	"bytes"
-	"errors"
 	"flag"
 	"fmt"
 	"image"
@@ -27,23 +26,21 @@ func MustRun(f *os.File, run func(*Platform) error, opts ...Option) {
 // Run is a convenience wrapper that calls the run function with a newly
 // created Platform activated under a newly constructed anansi.Term.
 func Run(f *os.File, run func(*Platform) error, opts ...Option) error {
-	p, err := New(opts...)
+	p, err := New(f, opts...)
 	if err != nil {
 		return err
 	}
-	return anansi.NewTerm(f, p).RunWith(func(_ *anansi.Term) error {
-		return run(p)
-	})
+	return p.RunWith(run)
 }
 
 const defaultFrameRate = 60
 
 // New creates a platform layer for running interactive fullscreen terminal
 // applications.
-func New(opts ...Option) (*Platform, error) {
+func New(f *os.File, opts ...Option) (*Platform, error) {
 	p := &Platform{}
 
-	p.termContext = anansi.Contexts(
+	p.term = anansi.NewTerm(f,
 		&p.input,
 		&p.output,
 		&p.screen,
@@ -52,13 +49,14 @@ func New(opts ...Option) (*Platform, error) {
 		&p.bg,
 	)
 
-	p.mode.AddMode(
+	_ = p.term.SetRaw(true)
+	p.term.AddMode(
 		ansi.ModeAlternateScreen,
 		ansi.ModeMouseSgrExt,   // TODO detection?
 		ansi.ModeMouseBtnEvent, // TODO options?
 		ansi.ModeMouseAnyEvent, // TODO options?
 	)
-	p.mode.AddModeSeq(ansi.SoftReset, ansi.SGRReset) // TODO options?
+	p.term.AddModeSeq(ansi.SoftReset, ansi.SGRReset) // TODO options?
 
 	p.events.input = &p.input
 	p.ticker.d = time.Second / defaultFrameRate
@@ -102,13 +100,9 @@ type Platform struct {
 
 	term *anansi.Term
 
-	termContext anansi.Context
-	buf         anansi.Buffer
-
-	mode   anansi.Mode
+	buf    anansi.Buffer
 	input  anansi.Input
 	output anansi.Output
-
 	events Events
 	ticker Ticker
 
@@ -164,6 +158,14 @@ func IsReplayDone(err error) bool {
 // IsReplayStop returns true if the error was due to the user canceling a replay.
 func IsReplayStop(err error) bool {
 	return err == errReplayStop
+}
+
+// RunWith runs the given function under the platform anansi.Term; such
+// function should call Platform.Run one or more times.
+func (p *Platform) RunWith(run func(*Platform) error) error {
+	return p.term.RunWith(func(_ *anansi.Term) error {
+		return run(p)
+	})
 }
 
 // Run a client under a platform. It loads client state from any active replay
@@ -237,47 +239,6 @@ func (p *Platform) Context() Context {
 		Output:   &p.screen,
 		Time:     p.Time,
 	}
-}
-
-// Enter applies terminal context, including raw mode and ansi mode sequences,
-// wires up input, output, and initializes the tick controller.
-func (p *Platform) Enter(term *anansi.Term) error {
-	if p.term != nil {
-		return errors.New("Platform may only be used under a single terminal")
-	}
-	p.term = term
-	if err := p.term.SetRaw(true); err != nil {
-		return err
-	}
-
-	p.buf.Write(p.mode.Set)
-	if p.buf.Len() > 0 {
-		if _, err := p.buf.WriteTo(term.File); err != nil {
-			return err
-		}
-	}
-
-	if err := p.termContext.Enter(term); err != nil {
-		return err
-	}
-
-	return nil
-}
-
-// Exit tears down everything that Enter setup.
-func (p *Platform) Exit(term *anansi.Term) (err error) {
-	if term != p.term {
-		return nil
-	}
-
-	p.buf.Write(p.mode.Reset)
-	if p.buf.Len() > 0 {
-		_, err = p.buf.WriteTo(term.File)
-	}
-
-	err = errOr(err, p.termContext.Exit(term))
-	p.term = nil
-	return err
 }
 
 // Update runs a client round:
