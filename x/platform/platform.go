@@ -16,8 +16,6 @@ import (
 	"github.com/jcorbin/anansi/ansi"
 )
 
-var errNoTerm = errors.New("platform not attached to a terminal")
-
 // MustRun call Run, calling os.Exit(1) if it returns a non-nil error.
 func MustRun(f *os.File, run func(*Platform) error, opts ...Option) {
 	if err := Run(f, run, opts...); err != nil {
@@ -48,6 +46,7 @@ func New(opts ...Option) (*Platform, error) {
 	p.termContext = anansi.Contexts(
 		&p.input,
 		&p.output,
+		&p.screen,
 		&p.Config,
 		&p.ticker,
 		&p.bg,
@@ -206,7 +205,7 @@ func (p *Platform) Run(client Client) (err error) {
 			case sig := <-stopSig:
 				ctx.Err = errOr(ctx.Err, signalError{sig})
 			case <-resizeSig:
-				ctx.Err = errOr(ctx.Err, p.readSize())
+				ctx.Err = errOr(ctx.Err, p.screen.SizeToTerm(p.term))
 			default:
 				ctx.Err = errOr(ctx.Err, p.events.Poll())
 				polling = false
@@ -240,19 +239,6 @@ func (p *Platform) Context() Context {
 	}
 }
 
-func (p *Platform) readSize() error {
-	if p.term == nil {
-		return errNoTerm
-	}
-	sz, err := p.term.Size()
-	if err == nil {
-		if p.screen.Resize(sz) && p.recording != nil {
-			err = p.recordSize()
-		}
-	}
-	return err
-}
-
 // Enter applies terminal context, including raw mode and ansi mode sequences,
 // wires up input, output, and initializes the tick controller.
 func (p *Platform) Enter(term *anansi.Term) error {
@@ -260,9 +246,6 @@ func (p *Platform) Enter(term *anansi.Term) error {
 		return errors.New("Platform may only be used under a single terminal")
 	}
 	p.term = term
-	if err := p.readSize(); err != nil {
-		return fmt.Errorf("initial term size request failed: %v", err)
-	}
 	if err := p.term.SetRaw(true); err != nil {
 		return err
 	}
@@ -287,15 +270,12 @@ func (p *Platform) Exit(term *anansi.Term) (err error) {
 		return nil
 	}
 
-	p.buf.WriteSGR(p.screen.CursorState.MergeSGR(0))
-	p.buf.WriteSeq(p.screen.CursorState.Show())
 	p.buf.Write(p.mode.Reset)
 	if p.buf.Len() > 0 {
 		_, err = p.buf.WriteTo(term.File)
 	}
 
 	err = errOr(err, p.termContext.Exit(term))
-	p.screen.Resize(image.ZP)
 	p.term = nil
 	return err
 }
@@ -333,7 +313,7 @@ func (ctx *Context) Update() {
 	}
 
 	if ctx.Redraw {
-		ctx.Err = errOr(ctx.Err, ctx.Platform.readSize())
+		ctx.Err = errOr(ctx.Err, ctx.Output.SizeToTerm(ctx.term))
 	}
 
 	// recording / replaying toggle on Ctrl-R
