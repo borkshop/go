@@ -16,8 +16,8 @@ import (
 )
 
 // MustRun call Run, calling os.Exit(1) if it returns a non-nil error.
-func MustRun(f *os.File, run func(*Platform) error, opts ...Option) {
-	if err := Run(f, run, opts...); err != nil {
+func MustRun(in, out *os.File, run func(*Platform) error, opts ...Option) {
+	if err := Run(in, out, run, opts...); err != nil {
 		_, _ = fmt.Fprintln(os.Stderr, err)
 		os.Exit(1)
 	}
@@ -25,8 +25,8 @@ func MustRun(f *os.File, run func(*Platform) error, opts ...Option) {
 
 // Run is a convenience wrapper that calls the run function with a newly
 // created Platform activated under a newly constructed anansi.Term.
-func Run(f *os.File, run func(*Platform) error, opts ...Option) error {
-	p, err := New(f, opts...)
+func Run(in, out *os.File, run func(*Platform) error, opts ...Option) error {
+	p, err := New(in, out, opts...)
 	if err != nil {
 		return err
 	}
@@ -37,12 +37,10 @@ const defaultFrameRate = 60
 
 // New creates a platform layer for running interactive fullscreen terminal
 // applications.
-func New(f *os.File, opts ...Option) (*Platform, error) {
+func New(in, out *os.File, opts ...Option) (*Platform, error) {
 	p := &Platform{}
 
-	p.term = anansi.NewTerm(f,
-		&p.input,
-		&p.output,
+	p.term = anansi.NewTerm(in, out,
 		&p.screen,
 		&p.Config,
 		&p.ticker,
@@ -58,7 +56,7 @@ func New(f *os.File, opts ...Option) (*Platform, error) {
 	)
 	p.term.AddModeSeq(ansi.SoftReset, ansi.SGRReset) // TODO options?
 
-	p.events.input = &p.input
+	p.events.input = &p.term.Input
 	p.ticker.d = time.Second / defaultFrameRate
 
 	timingPeriod := defaultFrameRate / 4
@@ -101,8 +99,6 @@ type Platform struct {
 	term *anansi.Term
 
 	buf    anansi.Buffer
-	input  anansi.Input
-	output anansi.Output
 	events Events
 	ticker Ticker
 
@@ -216,7 +212,7 @@ func (p *Platform) Run(client Client) (err error) {
 
 		// run current frame update
 		if ctx.Update(); ctx.Err == nil {
-			ctx.Err = p.output.Flush(ctx.Output)
+			ctx.Err = p.term.Flush(ctx.Output)
 		}
 
 		// notify background workers

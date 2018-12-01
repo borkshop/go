@@ -4,12 +4,13 @@ import (
 	"os"
 )
 
-// NewTerm creates a new Term attached to the given file, and with optional
-// associated context.
-func NewTerm(f *os.File, cs ...Context) *Term {
+// NewTerm constructs a new terminal attached the given file pair, and with the
+// given context.
+func NewTerm(in, out *os.File, cs ...Context) *Term {
 	term := &Term{}
-	term.File = f
-	term.AddContext(cs...)
+	term.Input.File = in
+	term.Output.File = out
+	_ = term.AddContext(cs...)
 	return term
 }
 
@@ -18,6 +19,8 @@ func NewTerm(f *os.File, cs ...Context) *Term {
 type Term struct {
 	Attr
 	Mode
+	Input
+	Output
 
 	active bool
 	ctx    Context
@@ -41,6 +44,8 @@ func (term *Term) AddContext(cs ...Context) error {
 func (term *Term) initContext() {
 	if term.ctx == nil {
 		term.ctx = Contexts(
+			&term.Input,
+			&term.Output,
 			&term.Attr,
 			&term.Mode)
 	}
