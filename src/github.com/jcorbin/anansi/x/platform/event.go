@@ -194,6 +194,8 @@ func (es *Events) Load(b []byte) {
 	}
 }
 
+// TODO func (es *Events) DecodeFrom(in *Input, copy bool) error
+
 // Poll clears the event queue, polls for input, and then parses as many input
 // bytes as possible.
 func (es *Events) Poll() error {
