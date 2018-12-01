@@ -8,7 +8,8 @@ import (
 // associated context.
 func NewTerm(f *os.File, cs ...Context) *Term {
 	term := &Term{File: f}
-	term.ctx = Contexts(&term.Attr, &term.Mode, Contexts(cs...))
+	term.initContext()
+	term.ctx = Contexts(term.ctx, Contexts(cs...))
 	return term
 }
 
@@ -23,6 +24,14 @@ type Term struct {
 	ctx    Context
 }
 
+func (term *Term) initContext() {
+	if term.ctx == nil {
+		term.ctx = Contexts(
+			&term.Attr,
+			&term.Mode)
+	}
+}
+
 // RunWith runs the given function within the terminal's context, Enter()ing it
 // if necessary, and Exit()ing it if Enter() was called after the given
 // function returns. Exit() is called even if the within function returns an
@@ -31,9 +40,7 @@ func (term *Term) RunWith(within func(*Term) error) (err error) {
 	if term.active {
 		return within(term)
 	}
-	if term.ctx == nil {
-		term.ctx = Contexts(&term.Attr, &term.Mode)
-	}
+	term.initContext()
 	defer func() {
 		if cerr := term.ctx.Exit(term); cerr == nil {
 			term.active = false
