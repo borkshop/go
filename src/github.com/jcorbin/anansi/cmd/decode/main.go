@@ -26,7 +26,7 @@ var (
 
 func main() {
 	flag.Parse()
-	switch err := run(os.Stdin, os.Stdout); err {
+	switch err := run(anansi.NewTerm(os.Stdin, os.Stdout)); err {
 	case nil:
 	case io.EOF:
 		fmt.Println(err)
@@ -35,12 +35,10 @@ func main() {
 	}
 }
 
-func run(in, out *os.File) error {
-	if !anansi.IsTerminal(in) || !anansi.IsTerminal(out) {
-		return runBatch(in, out)
+func run(term *anansi.Term) error {
+	if !term.IsTerminal() {
+		return runBatch(term.Input.File, term.Output.File)
 	}
-
-	term := anansi.NewTerm(out)
 
 	if *mouseMode {
 		term.AddMode(
@@ -56,8 +54,12 @@ func run(in, out *os.File) error {
 		)
 	}
 
-	term.SetEcho(!*rawMode)
-	term.SetRaw(*rawMode)
+	if err := term.SetEcho(!*rawMode); err != nil {
+		return err
+	}
+	if err := term.SetRaw(*rawMode); err != nil {
+		return err
+	}
 
 	return term.RunWith(runInteractive)
 }
@@ -142,13 +144,12 @@ func readMore(buf *bytes.Buffer, r io.Reader) error {
 }
 
 func runInteractive(term *anansi.Term) (err error) {
-	in := anansi.Input{File: term.File}
 	for err == nil {
-		_, err = in.ReadMore()
+		_, err = term.ReadMore()
 		for err == nil {
-			e, a := in.DecodeEscape()
+			e, a := term.DecodeEscape()
 			if e == 0 {
-				r, ok := in.DecodeRune()
+				r, ok := term.DecodeRune()
 				if !ok {
 					break
 				}

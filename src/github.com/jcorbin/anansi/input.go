@@ -6,6 +6,8 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"os/signal"
+	"runtime"
 	"syscall"
 	"time"
 	"unicode/utf8"
@@ -26,6 +28,8 @@ type Input struct {
 	oldFlags uintptr
 	ateof    bool
 	nonblock bool
+	async    bool
+	sigio    chan os.Signal
 	buf      bytes.Buffer
 
 	rec    io.Writer
@@ -81,6 +85,21 @@ type fdProvider interface {
 // AtEOF returns true if the last input read returned io.EOF.
 func (in *Input) AtEOF() bool {
 	return in.ateof
+}
+
+// Notify sets up async notification to the given channel, replacing (stopping
+// notifications to) any prior channel passed to Notify(). If the passed
+// channel is nil, async mode is disabled.
+func (in *Input) Notify(sigio chan os.Signal) error {
+	prior := in.sigio
+	in.sigio = sigio
+	if sigio != nil {
+		signal.Notify(in.sigio, syscall.SIGIO)
+	}
+	if prior != nil {
+		signal.Stop(prior)
+	}
+	return in.setAsync(sigio != nil)
 }
 
 // DecodeEscape tries to decode an ANSI escape sequence from the internal byte
@@ -233,29 +252,30 @@ func (in *Input) ReadAny() (n int, err error) {
 	return n, err
 }
 
-// Enter retains the passed the terminal file handle if one isn't already,
-// returns an error otherwise.  Either way, it then gets the current fcntl
-// flags for restoration during exit, and parses them fur current state.
+// Enter gets the current fcntl flags for restoration during Exit(), and sets
+// non-blocking/async modes if needed.
 func (in *Input) Enter(term *Term) error {
-	if in.File != nil {
-		return errors.New("anansi.Input may only only be attached to one terminal")
+	flags, _, err := in.fcntl(syscall.F_GETFL, 0)
+	if err == nil {
+		in.oldFlags = flags
+		flags = in.buildFlags(flags)
+		_, _, err = in.fcntl(syscall.F_SETFL, flags)
 	}
-	in.File = term.File
-	return in.getFlags()
+	return err
 }
 
-// Exit clears the retained file handle (only if it's the same as the
-// terminal's). File mode flags are restored to as they were at Enter time.
+// Exit restores fcntl flags to their Enter() time value.
 func (in *Input) Exit(term *Term) error {
-	if in.File != term.File {
-		return nil
+	_, _, err := in.fcntl(syscall.F_SETFL, in.oldFlags)
+	return err
+}
+
+// Close stops any signal notification setup by Notify().
+func (in *Input) Close() error {
+	if in.sigio != nil {
+		signal.Stop(in.sigio)
+		in.sigio = nil
 	}
-	if _, _, err := in.fcntl(syscall.F_SETFL, in.oldFlags); err != nil {
-		return err
-	}
-	in.oldFlags = 0
-	in.nonblock = false
-	in.File = nil
 	return nil
 }
 
@@ -299,6 +319,21 @@ func (in *Input) readBuf() []byte {
 	return p
 }
 
+func (in *Input) setAsync(async bool) error {
+	if async != in.async {
+		in.async = async
+		if err := in.setFlags(); err != nil {
+			return err
+		}
+		if in.async {
+			if _, _, err := in.fcntl(syscall.F_SETOWN, uintptr(syscall.Getpid())); err != nil && runtime.GOOS != "darwin" {
+				return err
+			}
+		}
+	}
+	return nil
+}
+
 func (in *Input) setNonblock(nonblock bool) error {
 	if nonblock != in.nonblock {
 		in.nonblock = nonblock
@@ -307,25 +342,24 @@ func (in *Input) setNonblock(nonblock bool) error {
 	return nil
 }
 
-func (in *Input) getFlags() error {
-	flags, _, err := in.fcntl(syscall.F_GETFL, 0)
-	if err == nil {
-		in.oldFlags = flags
-		in.nonblock = flags&syscall.O_NONBLOCK != 0
-	}
-	return err
-}
-
 func (in *Input) setFlags() error {
 	var flags uintptr
 	flags, _, err := in.fcntl(syscall.F_GETFL, 0)
 	if err == nil {
-		if in.nonblock {
-			flags |= syscall.O_NONBLOCK
-		}
+		flags = in.buildFlags(flags)
 		_, _, err = in.fcntl(syscall.F_SETFL, flags)
 	}
 	return err
+}
+
+func (in *Input) buildFlags(flags uintptr) uintptr {
+	if in.nonblock {
+		flags |= syscall.O_NONBLOCK
+	}
+	if in.async {
+		flags |= syscall.O_ASYNC
+	}
+	return flags
 }
 
 func (in *Input) fcntl(a2, a3 uintptr) (r1, r2 uintptr, err error) {

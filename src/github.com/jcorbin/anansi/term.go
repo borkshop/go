@@ -4,23 +4,51 @@ import (
 	"os"
 )
 
-// NewTerm creates a new Term attached to the given file, and with optional
-// associated context.
-func NewTerm(f *os.File, cs ...Context) *Term {
-	term := &Term{File: f}
-	term.ctx = Contexts(&term.Attr, &term.Mode, Contexts(cs...))
+// NewTerm constructs a new terminal attached the given file pair, and with the
+// given context.
+func NewTerm(in, out *os.File, cs ...Context) *Term {
+	term := &Term{}
+	term.Input.File = in
+	term.Output.File = out
+	_ = term.AddContext(cs...)
 	return term
 }
 
 // Term combines a terminal file handle with attribute control and further
 // Context-ual state.
 type Term struct {
-	*os.File
 	Attr
 	Mode
+	Input
+	Output
 
 	active bool
 	ctx    Context
+}
+
+// AddContext to a terminal, Enter()-ing them if it is already active.
+func (term *Term) AddContext(cs ...Context) error {
+	term.initContext()
+	if ctx := Contexts(cs...); ctx != nil {
+		if term.active {
+			if err := ctx.Enter(term); err != nil {
+				_ = ctx.Exit(term)
+				return err
+			}
+		}
+		term.ctx = Contexts(term.ctx, ctx)
+	}
+	return nil
+}
+
+func (term *Term) initContext() {
+	if term.ctx == nil {
+		term.ctx = Contexts(
+			&term.Input,
+			&term.Output,
+			&term.Attr,
+			&term.Mode)
+	}
 }
 
 // RunWith runs the given function within the terminal's context, Enter()ing it
@@ -31,18 +59,20 @@ func (term *Term) RunWith(within func(*Term) error) (err error) {
 	if term.active {
 		return within(term)
 	}
-	if term.ctx == nil {
-		term.ctx = Contexts(&term.Attr, &term.Mode)
-	}
+	term.initContext()
 	defer func() {
 		if cerr := term.ctx.Exit(term); cerr == nil {
-			term.active = false
-		} else if err == nil {
 			err = cerr
 		}
+		if cl, ok := term.ctx.(interface{ Close() error }); ok {
+			if cerr := cl.Close(); err == nil {
+				err = cerr
+			}
+		}
+		term.active = false
 	}()
+	term.active = true
 	if err = term.ctx.Enter(term); err == nil {
-		term.active = true
 		err = within(term)
 	}
 	return err

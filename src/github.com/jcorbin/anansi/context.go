@@ -58,3 +58,14 @@ func (tcs contexts) Exit(term *Term) (rerr error) {
 	}
 	return rerr
 }
+
+func (tcs contexts) Close() (rerr error) {
+	for i := len(tcs) - 1; i >= 0; i-- {
+		if cl, ok := tcs[i].(interface{ Close() error }); ok {
+			if err := cl.Close(); rerr == nil {
+				rerr = err
+			}
+		}
+	}
+	return rerr
+}

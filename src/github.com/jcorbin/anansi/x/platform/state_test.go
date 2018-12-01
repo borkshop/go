@@ -3,6 +3,7 @@ package platform
 import (
 	"bytes"
 	"fmt"
+	"image"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -21,11 +22,9 @@ func (tcl testClient) Update(_ *Context) error {
 func TestPlatform_state_reload(t *testing.T) {
 	var save []byte
 	require.NoError(t, func() error {
-		p, err := New(Config{})
-		require.NoError(t, err)
 		var cl testClient
+		p := NewTest(image.ZP, &cl)
 		p.TimingEnabled = true
-		p.client = &cl
 		cl.Num = 42
 		cl.Buf = append(cl.Buf, "hello"...)
 		var buf bytes.Buffer
@@ -37,10 +36,8 @@ func TestPlatform_state_reload(t *testing.T) {
 		return nil
 	}(), "unexpected writeState error")
 	require.NoError(t, func() error {
-		p, err := New(Config{})
-		require.NoError(t, err)
 		var cl testClient
-		p.client = &cl
+		p := NewTest(image.ZP, &cl)
 		if err := p.readState(bytes.NewReader(save)); err != nil {
 			return err
 		}
@@ -53,11 +50,9 @@ func TestPlatform_state_reload(t *testing.T) {
 
 func TestPlatform_state_rewind(t *testing.T) {
 	require.NoError(t, func() error {
-		p, err := New(Config{})
-		require.NoError(t, err)
 		var cl testClient
+		p := NewTest(image.ZP, &cl)
 		p.TimingEnabled = true
-		p.client = &cl
 		cl.Num = 42
 		cl.Buf = append(cl.Buf, "hello"...)
 

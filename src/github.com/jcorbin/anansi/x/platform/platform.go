@@ -2,7 +2,6 @@ package platform
 
 import (
 	"bytes"
-	"errors"
 	"flag"
 	"fmt"
 	"image"
@@ -16,11 +15,9 @@ import (
 	"github.com/jcorbin/anansi/ansi"
 )
 
-var errNoTerm = errors.New("platform not attached to a terminal")
-
 // MustRun call Run, calling os.Exit(1) if it returns a non-nil error.
-func MustRun(f *os.File, run func(*Platform) error, opts ...Option) {
-	if err := Run(f, run, opts...); err != nil {
+func MustRun(in, out *os.File, run func(*Platform) error, opts ...Option) {
+	if err := Run(in, out, run, opts...); err != nil {
 		_, _ = fmt.Fprintln(os.Stderr, err)
 		os.Exit(1)
 	}
@@ -28,70 +25,70 @@ func MustRun(f *os.File, run func(*Platform) error, opts ...Option) {
 
 // Run is a convenience wrapper that calls the run function with a newly
 // created Platform activated under a newly constructed anansi.Term.
-func Run(f *os.File, run func(*Platform) error, opts ...Option) error {
-	p, err := New(opts...)
+func Run(in, out *os.File, run func(*Platform) error, opts ...Option) error {
+	p, err := New(in, out, opts...)
 	if err != nil {
 		return err
 	}
-	return anansi.NewTerm(f, p).RunWith(func(_ *anansi.Term) error {
-		return run(p)
-	})
+	return p.RunWith(run)
 }
 
 const defaultFrameRate = 60
 
 // New creates a platform layer for running interactive fullscreen terminal
 // applications.
-func New(opts ...Option) (*Platform, error) {
-	var p Platform
+func New(in, out *os.File, opts ...Option) (*Platform, error) {
+	p := &Platform{}
 
-	p.mode.AddMode(
+	p.term = anansi.NewTerm(in, out,
+		&p.screen,
+		&p.Config,
+		&p.ticker,
+		&p.bg,
+	)
+
+	_ = p.term.SetRaw(true)
+	p.term.AddMode(
 		ansi.ModeAlternateScreen,
 		ansi.ModeMouseSgrExt,   // TODO detection?
 		ansi.ModeMouseBtnEvent, // TODO options?
 		ansi.ModeMouseAnyEvent, // TODO options?
 	)
-	p.mode.AddModeSeq(ansi.SoftReset, ansi.SGRReset) // TODO options?
+	p.term.AddModeSeq(ansi.SoftReset, ansi.SGRReset) // TODO options?
 
-	p.events.input = &p.input
+	p.events.input = &p.term.Input
 	p.ticker.d = time.Second / defaultFrameRate
-	p.termContext = anansi.Contexts(
-		&p.Config,
-		&p.input,
-		&p.output,
-		&p.ticker,
-	)
 
 	timingPeriod := defaultFrameRate / 4
 	p.FPSEstimate.data = make([]float64, defaultFrameRate)
 	p.Timing.ts = make([]time.Time, timingPeriod)
 	p.Timing.ds = make([]time.Duration, timingPeriod)
 	p.Telemetry.coll.rusage.data = make([]rusageEntry, defaultFrameRate*10)
-	p.bgworkers = append(p.bgworkers, &p.Telemetry.coll, &Logs)
+	p.bg.workers = append(p.bg.workers, &p.Telemetry.coll, &Logs)
 
 	if !flag.Parsed() && !hasConfig(opts) {
 		flagConfig := Config{}
 		flagConfig.AddFlags(flag.CommandLine, "platform.")
 		flag.Parse()
-		if err := flagConfig.apply(&p); err != nil {
+		if err := flagConfig.apply(p); err != nil {
 			return nil, err
 		}
 	}
 
-	if err := p.HUD.apply(&p); err != nil {
+	if err := p.HUD.apply(p); err != nil {
 		return nil, err
 	}
 	for _, opt := range opts {
-		if err := opt.apply(&p); err != nil {
+		if err := opt.apply(p); err != nil {
 			return nil, err
 		}
 	}
 
-	if err := p.Config.setup(&p); err != nil {
+	if err := p.Config.setup(p); err != nil {
 		return nil, err
 	}
 
-	return &p, nil
+	return p, nil
 }
 
 // Platform is a high level abstraction for implementing frame-oriented
@@ -99,20 +96,15 @@ func New(opts ...Option) (*Platform, error) {
 type Platform struct {
 	Config
 
-	termContext anansi.Context
-	buf         anansi.Buffer
+	term *anansi.Term
 
-	term   *anansi.Term
-	mode   anansi.Mode
-	input  anansi.Input
-	output anansi.Output
-
+	buf    anansi.Buffer
 	events Events
 	ticker Ticker
 
 	recording *os.File
 	replay    *replay
-	bgworkers []BackgroundWorker
+	bg        BackgroundWorkers
 
 	State
 	Time   time.Time // internal time (rewinds during replay)
@@ -164,8 +156,16 @@ func IsReplayStop(err error) bool {
 	return err == errReplayStop
 }
 
+// RunWith runs the given function under the platform anansi.Term; such
+// function should call Platform.Run one or more times.
+func (p *Platform) RunWith(run func(*Platform) error) error {
+	return p.term.RunWith(func(_ *anansi.Term) error {
+		return run(p)
+	})
+}
+
 // Run a client under a platform. It loads client state from any active replay
-// buffer, and then runs the client under anansi.Term.With.
+// buffer, and then runs the client under a ticker loop.
 func (p *Platform) Run(client Client) (err error) {
 	p.client = client
 
@@ -203,7 +203,7 @@ func (p *Platform) Run(client Client) (err error) {
 			case sig := <-stopSig:
 				ctx.Err = errOr(ctx.Err, signalError{sig})
 			case <-resizeSig:
-				ctx.Err = errOr(ctx.Err, p.readSize())
+				ctx.Err = errOr(ctx.Err, p.screen.SizeToTerm(p.term))
 			default:
 				ctx.Err = errOr(ctx.Err, p.events.Poll())
 				polling = false
@@ -212,12 +212,12 @@ func (p *Platform) Run(client Client) (err error) {
 
 		// run current frame update
 		if ctx.Update(); ctx.Err == nil {
-			ctx.Err = p.output.Flush(ctx.Output)
+			ctx.Err = p.term.Flush(ctx.Output)
 		}
 
 		// notify background workers
-		for i := 0; ctx.Err == nil && i < len(p.bgworkers); i++ {
-			ctx.Err = p.bgworkers[i].Notify()
+		if ctx.Err == nil {
+			ctx.Err = p.bg.Notify()
 		}
 
 		if ctx.Err != nil {
@@ -235,80 +235,6 @@ func (p *Platform) Context() Context {
 		Output:   &p.screen,
 		Time:     p.Time,
 	}
-}
-
-func (p *Platform) readSize() error {
-	if p.term == nil {
-		return errNoTerm
-	}
-	sz, err := p.term.Size()
-	if err == nil {
-		if p.screen.Resize(sz) && p.recording != nil {
-			err = p.recordSize()
-		}
-	}
-	return err
-}
-
-// Enter applies terminal context, including raw mode and ansi mode sequences,
-// wires up input, output, and initializes the tick controller.
-func (p *Platform) Enter(term *anansi.Term) error {
-	if p.term != nil {
-		return errors.New("Platform may only be used under a single terminal")
-	}
-	p.term = term
-	if err := p.readSize(); err != nil {
-		return fmt.Errorf("initial term size request failed: %v", err)
-	}
-	if err := p.term.SetRaw(true); err != nil {
-		return err
-	}
-
-	p.buf.Write(p.mode.Set)
-	if p.buf.Len() > 0 {
-		if _, err := p.buf.WriteTo(term.File); err != nil {
-			return err
-		}
-	}
-
-	if err := p.termContext.Enter(term); err != nil {
-		return err
-	}
-
-	// start background workers
-	for i := 0; i < len(p.bgworkers); i++ {
-		if err := p.bgworkers[i].Start(); err != nil {
-			return err
-		}
-	}
-
-	return nil
-}
-
-// Exit tears down everything that Enter setup.
-func (p *Platform) Exit(term *anansi.Term) (err error) {
-	if term != p.term {
-		return nil
-	}
-
-	// stop background workers
-	for i := len(p.bgworkers) - 1; i >= 0; i-- {
-		if serr := p.bgworkers[i].Stop(); err == nil {
-			err = serr
-		}
-	}
-
-	p.buf.WriteSGR(p.screen.CursorState.MergeSGR(0))
-	p.buf.WriteSeq(p.screen.CursorState.Show())
-	p.buf.Write(p.mode.Reset)
-	if p.buf.Len() > 0 {
-		_, err = p.buf.WriteTo(term.File)
-	}
-
-	err = errOr(err, p.termContext.Exit(term))
-	p.screen.Resize(image.ZP)
-	p.term = nil
-	return err
 }
 
 // Update runs a client round:
@@ -344,7 +270,7 @@ func (ctx *Context) Update() {
 	}
 
 	if ctx.Redraw {
-		ctx.Err = errOr(ctx.Err, ctx.Platform.readSize())
+		ctx.Err = errOr(ctx.Err, ctx.Output.SizeToTerm(ctx.term))
 	}
 
 	// recording / replaying toggle on Ctrl-R
