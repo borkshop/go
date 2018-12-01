@@ -61,7 +61,7 @@ func New(in, out *os.File, opts ...Option) (*Platform, error) {
 	)
 	p.term.AddModeSeq(ansi.SoftReset, ansi.SGRReset) // TODO options?
 
-	p.events.input = &p.term.Input
+	p.events.Input = &p.term.Input
 	p.ticker.d = time.Second / defaultFrameRate
 
 	timingPeriod := defaultFrameRate / 4

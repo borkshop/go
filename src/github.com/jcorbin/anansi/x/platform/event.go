@@ -13,9 +13,9 @@ import (
 // Events holds a queue of input events that were available at the start of the
 // current frame's time window.
 type Events struct {
-	Type []EventType
+	Type  []EventType
+	Input *anansi.Input // TODO remove
 
-	input *anansi.Input
 	esc   []ansi.Escape
 	arg   [][]byte
 	mouse []Mouse
@@ -198,14 +198,14 @@ func (es *Events) Load(b []byte) {
 // bytes as possible.
 func (es *Events) Poll() error {
 	es.Clear()
-	if n, err := es.input.ReadAny(); n == 0 && err != nil {
+	if n, err := es.Input.ReadAny(); n == 0 && err != nil {
 		return err
 	}
 	for {
-		e, a := es.input.DecodeEscape()
+		e, a := es.Input.DecodeEscape()
 		if e != 0 {
 			es.add(e, a, 0)
-		} else if r, ok := es.input.DecodeRune(); ok {
+		} else if r, ok := es.Input.DecodeRune(); ok {
 			es.add(0, nil, r)
 		} else {
 			return nil
