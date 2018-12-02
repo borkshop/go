@@ -60,6 +60,12 @@ func (term *Term) RunWith(within func(*Term) error) (err error) {
 		return within(term)
 	}
 	term.initContext()
+
+	term.active = true
+	defer func() {
+		term.active = false
+	}()
+
 	defer func() {
 		if cerr := term.ctx.Exit(term); cerr == nil {
 			err = cerr
@@ -69,9 +75,7 @@ func (term *Term) RunWith(within func(*Term) error) (err error) {
 				err = cerr
 			}
 		}
-		term.active = false
 	}()
-	term.active = true
 	if err = term.ctx.Enter(term); err == nil {
 		err = within(term)
 	}
