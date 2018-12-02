@@ -75,7 +75,7 @@ func (term *Term) RunWith(within func(*Term) error) (err error) {
 	}
 
 	defer func() {
-		if cerr := term.ctx.Exit(term); cerr == nil {
+		if cerr := term.ctx.Exit(term); err == nil {
 			err = cerr
 		}
 	}()
