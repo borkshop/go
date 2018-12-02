@@ -11,6 +11,10 @@ type Context interface {
 	// Exit is called to restore original terminal context at the end of the
 	// first Term.RunWith and at the start of Term.RunWithout.
 	Exit(term *Term) error
+
+	// Close is an optional method that is called only at the end of the first
+	// Term.RunWith, but NOT at the start of term.RunWithout.
+	// Close() error
 }
 
 // Contexts returns a Context that: calls all given context Enter()s in order,
