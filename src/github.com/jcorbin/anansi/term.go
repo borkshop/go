@@ -66,16 +66,20 @@ func (term *Term) RunWith(within func(*Term) error) (err error) {
 		term.active = false
 	}()
 
+	if cl, ok := term.ctx.(interface{ Close() error }); ok {
+		defer func() {
+			if cerr := cl.Close(); err == nil {
+				err = cerr
+			}
+		}()
+	}
+
 	defer func() {
 		if cerr := term.ctx.Exit(term); cerr == nil {
 			err = cerr
 		}
-		if cl, ok := term.ctx.(interface{ Close() error }); ok {
-			if cerr := cl.Close(); err == nil {
-				err = cerr
-			}
-		}
 	}()
+
 	if err = term.ctx.Enter(term); err == nil {
 		err = within(term)
 	}
