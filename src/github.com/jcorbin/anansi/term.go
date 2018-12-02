@@ -24,6 +24,7 @@ type Term struct {
 	Output
 
 	active bool
+	under  bool
 	ctx    Context
 }
 
@@ -72,12 +73,19 @@ func (term *Term) RunWith(within func(*Term) error) (err error) {
 		term.active = false
 	}()
 
-	if cl, ok := term.ctx.(interface{ Close() error }); ok {
+	if !term.under {
+		term.under = true
 		defer func() {
-			if cerr := cl.Close(); err == nil {
-				err = cerr
-			}
+			term.under = false
 		}()
+
+		if cl, ok := term.ctx.(interface{ Close() error }); ok {
+			defer func() {
+				if cerr := cl.Close(); err == nil {
+					err = cerr
+				}
+			}()
+		}
 	}
 
 	defer func() {
