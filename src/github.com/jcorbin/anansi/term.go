@@ -1,6 +1,7 @@
 package anansi
 
 import (
+	"log"
 	"os"
 )
 
@@ -103,4 +104,12 @@ func (term *Term) RunWithout(without func(*Term) error) (err error) {
 		}
 	}
 	return err
+}
+
+// MustRun is a useful wrapper for the outermost Term.RunWith: it log.Fatals
+// any non-nil error.
+func MustRun(err error) {
+	if err != nil {
+		log.Fatalln(err)
+	}
 }
