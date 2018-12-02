@@ -6,7 +6,6 @@ import (
 	"io"
 	"log"
 	"os"
-	"os/signal"
 	"syscall"
 	"time"
 
@@ -35,10 +34,10 @@ var ctrlCSignal = syntheticSignal("user Ctrl-C interrupt")
 // TODO observability / introspection / other Nice To Haves? (reconcile with anansi/x/platform)
 type View struct {
 	term     *anansi.Term
-	sigterm  termSignal
-	sigint   termSignal
-	sigwinch termSignal
-	sigio    termSignal
+	sigterm  anansi.Signal
+	sigint   anansi.Signal
+	sigwinch anansi.Signal
+	sigio    anansi.Signal
 	screen   anansi.Screen
 	events   platform.Events
 	tick     *time.Timer
@@ -114,13 +113,13 @@ func (v *View) run(app viewApp) error {
 	}()
 	for err == nil {
 		select {
-		case sig := <-v.sigterm.Signal:
+		case sig := <-v.sigterm.C:
 			err = app.Terminate(ctx, sig)
-		case sig := <-v.sigint.Signal:
+		case sig := <-v.sigint.C:
 			err = app.Interrupt(ctx, sig)
-		case sig := <-v.sigwinch.Signal:
+		case sig := <-v.sigwinch.C:
 			err = app.Resized(ctx, sig)
-		case sig := <-v.sigio.Signal:
+		case sig := <-v.sigio.C:
 			ctx.Debugf("input ready: %v", sig)
 			err = v.processInput(ctx, app)
 		case t := <-v.tick.C:
@@ -146,7 +145,7 @@ func (v *View) handleInput(ctx Context, app viewApp) error {
 	// synthesize interrupt on Ctrl-C
 	if v.events.CountRune(0x03) > 0 {
 		ctx.Infof("Ctrl-C -> sigint")
-		raiseSignal(v.sigint.Signal, ctrlCSignal)
+		raiseSignal(v.sigint.C, ctrlCSignal)
 	}
 
 	// force full redraw on Ctrl-L
@@ -171,35 +170,10 @@ func (v *View) render(ctx Context, t time.Time, app viewApp) error {
 	return err
 }
 
-type termSignal struct {
-	Notify os.Signal
-	Signal chan os.Signal
-}
-
-func (ts *termSignal) Enter(term *anansi.Term) error {
-	ts.Signal = make(chan os.Signal, 1)
-	if ts.Notify != nil {
-		signal.Notify(ts.Signal, ts.Notify)
-	}
-	return nil
-}
-
-func (ts *termSignal) Exit(term *anansi.Term) error {
-	return nil
-}
-
-func (ts *termSignal) Close() error {
-	if ts.Signal != nil {
-		signal.Stop(ts.Signal)
-		ts.Signal = nil
-	}
-	return nil
-}
-
 func (v *View) newTerm(in, out *os.File) (*anansi.Term, error) {
-	v.sigterm.Notify = syscall.SIGTERM
-	v.sigint.Notify = syscall.SIGINT
-	v.sigwinch.Notify = syscall.SIGWINCH
+	v.sigterm = anansi.Notify(syscall.SIGTERM)
+	v.sigint = anansi.Notify(syscall.SIGINT)
+	v.sigwinch = anansi.Notify(syscall.SIGWINCH)
 
 	term := anansi.NewTerm(in, out,
 		&v.sigterm,
@@ -220,9 +194,9 @@ func (v *View) newTerm(in, out *os.File) (*anansi.Term, error) {
 		ansi.ModeAlternateScreen,
 	)
 
-	v.events.Input = &v.term.Input
-	v.sigio.Signal = make(chan os.Signal, 1)
-	if err := v.term.Notify(v.sigio.Signal); err != nil {
+	v.events.Input = &term.Input
+	v.sigio.C = make(chan os.Signal, 1)
+	if err := term.Notify(v.sigio.C); err != nil {
 		return nil, err
 	}
 
