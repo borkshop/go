@@ -91,7 +91,8 @@ func (rep *replay) update(ctx *Context) {
 		}
 
 		// load replay frame input
-		ctx.events.Load(rep.frame.B)
+		ctx.events.Clear()
+		ctx.events.DecodeBytes(rep.frame.B)
 
 		// update mouse cursor state
 		if m, have := ctx.events.LastMouse(false); have {
@@ -152,7 +153,7 @@ func (rep *replay) next() bool {
 }
 
 func (p *Platform) setRecording(f *os.File, err error) {
-	p.events.Input.SetRecording(nil)
+	p.term.Input.SetRecording(nil)
 	if p.recording != nil {
 		if err := p.recording.Close(); err != nil {
 			log.Printf("failed to close record file %q: %v", p.recording.Name(), err)
@@ -180,7 +181,7 @@ func (p *Platform) setRecording(f *os.File, err error) {
 			return
 		}
 
-		p.events.Input.SetRecording(f)
+		p.term.Input.SetRecording(f)
 		log.Printf("recording input to %q", f.Name())
 	}
 }

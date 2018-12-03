@@ -14,8 +14,6 @@ import (
 // current frame's time window.
 type Events struct {
 	Type  []EventType
-	Input *anansi.Input // TODO remove
-
 	esc   []ansi.Escape
 	arg   [][]byte
 	mouse []Mouse
@@ -176,10 +174,8 @@ func (es *Events) Clear() {
 	es.mouse = es.mouse[:0]
 }
 
-// Load clears the event queue, and then parses from the given byte slice;
-// useful for replays and testing.
-func (es *Events) Load(b []byte) {
-	es.Clear()
+// DecodeBytes parses from the given byte slice; useful for replays and testing.
+func (es *Events) DecodeBytes(b []byte) {
 	for len(b) > 0 {
 		e, a, n := ansi.DecodeEscape(b)
 		b = b[n:]
@@ -192,21 +188,14 @@ func (es *Events) Load(b []byte) {
 	}
 }
 
-// TODO func (es *Events) DecodeFrom(in *Input, copy bool) error
-
-// Poll clears the event queue, polls for input, and then parses as many input
-// bytes as possible.
-func (es *Events) Poll() error {
-	es.Clear()
-	if n, err := es.Input.ReadAny(); n == 0 && err != nil {
-		return err
-	}
+// DecodeInput decodes all input currently read into the given input.
+func (es *Events) DecodeInput(in *anansi.Input) {
 	for {
-		e, a := es.Input.DecodeEscape()
+		e, a := in.DecodeEscape()
 		if e == 0 {
-			r, ok := es.Input.DecodeRune()
+			r, ok := in.DecodeRune()
 			if !ok {
-				return nil
+				break
 			}
 			e = ansi.Escape(r)
 		}
