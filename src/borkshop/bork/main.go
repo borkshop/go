@@ -28,7 +28,7 @@ func main() {
 	rand.Seed(time.Now().UnixNano()) // TODO find the right place to seed
 	// TODO load config from file
 	flag.Parse()
-	platform.MustRun(os.Stdout, func(p *platform.Platform) error {
+	platform.MustRun(os.Stdin, os.Stdout, func(p *platform.Platform) error {
 		for {
 			if err := p.Run(newGame()); platform.IsReplayDone(err) {
 				continue // loop replay
