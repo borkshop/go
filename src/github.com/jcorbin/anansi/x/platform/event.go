@@ -30,7 +30,6 @@ const (
 	EventEscape
 	EventRune
 	EventMouse
-	// EventKey TODO key code translation
 )
 
 // Escape represents ansi escape sequence data stored in an Events queue.
@@ -231,8 +230,6 @@ func (es *Events) add(e ansi.Escape, a []byte) {
 		} else if m.State != 0 || m.Point.Valid() {
 			kind = EventMouse
 		}
-
-		// TODO map special keys to eventKey
 	}
 
 	es.Type = append(es.Type, kind)
