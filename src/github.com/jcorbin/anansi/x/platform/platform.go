@@ -47,6 +47,11 @@ func New(in, out *os.File, opts ...Option) (*Platform, error) {
 		&p.bg,
 	)
 
+	p.sigio.C = make(chan os.Signal, 1)
+	if err := p.term.Notify(p.sigio.C); err != nil {
+		return nil, err
+	}
+
 	_ = p.term.SetRaw(true)
 	p.term.AddMode(
 		ansi.ModeAlternateScreen,
@@ -100,6 +105,7 @@ type Platform struct {
 
 	stop   anansi.Signal
 	resize anansi.Signal
+	sigio  anansi.Signal
 
 	buf    anansi.Buffer
 	events Events
@@ -192,15 +198,16 @@ func (p *Platform) Run(client Client) (err error) {
 
 		ctx := p.Context()
 
-		// poll for events and input
+		// poll for signals
 		for polling := true; polling; {
 			select {
 			case sig := <-p.stop.C:
 				ctx.Err = errOr(ctx.Err, anansi.SigErr(sig))
 			case <-p.resize.C:
 				ctx.Err = errOr(ctx.Err, p.screen.SizeToTerm(p.term))
-			default:
+			case <-p.sigio.C:
 				ctx.Err = errOr(ctx.Err, p.events.Poll())
+			default:
 				polling = false
 			}
 		}
