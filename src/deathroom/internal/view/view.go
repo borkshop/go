@@ -131,14 +131,16 @@ func (v *View) run(app viewApp) error {
 }
 
 func (v *View) processInput(ctx Context, app viewApp) error {
-	if err := v.events.Poll(); err != nil {
-		return err
-	}
-	if haveAnyInput(&v.events) {
+	v.events.Clear()
+	n, err := v.term.ReadAny()
+	if n > 0 {
+		v.events.DecodeInput(&v.term.Input)
 		ctx.Debugf("polled input: %v", dumpEvents(&v.events))
-		return v.handleInput(ctx, app)
+		if herr := v.handleInput(ctx, app); err == nil {
+			err = herr
+		}
 	}
-	return nil
+	return err
 }
 
 func (v *View) handleInput(ctx Context, app viewApp) error {
@@ -156,7 +158,7 @@ func (v *View) handleInput(ctx Context, app viewApp) error {
 	}
 
 	// pass remaining input to app
-	if haveAnyInput(&v.events) {
+	if !v.events.Empty() {
 		return app.HandleInput(ctx, &v.events)
 	}
 	return nil
@@ -194,7 +196,6 @@ func (v *View) newTerm(in, out *os.File) (*anansi.Term, error) {
 		ansi.ModeAlternateScreen,
 	)
 
-	v.events.Input = &term.Input
 	v.sigio.C = make(chan os.Signal, 1)
 	if err := term.Notify(v.sigio.C); err != nil {
 		return nil, err
@@ -224,15 +225,6 @@ func isStopErr(err error) (stop, halt bool, _ error) {
 		return true, impl.term, nil
 	}
 	return true, true, err
-}
-
-func haveAnyInput(es *platform.Events) bool {
-	for i := 0; i < len(es.Type); i++ {
-		if es.Type[i] != platform.EventNone {
-			return true
-		}
-	}
-	return false
 }
 
 func dumpEvents(es *platform.Events) []string {
