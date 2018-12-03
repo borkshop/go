@@ -15,8 +15,8 @@ import (
 type Events struct {
 	Type  []EventType
 	esc   []ansi.Escape
-	arg   [][]byte
-	mouse []Mouse
+	arg   [][]byte // TODO support copying into an internal buffer
+	mouse []Mouse  // TODO lazily decode
 }
 
 // EventType is the type of an entry in Events.
@@ -197,6 +197,12 @@ func (es *Events) DecodeBytes(b []byte) {
 		es.add(e, a)
 	}
 }
+
+// XXX Load == es.Clear() && es.DecodeBytes(b)
+// XXX Poll == es.Clear() && es.DecodeInput(input)
+
+// TODO should just export Add?
+// TODO support decoding bracketed paste
 
 // DecodeInput decodes all input currently read into the given input.
 func (es *Events) DecodeInput(in *anansi.Input) {
