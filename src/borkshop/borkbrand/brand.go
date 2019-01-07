@@ -13,6 +13,8 @@ var (
 	Black = ansi.RGB(0x1b, 0x1c, 0x04)
 	// BorkBlue is the BØRK brand background color.
 	BorkBlue = ansi.RGB(0x1f, 0x1f, 0x7f)
+	// BorkYellow is the BØRK brand foreground color.
+	BorkYellow = ansi.RGB(0xff, 0xff, 0x00)
 	// DarkBork is the BØRK brand background texture color.
 	DarkBork = ansi.RGB(0x00, 0x00, 0x5f)
 	// Green is the color of slime green plastic furniture
@@ -24,7 +26,7 @@ var (
 	// Floor is the color of the BØRK showroom floor.
 	Floor = ansi.RGB(0x8f, 0x8f, 0x8f)
 	// Guest is the color indicating the BØRK guest.
-	Guest = ansi.RGB(0xef, 0xef, 0x1f)
+	Guest = ansi.RGB(0xff, 0x00, 0x00)
 	// WithWorker is the color indicating the BØRK with-worker.
 	WithWorker = ansi.RGB(0x60, 0xd0, 0xb0)
 )

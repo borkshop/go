@@ -7,7 +7,6 @@ import (
 	"io"
 	"log"
 	"math/rand"
-	"strconv"
 
 	"github.com/jcorbin/anansi"
 	"github.com/jcorbin/anansi/ansi"
@@ -20,7 +19,6 @@ import (
 
 /* TODO
 - rip out room-based, add ontological gen; probably keep style-based builder
-- rip out goal system (probably)
 - probably rip out the agent system (free player spawn movement from it)
 - inventory system; would be a good place to start a proper player Scope
 - items: what're they good for? recipies? player abilities?
@@ -30,7 +28,6 @@ import (
 */
 
 type game struct {
-	itemDefs itemDefinitions
 
 	// ag tracks agents across various scopes, primarily for the
 	// purpose of calling batch update functions on each scope's
@@ -66,15 +63,9 @@ type game struct {
 
 type shard struct {
 	ecs.Scope
-	ren   render
-	pos   position
-	rooms rooms
-	gen   roomGen
-	goals goalSystem
-	items items
-
-	bodIndex ecs.ArrayIndex
-	bod      []body
+	ren render
+	pos position
+	gen roomGen
 }
 
 const (
@@ -83,13 +74,8 @@ const (
 	gameCollides
 	gameInput
 	gameSpawn
-	gameGoal
 	gameRoom
 	gameGen
-	gameItemInfo
-	gameBody
-
-	gameBlueprint = gamePosition | gameRender | gameGoal
 
 	gameWall       = gamePosition | gameRender | gameCollides
 	gameStack      = gamePosition | gameRender | gameCollides
@@ -99,7 +85,6 @@ const (
 	gameCharacter  = gamePosition | gameRender | gameCollides
 	gamePlayer     = gameCharacter | gameInput
 	gameDoor       = gamePosition | gameRender // FIXME | gameCollides
-	gameItem       = gamePosition | gameRender | gameItemInfo
 )
 
 const (
@@ -132,39 +117,24 @@ const (
 	wallLayer
 	furnishLayer
 	agentLayer
-	blueprintLayer
 )
 
 var (
-	blueprintBG = ansi.RGB(0x08, 0x18, 0x28).BG()
-	blueprintFG = ansi.RGB(0x50, 0x60, 0x70).FG()
-
 	blackStyle = renStyle(furnishLayer, '[', ']', borkbrand.White.FG()|borkbrand.Black.BG())
 	whiteStyle = renStyle(furnishLayer, '[', ']', borkbrand.Black.FG()|borkbrand.White.BG())
 	blondStyle = renStyle(furnishLayer, '[', ']', borkbrand.Brown.FG()|borkbrand.Blond.BG())
 	brownStyle = renStyle(furnishLayer, '[', ']', borkbrand.Blond.FG()|borkbrand.Brown.BG())
 
-	playerStyle    = renStyle(agentLayer, ')', '(', ansi.SGRAttrBold|borkbrand.Guest.FG())
-	spiritStyle    = renStyle(agentLayer, '}', '{', ansi.SGRAttrBold|borkbrand.WithWorker.FG())
-	blueprintStyle = renStyle(blueprintLayer, '?', '¿', blueprintBG|blueprintFG)
-	wallStyle      = renStyle(wallLayer, '>', '<', ansi.SGRAttrBold|borkbrand.BorkBlue.BG()|borkbrand.DarkBork.FG())
-	stackStyle     = renStyle(wallLayer, '[', ']', borkbrand.Brown.FG()|borkbrand.Blond.BG())
-	aisleStyle     = renStyle(aisleLayer, '•', '•', borkbrand.Aisle.BG()|borkbrand.Floor.FG())
-	floorStyle     = renStyle(floorLayer, '·', '·', borkbrand.Floor.BG()|borkbrand.Black.FG())
+	playerStyle = renStyle(agentLayer, ')', '(', ansi.SGRAttrBold|borkbrand.White.FG()|borkbrand.Guest.BG())
+	spiritStyle = renStyle(agentLayer, ')', '(', ansi.SGRAttrBold|borkbrand.Guest.FG())
+	wallStyle   = renStyle(wallLayer, '>', '<', ansi.SGRAttrBold|borkbrand.BorkBlue.BG()|borkbrand.DarkBork.FG())
+	stackStyle  = renStyle(wallLayer, '[', ']', borkbrand.Brown.FG()|borkbrand.Blond.BG())
+	aisleStyle  = renStyle(aisleLayer, '•', '•', borkbrand.Aisle.BG()|borkbrand.Floor.FG())
+	floorStyle  = renStyle(floorLayer, '·', '·', borkbrand.Floor.BG()|borkbrand.Black.FG())
 
 	corporealApp = entApps(playerStyle, addEntityType(gameCollides))
 	ghostApp     = entApps(spiritStyle, deleteEntityType(gameCollides))
 )
-
-func blueprint(t ecs.Type, rs renderStyle, goals ...goal) entitySpec {
-	bs := blueprintStyle
-	bs.r = rs.r
-	return entSpec(gameBlueprint, bs, goalApp(
-		radiusGoal(1),
-		chainGoals(goals...),
-		entSpec(t, rs),
-	))
-}
 
 func newGame() *game {
 	g := &game{}
@@ -172,56 +142,15 @@ func newGame() *game {
 
 	const itemZ = 40
 
-	g.itemDefs.load([]itemInfo{
-		{"wrench", entSpec(gameItem, renStyle(itemZ, '🔧', ' ', ansi.SGRAttrBold|ansi.RGB(0xc0, 0xc8, 0xd0).FG()))},
-
-		// 🔩
-		// {"screwdriver"},
-
-		{"hammer", entSpec(gameItem, renStyle(itemZ, '🔨', ' ', ansi.SGRAttrBold|ansi.RGB(0xd0, 0xc0, 0xb0).FG()))},
-
-		// {"finishing nail"},
-		// {"carpentry nail"},
-		// {"drywall screw"},
-
-		// {"doorknob"},
-		{"plywood sheet", entSpec(gameItem, renStyle(itemZ, '▤', ' ', ansi.SGRAttrBold|ansi.RGB(0xd0, 0xd0, 0x60).FG()))},
-		// {"angle bracket"},
-
-		// {"zip tie"},
-		// {"plastic bag"},
-
-	})
-
 	g.gen.roomGenConfig = roomGenConfig{
-		Player: entSpec(gamePlayer|gameBody,
+		Player: entSpec(gamePlayer,
 			playerStyle,
-			&defaultBodyDef,
-			entityAppFunc(func(s *shard, ent ecs.Entity) {
-				i, _ := s.bodIndex.GetID(ent.ID)
-				bod := &s.bod[i]
-				for i := 0; i < bod.slots.Len(); i++ {
-					part := bod.slots.Entity(i)
-					part.AddType(bodyRune | bodyRuneAttr)
-					for _, r := range strconv.FormatInt(int64(i), 16) {
-						bod.runes[part.Seq()] = r
-						break
-					}
-					bod.runeAttr[part.Seq()] = ansi.RGB(0x20, 0x40, 0xb0).FG()
-				}
-				for i := 0; i < bod.hands.Len(); i++ {
-					part := bod.hands.Entity(i)
-					part.AddType(bodyRune | bodyRuneAttr)
-					bod.runeAttr[part.Seq()] = ansi.RGB(0x20, 0xb0, 0x40).FG()
-				}
-			}),
 		),
 		Wall:          entSpec(gameWall, wallStyle),
 		Stack:         entSpec(gameWall, stackStyle),
 		Floor:         entSpec(gameFloor, floorStyle),
 		Aisle:         entSpec(gameFloor, aisleStyle),
 		PlaceAttempts: 3,
-		RoomSize:      image.Rect(5, 3, 21, 13),
 		MinHallSize:   2,
 		MaxHallSize:   8,
 		ExitDensity:   25,
@@ -241,25 +170,7 @@ func (g *game) init() {
 func (s *shard) init(g *game) {
 	s.pos.Init(&s.Scope, gamePosition)
 	s.ren.Init(&s.Scope, gamePosition|gameRender, &s.pos)
-	s.rooms.Init(s, gameRoom)
 	s.gen.Init(s, gameGen)
-	s.goals.Init(s, gameGoal)
-	s.items.Init(s, gameItem, &g.itemDefs)
-	s.Scope.Watch(gameBody, 0, ecs.Watchers{
-		&s.bodIndex,
-		ecs.EntityCreatedFunc(s.bodyCreated),
-	})
-}
-
-func (s *shard) bodyCreated(e ecs.Entity, t ecs.Type) {
-	i, _ := s.bodIndex.GetID(e.ID)
-	for i >= len(s.bod) {
-		if i < cap(s.bod) {
-			s.bod = s.bod[:i+1]
-		} else {
-			s.bod = append(s.bod, body{})
-		}
-	}
 }
 
 func (g *game) Update(ctx *platform.Context) (err error) {
@@ -340,25 +251,13 @@ func (g *game) Update(ctx *platform.Context) (err error) {
 	ctx.Output.Clear()
 	g.ren.drawRegionInto(g.view, &ctx.Output.Grid)
 
-	at := ansi.Pt(1, ctx.Output.Bounds().Dy())
-
-	for _, id := range g.ag.ids[&g.Scope][gamePlayer] {
-		player := g.Entity(id)
-		if i, def := g.bodIndex.Get(player); def {
-			rend := g.ren.Get(player)
-			_, _, a := rend.Cell() // TODO better integrate body attrs
-			bod := &g.bod[i]
-			at.Y -= bod.Size().Y
-			bod.RenderInto(ctx.Output.Grid, at, a)
-			at = at.Add(bod.Size()).Add(image.Pt(1, 0))
-		}
-	}
+	// at := ansi.Pt(1, ctx.Output.Bounds().Dy())
 
 	// entity count in upper-left
 	if ctx.HUD.Visible {
 		pt := ansi.Pt(1, 2)
 		ctx.Output.To(pt)
-		fmt.Fprintf(ctx.Output, "%v entities %v rooms", g.Scope.Len(), g.rooms.Used())
+		fmt.Fprintf(ctx.Output, "%v entities", g.Scope.Len())
 
 		pt = ansi.Pt(1, pt.Y+1)
 		ctx.Output.To(pt)
