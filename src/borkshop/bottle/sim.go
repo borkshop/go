@@ -8,8 +8,8 @@ import (
 )
 
 const (
-	quaking   = 10
-	smoothing = 10
+	quaking   = 1
+	smoothing = 5
 )
 
 // Cell is a unit of the cellular automaton.
@@ -116,14 +116,14 @@ func (sim *Simulation) tick(next, prev *Generation) {
 				c.SurfaceElevation += quaking
 			}
 
-			// Angle of repose
-			if a.SurfaceElevation > b.SurfaceElevation+10 {
+			// Smoothing
+			{
 				diff := (a.SurfaceElevation - b.SurfaceElevation) / smoothing
 				a.SurfaceElevation -= diff
 				b.SurfaceElevation += diff
 			}
 
-			if a.SurfaceElevation > c.SurfaceElevation+10 {
+			{
 				diff := (a.SurfaceElevation - c.SurfaceElevation) / smoothing
 				a.SurfaceElevation -= diff
 				c.SurfaceElevation += diff
