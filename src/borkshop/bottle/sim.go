@@ -2,20 +2,27 @@ package bottle
 
 import (
 	"image"
+	"image/draw"
 
 	"borkshop/hilbert"
 	"borkshop/xorshiftstar"
 )
 
+var x = draw.Draw
+
 const (
 	quaking   = 1
-	smoothing = 5
+	smoothing = 10
+	repose    = 2
+	flowing   = 10
+	flood     = 5
 )
 
 // Cell is a unit of the cellular automaton.
 type Cell struct {
-	Random           xorshiftstar.Source
-	SurfaceElevation int
+	Random xorshiftstar.Source
+	Earth  int
+	Water  int
 }
 
 // Grid is a slice of cells indexed by hilbert number to maximize
@@ -24,10 +31,13 @@ type Grid []Cell
 
 // Generation is a snapshot of a generation.
 type Generation struct {
-	Scale                 hilbert.Scale
-	Num                   int
-	Grid                  Grid
-	SurfaceElevationStats Stats
+	Scale hilbert.Scale
+	Num   int
+	Grid  Grid
+
+	EarthElevationStats Stats
+	WaterElevationStats Stats
+	WaterStats          Stats
 }
 
 func newGeneration(scale hilbert.Scale) *Generation {
@@ -75,15 +85,17 @@ func (sim *Simulation) reset(gen *Generation) {
 	for pt.Y = 0; pt.Y < int(sim.scale); pt.Y++ {
 		for pt.X = 0; pt.X < int(sim.scale); pt.X++ {
 			hilbertNumber := sim.scale.Encode(pt)
-			cell := &gen.Grid[hilbertNumber]
-			cell.Random.Seed(int64(hilbertNumber + 1))
-			cell.SurfaceElevation = 0
+			cel := &gen.Grid[hilbertNumber]
+			cel.Random.Seed(int64(hilbertNumber + 1))
+			cel.Earth = 0
+			cel.Water = flood
 		}
 	}
 }
 
 func (sim *Simulation) tick(next, prev *Generation) {
-	next.SurfaceElevationStats.Reset()
+	next.EarthElevationStats.Reset()
+	next.WaterElevationStats.Reset()
 
 	// Next generation.
 	next.Num = prev.Num + 1
@@ -96,37 +108,72 @@ func (sim *Simulation) tick(next, prev *Generation) {
 			nc := &next.Grid[hilbertNumber]
 			pc := &prev.Grid[hilbertNumber]
 			nc.Random = pc.Random
-			nc.SurfaceElevation = pc.SurfaceElevation
+			nc.Earth = pc.Earth
+			nc.Water = pc.Water
 		}
 	}
 
 	for pt.Y = 0; pt.Y < int(sim.scale); pt.Y++ {
 		for pt.X = 0; pt.X < int(sim.scale); pt.X++ {
-			a := &next.Grid[sim.scale.Encode(pt)]
-			b := &next.Grid[sim.scale.Encode(pt.Add(image.Pt(1, 0)))]
-			c := &next.Grid[sim.scale.Encode(pt.Add(image.Pt(0, 1)))]
+			cel := &next.Grid[sim.scale.Encode(pt)]
+			lat := &next.Grid[sim.scale.Encode(pt.Add(image.Pt(1, 0)))]
+			lon := &next.Grid[sim.scale.Encode(pt.Add(image.Pt(0, 1)))]
 
 			// Quaking
-			if a.Random.Uint64()&1 == 0 {
-				a.SurfaceElevation += quaking
-				b.SurfaceElevation -= quaking
-			}
-			if a.Random.Uint64()&1 == 0 {
-				a.SurfaceElevation += quaking
-				c.SurfaceElevation += quaking
+			{
+				if cel.Random.Uint64()&1 == 0 {
+					cel.Earth += quaking
+					lat.Earth -= quaking
+				}
+				if cel.Random.Uint64()&1 == 0 {
+					cel.Earth += quaking
+					lon.Earth += quaking
+				}
 			}
 
-			// Smoothing
+			// Smoothing (feaux-erosion)
 			{
-				diff := (a.SurfaceElevation - b.SurfaceElevation) / smoothing
-				a.SurfaceElevation -= diff
-				b.SurfaceElevation += diff
+				latdel := (cel.Earth - lat.Earth) / smoothing
+				londel := (cel.Earth - lon.Earth) / smoothing
+				latmag := latdel * latdel
+				lonmag := londel * londel
+				if latmag > lonmag && latmag > repose {
+					// Latitudinal
+					cel.Earth -= latdel
+					lat.Earth += latdel
+				} else if lonmag > repose {
+					// Longitudinal
+					cel.Earth -= londel
+					lon.Earth += londel
+				}
 			}
 
+			// Watershed
 			{
-				diff := (a.SurfaceElevation - c.SurfaceElevation) / smoothing
-				a.SurfaceElevation -= diff
-				c.SurfaceElevation += diff
+				latdel := ((cel.Earth + cel.Water) - (lat.Earth + lat.Water)) / flowing
+				londel := ((cel.Earth + cel.Water) - (lat.Earth + lat.Water)) / flowing
+				// Clamp flow to avoid negative water.
+				if latdel > cel.Water {
+					latdel = cel.Water
+				}
+				if latdel < -lat.Water {
+					latdel = -lat.Water
+				}
+				if londel > cel.Water {
+					londel = cel.Water
+				}
+				if londel < -lon.Water {
+					londel = -lon.Water
+				}
+				latmag := latdel * latdel
+				lonmag := londel * londel
+				if latmag > lonmag {
+					cel.Water -= latdel
+					lat.Water += latdel
+				} else {
+					cel.Water -= londel
+					lon.Water += londel
+				}
 			}
 		}
 	}
@@ -134,7 +181,9 @@ func (sim *Simulation) tick(next, prev *Generation) {
 	for pt.Y = 0; pt.Y < int(sim.scale); pt.Y++ {
 		for pt.X = 0; pt.X < int(sim.scale); pt.X++ {
 			a := &next.Grid[sim.scale.Encode(pt)]
-			next.SurfaceElevationStats.Add(a.SurfaceElevation)
+			next.EarthElevationStats.Add(a.Earth)
+			next.WaterElevationStats.Add(a.Earth + a.Water)
+			next.WaterStats.Add(a.Water)
 		}
 	}
 }
