@@ -11,11 +11,11 @@ import (
 var x = draw.Draw
 
 const (
-	quaking   = 1
-	smoothing = 10
+	quaking   = 10
+	smoothing = 20
 	repose    = 2
-	flowing   = 10
-	flood     = 5
+	flowing   = 2
+	flood     = 100
 )
 
 // Cell is a unit of the cellular automaton.
@@ -151,7 +151,7 @@ func (sim *Simulation) tick(next, prev *Generation) {
 			// Watershed
 			{
 				latdel := ((cel.Earth + cel.Water) - (lat.Earth + lat.Water)) / flowing
-				londel := ((cel.Earth + cel.Water) - (lat.Earth + lat.Water)) / flowing
+				londel := ((cel.Earth + cel.Water) - (lon.Earth + lon.Water)) / flowing
 				// Clamp flow to avoid negative water.
 				if latdel > cel.Water {
 					latdel = cel.Water

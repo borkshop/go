@@ -4,6 +4,8 @@ import (
 	"errors"
 	"flag"
 	"image"
+	"image/color"
+	"image/draw"
 	"io"
 	"log"
 	"math/rand"
@@ -22,6 +24,12 @@ import (
 // Screen.Grid
 
 var errInt = errors.New("interrupt")
+
+var (
+	black = color.Black
+	brown = color.RGBA{155, 78, 17, 0}
+	blue  = color.RGBA{48, 40, 177, 0}
+)
 
 func main() {
 	rand.Seed(time.Now().UnixNano()) // TODO find the right place to seed
@@ -44,13 +52,27 @@ func main() {
 }
 
 func newView() *view {
+	const scale = 256
+	rect := image.Rect(0, 0, scale, scale)
 	return &view{
-		sim: bottle.New(256),
+		rect:                rect,
+		sim:                 bottle.New(scale),
+		water:               image.NewAlpha(rect),
+		waterElevation:      image.NewAlpha(rect),
+		earthElevation:      image.NewAlpha(rect),
+		waterElevationColor: image.NewRGBA(rect),
+		color:               image.NewRGBA(rect),
 	}
 }
 
 type view struct {
-	sim *bottle.Simulation
+	rect                image.Rectangle
+	sim                 *bottle.Simulation
+	water               *image.Alpha
+	waterElevation      *image.Alpha
+	earthElevation      *image.Alpha
+	waterElevationColor *image.RGBA
+	color               *image.RGBA
 }
 
 func (v *view) Update(ctx *platform.Context) (err error) {
@@ -69,78 +91,60 @@ func (v *view) Update(ctx *platform.Context) (err error) {
 	}
 
 	v.sim.Tick()
-	snap := v.sim.Snap()
+	gen := v.sim.Snap()
+	v.draw(gen)
 
 	grid := ctx.Output.Grid
 	rect := grid.Rect
 	var pt ansi.Point
 	for pt.Y = rect.Min.Y; pt.Y < rect.Max.Y; pt.Y++ {
-		for pt.X = rect.Min.X; pt.X < rect.Max.X; pt.X += 2 {
-			// Simulation
-			//   NW NN NE
-			//   WW CC EE EX
-			//   SW SS SE
-			// Render
-			//   -- -- --
-			//   -- O  P
-			//   -- -- --
-
+		for pt.X = rect.Min.X; pt.X < rect.Max.X; pt.X++ {
 			o, ok := grid.CellOffset(pt)
 			if !ok {
 				continue
 			}
-			p, pk := grid.CellOffset(pt.Add(image.Pt(1, 0)))
-
-			// Simulation point.
-			spt := pt
-			spt.Y *= 2
-
-			nw := snap.At(spt.Add(image.Pt(0, 0)).ToImage())
-			nn := snap.At(spt.Add(image.Pt(0, 1)).ToImage())
-			sw := snap.At(spt.Add(image.Pt(0, 2)).ToImage())
-			ww := snap.At(spt.Add(image.Pt(1, 0)).ToImage())
-			cc := snap.At(spt.Add(image.Pt(1, 1)).ToImage())
-			ee := snap.At(spt.Add(image.Pt(1, 2)).ToImage())
-			ne := snap.At(spt.Add(image.Pt(2, 0)).ToImage())
-			ss := snap.At(spt.Add(image.Pt(2, 1)).ToImage())
-			se := snap.At(spt.Add(image.Pt(2, 2)).ToImage())
-			ex := snap.At(spt.Add(image.Pt(1, 3)).ToImage())
-
-			nb := uint8(snap.WaterStats.Project(nn.Water, 4) << 6)
-			sb := uint8(snap.WaterStats.Project(ss.Water, 4) << 4)
-			eb := uint8(snap.WaterStats.Project(ee.Water, 4) << 2)
-			wb := uint8(snap.WaterStats.Project(ww.Water, 4) << 0)
-			obyte := nb | sb | eb | wb
-			orune := lineArtRunes[lineArtRuneOffsets[obyte]]
-
-			oavr := (nw.Earth + sw.Earth + ne.Earth + se.Earth) / 4
-			oearth := uint8(snap.EarthElevationStats.Project(oavr, 127))
-
-			ofg := ansi.RGB(0, 0, 0xff)
-			obg := ansi.RGB(oearth+63, oearth*2/3+63, oearth/3+63)
-
-			grid.Rune[o] = orune
-			grid.Attr[o] = obg.BG() | ofg.FG()
-
-			if !pk {
+			if !pt.In(rect) {
 				continue
 			}
-
-			pw := uint8(snap.WaterStats.Project((cc.Water+ee.Water)/2, 4) << 2)
-			pe := uint8(snap.WaterStats.Project((ee.Water+ex.Water)/2, 4) << 0)
-			pb := pe | pw
-			pr := lineArtRunes[lineArtRuneOffsets[pb]]
-
-			pf := (ne.Earth + se.Earth) / 2
-			pv := uint8(snap.EarthElevationStats.Project(pf, 127))
-
-			pfg := ansi.RGB(0, 0, 0xff)
-			pbg := ansi.RGB(pv+63, pv*2/3+63, pv/3+63)
-
-			grid.Rune[p] = pr
-			grid.Attr[p] = pbg.BG() | pfg.FG()
+			ipt := pt.ToImage()
+			ipt.Y *= 2
+			r, g, b, a := v.color.At(ipt.X, ipt.Y).RGBA()
+			bg := ansi.RGBA(r, g, b, a)
+			grid.Attr[o] = bg.BG()
 		}
 	}
 
 	return
+}
+
+func (v *view) draw(gen *bottle.Generation) {
+	rect := v.rect
+
+	// Compositor:
+	// water is a full-range grayscale
+	// earthElevation is a mid-range grayscale
+	// waterElevation is a mid-range grayscale
+	// waterElevationColor is uniform blue over uniform black with waterElevation as alpha mask
+	// earthElevationColor is uniform brown over uniform black with earthElevation as alpha mask
+	// color is waterElevationColor over earthElevationColor with water as alpha mask
+
+	// Draw base channels directly from cellular automaton.
+	var pt image.Point
+	for pt.Y = rect.Min.Y; pt.Y < rect.Max.Y; pt.Y++ {
+		for pt.X = rect.Min.X; pt.X < rect.Max.X; pt.X++ {
+			cell := gen.At(pt)
+			water := uint8(gen.WaterStats.Project(cell.Water, 255))
+			v.water.SetAlpha(pt.X, pt.Y, color.Alpha{water})
+			earthElevation := uint8(gen.EarthElevationStats.Project(cell.Earth, 127) + 64)
+			v.earthElevation.SetAlpha(pt.X, pt.Y, color.Alpha{earthElevation})
+			waterElevation := uint8(gen.WaterElevationStats.Project(cell.Water+cell.Earth, 64) + 127)
+			v.waterElevation.SetAlpha(pt.X, pt.Y, color.Alpha{waterElevation})
+		}
+	}
+
+	draw.Draw(v.waterElevationColor, rect, &image.Uniform{black}, image.ZP, draw.Over)
+	draw.DrawMask(v.waterElevationColor, rect, &image.Uniform{blue}, image.ZP, v.waterElevation, image.ZP, draw.Over)
+	draw.Draw(v.color, rect, &image.Uniform{black}, image.ZP, draw.Over)
+	draw.DrawMask(v.color, rect, &image.Uniform{brown}, image.ZP, v.earthElevation, image.ZP, draw.Over)
+	draw.DrawMask(v.color, rect, v.waterElevationColor, image.ZP, v.water, image.ZP, draw.Over)
 }
