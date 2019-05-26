@@ -1,4 +1,4 @@
-package bottle
+package bottlestats
 
 const (
 	maxUint = ^uint(0)

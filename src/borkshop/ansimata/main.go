@@ -1,35 +1,31 @@
 package main
 
 import (
+	"borkshop/bottle"
+	"borkshop/bottlemudslide"
+	"borkshop/bottlepid"
+	"borkshop/bottlesimstats"
+	"borkshop/bottletoposimplex"
+	"borkshop/bottleview"
+	"borkshop/bottleviewtopo"
+	"borkshop/bottlewatercoverage"
+	"borkshop/bottlewatershed"
+	"borkshop/hilbert"
 	"errors"
 	"flag"
+	"fmt"
 	"image"
-	"image/color"
-	"image/draw"
 	"io"
 	"log"
 	"math/rand"
 	"os"
 	"time"
 
-	"borkshop/bottle"
-
 	"github.com/jcorbin/anansi/ansi"
 	"github.com/jcorbin/anansi/x/platform"
 )
 
-// Render pipeline
-// Simulation.Frame
-// View.Grid
-// Screen.Grid
-
 var errInt = errors.New("interrupt")
-
-var (
-	black = color.Black
-	brown = color.RGBA{155, 78, 17, 0}
-	blue  = color.RGBA{48, 40, 177, 0}
-)
 
 func main() {
 	rand.Seed(time.Now().UnixNano()) // TODO find the right place to seed
@@ -54,25 +50,56 @@ func main() {
 func newView() *view {
 	const scale = 256
 	rect := image.Rect(0, 0, scale, scale)
+	mudslide := &bottlemudslide.Simulation{
+		Scale:  hilbert.Scale(scale),
+		Repose: 2,
+	}
+	watershed := &bottlewatershed.Simulation{
+		Scale: hilbert.Scale(scale),
+	}
+	waterCoverage := &bottlewatercoverage.Simulation{
+		Controller: bottlepid.Controller{
+			Proportional: bottlepid.G(0xff, 1),
+			Integral:     bottlepid.G(1, 1),
+			Differential: bottlepid.G(1, 1),
+			Value:        scale * scale / 3,
+			Min:          -0xffffffff,
+			Max:          0xffffffff,
+		},
+	}
+	res := bottle.Resetters{
+		bottletoposimplex.New(scale),
+		// bottleflood.New(scale, 0),
+	}
+	next := bottle.NewGeneration(scale)
+	prev := bottle.NewGeneration(scale)
+	res.Reset(prev)
+	ticker := bottle.Tickers{
+		bottlesimstats.Pre{},
+		mudslide,
+		watershed,
+		waterCoverage,
+		bottlesimstats.Post{},
+	}
+	topo := bottleviewtopo.New(scale)
 	return &view{
-		rect:                rect,
-		sim:                 bottle.New(scale),
-		water:               image.NewAlpha(rect),
-		waterElevation:      image.NewAlpha(rect),
-		earthElevation:      image.NewAlpha(rect),
-		waterElevationColor: image.NewRGBA(rect),
-		color:               image.NewRGBA(rect),
+		rect:          rect,
+		ticker:        ticker,
+		resetter:      res,
+		waterCoverage: waterCoverage,
+		prev:          prev,
+		next:          next,
+		view:          topo,
 	}
 }
 
 type view struct {
-	rect                image.Rectangle
-	sim                 *bottle.Simulation
-	water               *image.Alpha
-	waterElevation      *image.Alpha
-	earthElevation      *image.Alpha
-	waterElevationColor *image.RGBA
-	color               *image.RGBA
+	rect          image.Rectangle
+	ticker        bottle.Ticker
+	resetter      bottle.Resetter
+	waterCoverage *bottlewatercoverage.Simulation
+	view          bottleview.View
+	next, prev    *bottle.Generation
 }
 
 func (v *view) Update(ctx *platform.Context) (err error) {
@@ -90,61 +117,26 @@ func (v *view) Update(ctx *platform.Context) (err error) {
 		}()
 	}
 
-	v.sim.Tick()
-	gen := v.sim.Snap()
-	v.draw(gen)
-
-	grid := ctx.Output.Grid
-	rect := grid.Rect
-	var pt ansi.Point
-	for pt.Y = rect.Min.Y; pt.Y < rect.Max.Y; pt.Y++ {
-		for pt.X = rect.Min.X; pt.X < rect.Max.X; pt.X++ {
-			o, ok := grid.CellOffset(pt)
-			if !ok {
-				continue
-			}
-			if !pt.In(rect) {
-				continue
-			}
-			ipt := pt.ToImage()
-			ipt.Y *= 2
-			r, g, b, a := v.color.At(ipt.X, ipt.Y).RGBA()
-			bg := ansi.RGBA(r, g, b, a)
-			grid.Attr[o] = bg.BG()
-		}
+	for i := 0; i < 1; i++ {
+		v.ticker.Tick(v.next, v.prev)
+		v.next, v.prev = v.prev, v.next
 	}
+	v.view.Draw(ctx.Output, ctx.Output.Grid.Rect, v.next, image.ZP)
+
+	gen := v.next
+	screen := ctx.Output
+	screen.To(ansi.Pt(1, 1))
+	screen.WriteString(fmt.Sprintf("EarthElevation %d...%d\r\n", gen.EarthElevationStats.Min, gen.EarthElevationStats.Max))
+	screen.WriteString(fmt.Sprintf("WaterElevation %d...%d\r\n", gen.WaterElevationStats.Min, gen.WaterElevationStats.Max))
+	screen.WriteString(fmt.Sprintf("Water %d...%d\r\n", gen.WaterStats.Min, gen.WaterStats.Max))
+	screen.WriteString(fmt.Sprintf("WaterCoverage %d\r\n", gen.WaterCoverage))
+	screen.WriteString(fmt.Sprintf("     Converge %d\r\n", v.waterCoverage.Controller.Value))
+	screen.WriteString(fmt.Sprintf(" C %d\r\n", gen.WaterCoverageController.Proportional))
+	screen.WriteString(fmt.Sprintf(" P %d\r\n", gen.WaterCoverageController.Integral))
+	screen.WriteString(fmt.Sprintf(" I %d\r\n", gen.WaterCoverageController.Differential))
+	screen.WriteString(fmt.Sprintf(" D %d\r\n", gen.WaterCoverageController.Control))
+	screen.WriteString(fmt.Sprintf("WaterFlow %d\r\n", gen.WaterFlow))
+	screen.WriteString(fmt.Sprintf("EarthFlow %d\r\n", gen.EarthFlow))
 
 	return
-}
-
-func (v *view) draw(gen *bottle.Generation) {
-	rect := v.rect
-
-	// Compositor:
-	// water is a full-range grayscale
-	// earthElevation is a mid-range grayscale
-	// waterElevation is a mid-range grayscale
-	// waterElevationColor is uniform blue over uniform black with waterElevation as alpha mask
-	// earthElevationColor is uniform brown over uniform black with earthElevation as alpha mask
-	// color is waterElevationColor over earthElevationColor with water as alpha mask
-
-	// Draw base channels directly from cellular automaton.
-	var pt image.Point
-	for pt.Y = rect.Min.Y; pt.Y < rect.Max.Y; pt.Y++ {
-		for pt.X = rect.Min.X; pt.X < rect.Max.X; pt.X++ {
-			cell := gen.At(pt)
-			water := uint8(gen.WaterStats.Project(cell.Water, 255))
-			v.water.SetAlpha(pt.X, pt.Y, color.Alpha{water})
-			earthElevation := uint8(gen.EarthElevationStats.Project(cell.Earth, 127) + 64)
-			v.earthElevation.SetAlpha(pt.X, pt.Y, color.Alpha{earthElevation})
-			waterElevation := uint8(gen.WaterElevationStats.Project(cell.Water+cell.Earth, 64) + 127)
-			v.waterElevation.SetAlpha(pt.X, pt.Y, color.Alpha{waterElevation})
-		}
-	}
-
-	draw.Draw(v.waterElevationColor, rect, &image.Uniform{black}, image.ZP, draw.Over)
-	draw.DrawMask(v.waterElevationColor, rect, &image.Uniform{blue}, image.ZP, v.waterElevation, image.ZP, draw.Over)
-	draw.Draw(v.color, rect, &image.Uniform{black}, image.ZP, draw.Over)
-	draw.DrawMask(v.color, rect, &image.Uniform{brown}, image.ZP, v.earthElevation, image.ZP, draw.Over)
-	draw.DrawMask(v.color, rect, v.waterElevationColor, image.ZP, v.water, image.ZP, draw.Over)
 }

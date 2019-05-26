@@ -19,6 +19,6 @@ func G(over, under int) Gain {
 }
 
 // Gain multiplies an integer by a fraction.
-func (g Gain) Gain(n int) int {
+func (g Gain) Mul(n int) int {
 	return n * g.Over / g.Under
 }

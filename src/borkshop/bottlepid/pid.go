@@ -54,9 +54,9 @@ func (pid *Controller) Tick(next, prev *Generation, value int) {
 	err := pid.Value - value
 
 	next.Value = value
-	next.Proportional = pid.Proportional.Gain(err)
-	next.Differential = pid.Differential.Gain(value - prev.Value)
-	next.Integral = clamp(prev.Integral+pid.Integral.Gain(err), pid.Min, pid.Max)
+	next.Proportional = pid.Proportional.Mul(err)
+	next.Differential = pid.Differential.Mul(value - prev.Value)
+	next.Integral = clamp(prev.Integral+pid.Integral.Mul(err), pid.Min, pid.Max)
 	next.Control = clamp(next.Proportional+next.Integral+next.Differential, pid.Min, pid.Max)
 }
 
