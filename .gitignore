@@ -1,3 +1,5 @@
 /game
 /game.log
 /prof.*
+/pkg
+*.log
