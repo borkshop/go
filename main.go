@@ -276,14 +276,6 @@ func run() error {
 	flag.Parse()
 	args := flag.Args()
 
-	packageIndexHTML := filepath.Join(buildPackage.Dir, "index.html")
-	if _, err := os.Stat(packageIndexHTML); err == nil {
-		log.Printf("Found package index in %q", packageIndexHTML)
-		indexHandler = serveFile(packageIndexHTML)
-	}
-
-	mux.Handle("/", indexHandler)
-
 	path := "."
 	if len(args) > 0 {
 		path = args[0]
@@ -291,6 +283,14 @@ func run() error {
 	if err := lookupPackage(path); err != nil {
 		return err
 	}
+
+	packageIndexHTML := filepath.Join(buildPackage.Dir, "index.html")
+	if _, err := os.Stat(packageIndexHTML); err == nil {
+		log.Printf("Found package index in %q", packageIndexHTML)
+		indexHandler = serveFile(packageIndexHTML)
+	}
+
+	mux.Handle("/", indexHandler)
 
 	defer removeBuiltWasm()
 
