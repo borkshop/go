@@ -33,6 +33,7 @@ global.GoRunner = class {
 					break;
 				case 'args':
 					cfg.args = JSON.parse(nodeValue);
+					if (!Array.isArray(cfg.args)) throw new Error('data-args must be an array');
 					break;
 				default:
 					cfg.env[name] = nodeValue;
@@ -45,7 +46,7 @@ global.GoRunner = class {
 	constructor(cfg) {
 		this.el = cfg.el;
 		this.href = cfg.href;
-		this.args = null;
+		this.args = cfg.args;
 		this.env = cfg.env;
 		this.argv0 = cfg.argv0;
 		this.data = null;
