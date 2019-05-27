@@ -205,6 +205,7 @@ func buildWASM() error {
 	cmd.Env = buildEnv()
 	cmd.Stdout = pw
 	cmd.Stderr = &builtWASMLog
+	cmd.Dir = srcDir
 
 	fmt.Fprintf(&builtWASMLog, "\n# Running `%q`\n", cmd.Args)
 
