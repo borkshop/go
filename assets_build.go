@@ -30,48 +30,44 @@ func staticHandler(name, content string) http.Handler {
 
 func init() {
 	{{- range . -}}
-	{{- if .Path eq "/" -}}
+	{{- if eq .Path "/" -}}
 	indexHandler = staticHandler("{{ .Name }}", {{ printf "%q" .Content }})
-	{{- else -}}
+	{{ else -}}
 	mux.Handle("{{ .Path }}", staticHandler("{{ .Name }}", {{ printf "%q" .Content }}))
-	{{- end -}}
 	{{ end -}}
+	{{- end -}}
 }
 `))
 
 func run() error {
-	inr, inw, err := os.Pipe()
-	if err != nil {
-		return err
-	}
-
 	f, err := os.Create("assets_static.go")
 	if err != nil {
 		return err
 	}
 
-	cmd := exec.Command("gofmt")
-	cmd.Stdin = inr
-	cmd.Stdout = f
-	if err := cmd.Start(); err != nil {
-		return err
-	}
-	inr.Close()
-
 	defer f.Close()
-	defer log.Printf("wrote %s", f.Name())
 
-	tmpl.Execute(inw, []struct {
+	if err := tmpl.Execute(f, []struct {
 		Path    string
 		Name    string
 		Content string
 	}{
 		{"/", "index.html", slurp("index.html")},
 		{"/index.js", "index.js", slurp("index.js")},
-	})
-	inw.Close()
+	}); err != nil {
+		return err
+	}
 
-	return cmd.Wait()
+	log.Printf("wrote %s", f.Name())
+
+	cmd := exec.Command("gofmt", "-w", "assets_static.go")
+	cmd.Stderr = os.Stderr
+	if err := cmd.Run(); err != nil {
+		return err
+	}
+
+	log.Printf("formatted %s", f.Name())
+	return nil
 }
 
 func slurp(name string) string {
