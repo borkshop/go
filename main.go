@@ -65,9 +65,10 @@ func handleBuildJSON(w http.ResponseWriter, req *http.Request) {
 		InstallSuffix string
 	}
 	if err := json.NewEncoder(w).Encode(struct {
+		Bin     string
 		Context builtContext
 		Package build.Package
-	}{builtContext{
+	}{"main.wasm", builtContext{
 		buildContext.GOARCH,
 		buildContext.GOOS,
 		buildContext.GOROOT,

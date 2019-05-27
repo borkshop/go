@@ -26,7 +26,7 @@ global.GoRunner = class {
 		const basename = this.data.Package.Dir.split('/').pop();
 		this.argv0 = basename + '.wasm';
 
-		resp = await fetch("main.wasm");
+		resp = await fetch(this.data.Bin);
 		if (/^text\/plain($|;)/.test(resp.headers.get('Content-Type'))) {
 			if (this.el) {
 				this.el.innerHTML = `<pre class="buildLog"></pre>`;
