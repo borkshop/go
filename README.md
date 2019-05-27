@@ -12,6 +12,26 @@ $ gorunwasm github.com/jcorbin/gorunwasm
 
 ![Then open the browser](demo.png)
 
+But the real joy comes during development, let's break it:
+
+```diff
+diff --git a/wasm_main.go b/wasm_main.go
+index 8d183f3..5ee8cc1 100644
+--- a/wasm_main.go
++++ b/wasm_main.go
+@@ -17,7 +17,7 @@ func main() {
+        doc := js.Global().Get("document")
+        demo := doc.Call("querySelector", "body #demo")
+
+-       if !demo.Truthy() {
++       if !demo { // FIXME that's not how Go works!
+                demo = doc.Call("createElement", "h1")
+                demo.Call("setAttribute", "id", "demo")
+                doc.Get("body").Call("appendChild", demo)
+```
+
+![Now refresh the browser](no_truthy.png)
+
 ## How
 
 Write some js/wasm-targeting Go code in `package main`:
