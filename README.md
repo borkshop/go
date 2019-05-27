@@ -14,13 +14,36 @@ $ gorunwasm github.com/jcorbin/gorunwasm
 
 ## How
 
-1. Write some js/wasm-targeting Go code in `package main`; see
-   [`wasm_main.go`](wasm_main.go) for an example. The
-   [`syscall/js`][syscall_js] is your friend.
-2. Run your code locally using `gorunwasm` from within your project directory,
-   or specify the full package name as above.
+Write some js/wasm-targeting Go code in `package main`:
 
-See the [golang WebAssembly wiki][golang_wasm_wiki] for more.
+```golang
+
+// +build wasm js
+
+package main
+
+import (
+	"fmt"
+	"log"
+	"os"
+	"syscall/js"
+	"time"
+)
+
+func main() {
+	log.Printf("hello: %q", os.Args) // this goes to the browser console
+
+	// call the classic document.write('...') dom api
+	doc := js.Global().Get("document")
+	doc.Call("write", fmt.Sprintf("<p>hello %q</p>", os.Args))
+}
+```
+
+Now you can just run `gorunwasm` within the project directory to host this code
+in a local web server.
+
+See the [`syscall/js`][syscall_js] package and the [golang WebAssembly
+wiki][golang_wasm_wiki] for more.
 
 ## What
 
