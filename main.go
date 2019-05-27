@@ -280,6 +280,10 @@ func run() error {
 	path := "."
 	if len(args) > 0 {
 		path = args[0]
+		if filepath.IsAbs(path) {
+			srcDir = args[0]
+			path = "."
+		}
 	}
 	if err := lookupPackage(path); err != nil {
 		return err
