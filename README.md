@@ -1,5 +1,17 @@
 # `gorunwasm` -- An HTTP Server Wrapper For Go
 
+## Demo
+
+```bash
+
+$ go get github.com/jcorbin/gorunwasm
+
+$ gorunwasm github.com/jcorbin/gorunwasm
+2019/05/26 17:03:11 listening on http://127.0.0.1:50059
+```
+
+![Then open the browser](demo.png)
+
 ## What
 
 The server:
