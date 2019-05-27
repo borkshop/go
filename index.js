@@ -1,15 +1,43 @@
 global.GoRunner = class {
-	constructor(opts) {
-		if (!opts) opts = {};
-		this.el = opts.el;
-		this.href = opts.href;
+	// parseConfigData from an element's data-* attributes:
+	// - data-href may provide a build config URL alternative to the default
+	//   defaults build.json.
+	// - data-status-selector may provide a dom query selector for a displaying
+	//   build errors and (re)running the Go main.
+	// - data-args may provide a JSON-encoded argument array to pass to the Go program.
+	static parseConfigData(el) {
+		const cfg = {
+			el: null,
+			href: 'build.json',
+			args: null,
+		};
+		for (let i = 0; i < el.attributes.length; i++) {
+			const {nodeName, nodeValue} = el.attributes[i];
+			const dataMatch = /^data-(.+)/.exec(nodeName);
+			if (!dataMatch) continue;
+			const name = dataMatch[1];
+			switch (name) {
+				case 'href':
+					cfg.href = nodeValue;
+					break;
+				case 'status-selector':
+					cfg.el = document.querySelector(nodeValue);
+					break;
+				case 'args':
+					cfg.args = JSON.parse(nodeValue);
+					break;
+			}
+		}
+		return cfg;
+	}
+
+	constructor(cfg) {
+		this.el = cfg.el;
+		this.href = cfg.href;
+		this.args = null;
+		this.argv0 = 'wasm';
 		this.data = null;
 		this.module = null;
-		this.argv0 = 'wasm';
-		this.args = null;
-		if (opts.args) {
-			this.args = Array.isArray(opts.args) ? opts.args : [];
-		}
 		this.load();
 	}
 
@@ -24,7 +52,9 @@ global.GoRunner = class {
 		}
 
 		const basename = this.data.Package.Dir.split('/').pop();
-		this.argv0 = basename + '.wasm';
+		if (!this.argv0) {
+			this.argv0 = basename + '.wasm';
+		}
 
 		resp = await fetch(this.data.Bin);
 		if (/^text\/plain($|;)/.test(resp.headers.get('Content-Type'))) {
@@ -93,12 +123,7 @@ global.GoRunner = class {
 	}
 };
 
-(() => {
-	const scr = document.currentScript;
-	const href = scr.getAttribute('data-href') || 'build.json';
-	const elSel = scr.getAttribute('data-status-selector')
-	const run = scr.getAttribute('data-args') || null;
-	const args = run ? JSON.parse(run) : null;
-	const el = document.querySelector(elSel) || null;
-	global.goRun = new GoRunner({el, args, href});
+global.goRun = (() => {
+	const cfg = GoRunner.parseConfigData(document.currentScript);
+	return new GoRunner(cfg);
 })();
