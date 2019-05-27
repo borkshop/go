@@ -6,32 +6,31 @@ if (!WebAssembly.instantiateStreaming) {
 	};
 }
 
-const messageEl = document.querySelector('#status');
-
 async function init() {
+	const statusEl = document.querySelector('#status');
+
 	let resp = await fetch("build.json");
 	const buildInfo = await resp.json();
 	document.title += ': ' + buildInfo.Package.ImportPath;
-	messageEl.innerHTML = `Building <tt>${buildInfo.Package.ImportPath}</tt>...`;
+	statusEl.innerHTML = `Building <tt>${buildInfo.Package.ImportPath}</tt>...`;
 
 	resp = await fetch("main.wasm");
 
 	if (/^text\/plain($|;)/.test(resp.headers.get('Content-Type'))) {
-		messageEl.innerHTML = `<pre id="buildLog"></pre>`;
+		statusEl.innerHTML = `<pre id="buildLog"></pre>`;
 		const log = document.querySelector('#buildLog');
 		log.innerText = await resp.text();
 		return;
 	}
 
-	const go = new Go();
-	const res = await WebAssembly.instantiateStreaming(resp, go.importObject);
-	const module = res.module;
-	let instance = res.instance;
+	const module = await WebAssembly.compileStreaming(resp);
 
-	messageEl.innerHTML = `<input id="argv" size="40" title="JSON-encoded ARGV" /><button id="run">Run</button>`;
+	statusEl.innerHTML = `<input id="argv" size="40" title="JSON-encoded ARGV" /><button id="run">Run</button>`;
 	const runButton = document.querySelector('#run');
 	const argvInput = document.querySelector('#argv');
-	argvInput.value = JSON.stringify(go.argv);
+
+	const basename = buildInfo.Package.Dir.split('/').pop();
+	argvInput.value = JSON.stringify([basename + '.wasm']);
 
 	runButton.onclick = async function() {
 		const argv = JSON.parse(argvInput.value);
@@ -41,13 +40,14 @@ async function init() {
 
 		console.clear();
 		console.log('Running', buildInfo.Package, 'with args', argv);
-		go.argv = argv;
-		if (instance == null) {
-			instance = await WebAssembly.instantiate(module, go.importObject);
-		}
-		await go.run(instance);
-		instance = null;
 
+		const go = new Go();
+		go.argv = argv;
+		const instance = await WebAssembly.instantiate(module, go.importObject);
+		statusEl.style.display = 'none';
+		await go.run(instance);
+
+		statusEl.style.display = '';
 		runButton.innerText = 'Run';
 		runButton.disabled = false;
 	};
