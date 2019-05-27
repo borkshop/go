@@ -5,10 +5,13 @@ global.GoRunner = class {
 	// - data-status-selector may provide a dom query selector for a displaying
 	//   build errors and (re)running the Go main.
 	// - data-args may provide a JSON-encoded argument array to pass to the Go program.
+	// - data-argv0 overrides the program name (argv0) that the Go program is
+	//   invoked under; defaults to "package_name.wasm"
 	static parseConfigData(el) {
 		const cfg = {
 			el: null,
 			href: 'build.json',
+			argv0: null,
 			args: null,
 		};
 		for (let i = 0; i < el.attributes.length; i++) {
@@ -23,6 +26,9 @@ global.GoRunner = class {
 				case 'status-selector':
 					cfg.el = document.querySelector(nodeValue);
 					break;
+				case 'argv0':
+					cfg.argv0 = nodeValue;
+					break;
 				case 'args':
 					cfg.args = JSON.parse(nodeValue);
 					break;
@@ -35,7 +41,7 @@ global.GoRunner = class {
 		this.el = cfg.el;
 		this.href = cfg.href;
 		this.args = null;
-		this.argv0 = 'wasm';
+		this.argv0 = cfg.argv0;
 		this.data = null;
 		this.module = null;
 		this.load();
