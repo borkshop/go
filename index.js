@@ -29,9 +29,8 @@ global.GoRunner = class {
 		resp = await fetch("main.wasm");
 		if (/^text\/plain($|;)/.test(resp.headers.get('Content-Type'))) {
 			if (this.el) {
-				this.el.innerHTML = `<pre id="buildLog"></pre>`;
-				const log = document.querySelector('#buildLog');
-				log.innerText = await resp.text();
+				this.el.innerHTML = `<pre class="buildLog"></pre>`;
+				this.el.querySelector('pre').innerText = await resp.text();
 			} else {
 				console.error(await resp.text());
 			}
@@ -62,9 +61,9 @@ global.GoRunner = class {
 	}
 
 	async interact() {
-		this.el.innerHTML = `<input id="argv" size="40" title="JSON-encoded ARGV" /><button id="run">Run</button>`;
-		const runButton = document.querySelector('#run');
-		const argvInput = document.querySelector('#argv');
+		this.el.innerHTML = `<input class="argv" size="40" title="JSON-encoded ARGV" /><button class="run">Run</button>`;
+		const runButton = this.el.querySelector('button.run');
+		const argvInput = this.el.querySelector('input.argv');
 
 		argvInput.value = JSON.stringify([this.argv0]);
 
