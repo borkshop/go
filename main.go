@@ -284,13 +284,13 @@ func run() error {
 		return err
 	}
 
-	packageIndexHTML := filepath.Join(buildPackage.Dir, "index.html")
-	if _, err := os.Stat(packageIndexHTML); err == nil {
-		log.Printf("Found package index in %q", packageIndexHTML)
-		indexHandler = serveFile(packageIndexHTML)
+	if _, err := os.Stat(filepath.Join(buildPackage.Dir, "index.html")); err == nil {
+		log.Printf("Serving http files from %q", buildPackage.Dir)
+		mux.Handle("/", http.FileServer(http.Dir(buildPackage.Dir)))
+	} else {
+		log.Printf("Providing default index handler")
+		mux.Handle("/", indexHandler)
 	}
-
-	mux.Handle("/", indexHandler)
 
 	defer removeBuiltWasm()
 
