@@ -6,28 +6,59 @@ global.GoRunner = class {
 		this.data = null;
 		this.module = null;
 		this.argv0 = 'wasm';
+		this.autorun = null;
+		if (opts.run) {
+			this.autorun = Array.isArray(opts.run) ? opts.run : [];
+		}
 		this.load();
 	}
 
 	async load() {
 		let resp = await fetch(this.href);
 		this.data = await resp.json();
-		document.title += ': ' + this.data.Package.ImportPath;
-		this.el.innerHTML = `Building <tt>${this.data.Package.ImportPath}</tt>...`;
+		if (document.title === 'Go Run') {
+			document.title += ': ' + this.data.Package.ImportPath;
+		}
+		if (this.el) {
+			this.el.innerHTML = `Building <tt>${this.data.Package.ImportPath}</tt>...`;
+		}
 
 		const basename = this.data.Package.Dir.split('/').pop();
 		this.argv0 = basename + '.wasm';
 
 		resp = await fetch("main.wasm");
 		if (/^text\/plain($|;)/.test(resp.headers.get('Content-Type'))) {
-			this.el.innerHTML = `<pre id="buildLog"></pre>`;
-			const log = document.querySelector('#buildLog');
-			log.innerText = await resp.text();
+			if (this.el) {
+				this.el.innerHTML = `<pre id="buildLog"></pre>`;
+				const log = document.querySelector('#buildLog');
+				log.innerText = await resp.text();
+			} else {
+				console.error(await resp.text());
+			}
 			return;
 		}
 		this.module = await WebAssembly.compileStreaming(resp);
 
-		return this.interact();
+		if (this.el && !this.autorun) {
+			return this.interact();
+		}
+
+		let argv = [this.argv0];
+		if (this.autorun) {
+			argv = argv.concat(this.autorun);
+		}
+
+		if (this.el) {
+			this.el.innerHTML = 'Running...';
+			this.el.style.display = 'none';
+		}
+
+		await this.run(argv);
+
+		if (this.el) {
+			this.el.style.display = '';
+			this.el.innerHTML = 'Done.';
+		}
 	}
 
 	async interact() {
