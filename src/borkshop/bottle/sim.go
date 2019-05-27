@@ -9,11 +9,16 @@ import (
 	"borkshop/xorshiftstar"
 )
 
+// NumPlates is the number of tectonic plate classes, by shared direction of
+// movement.
+const NumPlates = 17
+
 // Cell is a unit of the cellular automaton.
 type Cell struct {
 	Random xorshiftstar.Source
 	Earth  int
 	Water  int
+	Plate  uint8
 }
 
 // Grid is a slice of cells indexed by hilbert number to maximize
@@ -26,14 +31,15 @@ type Generation struct {
 	Num   int
 	Grid  Grid
 
-	WaterCoverageController bottlepid.Generation
-
 	EarthElevationStats bottlestats.Stats
 	WaterElevationStats bottlestats.Stats
 	WaterStats          bottlestats.Stats
-	WaterCoverage       int
 	EarthFlow           int
 	WaterFlow           int
+	PlateSizes          [NumPlates]int
+
+	WaterCoverage           int
+	WaterCoverageController bottlepid.Generation
 }
 
 // NewGeneration constructs a generation at a particular scale.

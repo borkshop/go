@@ -5,9 +5,10 @@ import (
 	"borkshop/bottlemudslide"
 	"borkshop/bottlepid"
 	"borkshop/bottlesimstats"
+	"borkshop/bottletectonic"
 	"borkshop/bottletoposimplex"
 	"borkshop/bottleview"
-	"borkshop/bottleviewtopo"
+	"borkshop/bottleviewplate"
 	"borkshop/bottlewatercoverage"
 	"borkshop/bottlewatershed"
 	"borkshop/hilbert"
@@ -50,6 +51,9 @@ func main() {
 func newView() *view {
 	const scale = 256
 	rect := image.Rect(0, 0, scale, scale)
+	tectonic := &bottletectonic.Simulation{
+		Scale: hilbert.Scale(scale),
+	}
 	mudslide := &bottlemudslide.Simulation{
 		Scale:  hilbert.Scale(scale),
 		Repose: 2,
@@ -69,6 +73,7 @@ func newView() *view {
 	}
 	res := bottle.Resetters{
 		bottletoposimplex.New(scale),
+		bottletectonic.Resetter{},
 		// bottleflood.New(scale, 0),
 	}
 	next := bottle.NewGeneration(scale)
@@ -76,12 +81,14 @@ func newView() *view {
 	res.Reset(prev)
 	ticker := bottle.Tickers{
 		bottlesimstats.Pre{},
+		tectonic,
 		mudslide,
 		watershed,
 		waterCoverage,
 		bottlesimstats.Post{},
 	}
-	topo := bottleviewtopo.New(scale)
+	// topo := bottleviewtopo.New(scale)
+	plate := bottleviewplate.New(scale)
 	return &view{
 		rect:          rect,
 		ticker:        ticker,
@@ -89,7 +96,7 @@ func newView() *view {
 		waterCoverage: waterCoverage,
 		prev:          prev,
 		next:          next,
-		view:          topo,
+		view:          plate,
 	}
 }
 
@@ -137,6 +144,9 @@ func (v *view) Update(ctx *platform.Context) (err error) {
 	screen.WriteString(fmt.Sprintf(" D %d\r\n", gen.WaterCoverageController.Control))
 	screen.WriteString(fmt.Sprintf("WaterFlow %d\r\n", gen.WaterFlow))
 	screen.WriteString(fmt.Sprintf("EarthFlow %d\r\n", gen.EarthFlow))
+	for i := 0; i < bottle.NumPlates; i++ {
+		screen.WriteString(fmt.Sprintf("Plate[%d] %d\r\n", i, gen.PlateSizes[i]))
+	}
 
 	return
 }
