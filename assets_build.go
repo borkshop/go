@@ -30,7 +30,11 @@ func staticHandler(name, content string) http.Handler {
 
 func init() {
 	{{- range . -}}
+	{{- if .Path eq "/" -}}
+	indexHandler = staticHandler("{{ .Name }}", {{ printf "%q" .Content }})
+	{{- else -}}
 	mux.Handle("{{ .Path }}", staticHandler("{{ .Name }}", {{ printf "%q" .Content }}))
+	{{- end -}}
 	{{ end -}}
 }
 `))

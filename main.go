@@ -40,6 +40,8 @@ var (
 	builtWASMLog   bytes.Buffer
 
 	wasmExec = filepath.Join(buildContext.GOROOT, "misc", "wasm", "wasm_exec.js")
+
+	indexHandler http.Handler
 )
 
 func init() {
@@ -273,6 +275,8 @@ func run() error {
 
 	flag.Parse()
 	args := flag.Args()
+
+	mux.Handle("/", indexHandler)
 
 	path := "."
 	if len(args) > 0 {
