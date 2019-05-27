@@ -12,6 +12,16 @@ $ gorunwasm github.com/jcorbin/gorunwasm
 
 ![Then open the browser](demo.png)
 
+## How
+
+1. Write some js/wasm-targeting Go code in `package main`; see
+   [`wasm_main.go`](wasm_main.go) for an example. The
+   [`syscall/js`][syscall_js] is your friend.
+2. Run your code locally using `gorunwasm` from within your project directory,
+   or specify the full package name as above.
+
+See the [golang WebAssembly wiki][golang_wasm_wiki] for more.
+
 ## What
 
 The server:
@@ -37,3 +47,5 @@ The Demo:
   [`wasm_main.go`](wasm_main.go); it is a simple DOM manipulating example.
 
 [golang_build_package]: https://golang.org/pkg/go/build/#Package
+[golang_wasm_wiki]: https://github.com/golang/go/wiki/WebAssembly
+[syscall_js]: https://golang.org/pkg/syscall/js/
