@@ -65,6 +65,26 @@ in a local web server.
 See the [`syscall/js`][syscall_js] package and the [golang WebAssembly
 wiki][golang_wasm_wiki] for more.
 
+### HTML
+
+If you write a `index.html` file into your main package, then `gorunwasm` will
+host the package directiory on a root `http.FileServer`; otherwise a default
+static `index.html` is provided.
+
+Any custom `index.html`:
+- MUST include `<script src="wasm_exec.js"></script>` -- hosted from
+  `$GOROOT/misc/wasm/wasm_exec.js`, and is part of the upstream wasm
+  runtime.
+- SHOULD include `<script src="index.js"></script>` -- is `gorunwasm`'s runtime
+  harness, which can be further customized with data attributes:
+  - the `data-status-selector` attribute provides a selector query for an html
+    element used to display build and runtime status; without this, interactive
+    (re)-running is not possible, and any build error log is simply logged to
+    the console.
+  - the `data-args` provides JSON-encoded command line arguments, and causes
+    the wasm program to be immediately ran after compilation (disabling any
+    interactive run prompting through the status element).
+
 ## What
 
 The server:
