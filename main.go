@@ -276,6 +276,12 @@ func run() error {
 	flag.Parse()
 	args := flag.Args()
 
+	packageIndexHTML := filepath.Join(buildPackage.Dir, "index.html")
+	if _, err := os.Stat(packageIndexHTML); err == nil {
+		log.Printf("Found package index in %q", packageIndexHTML)
+		indexHandler = serveFile(packageIndexHTML)
+	}
+
 	mux.Handle("/", indexHandler)
 
 	path := "."
