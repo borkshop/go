@@ -77,13 +77,17 @@ Any custom `index.html`:
   runtime.
 - SHOULD include `<script src="index.js"></script>` -- is `gorunwasm`'s runtime
   harness, which can be further customized with data attributes:
-  - the `data-status-selector` attribute provides a selector query for an html
-    element used to display build and runtime status; without this, interactive
-    (re)-running is not possible, and any build error log is simply logged to
-    the console.
-  - the `data-args` provides JSON-encoded command line arguments, and causes
-    the wasm program to be immediately ran after compilation (disabling any
+  - `data-status-selector` provides a selector query for an html element used
+    to display build and runtime status; without this, interactive (re)-running
+    is not possible, and any build error log is simply logged to the console.
+  - `data-args` provides JSON-encoded command line arguments, and causes the
+    wasm program to be immediately ran after compilation (disabling any
     interactive run prompting through the status element).
+  - `data-argv0` provides an alternate program name to run the Go program as;
+    the default is "PACKAGENAME.wasm".
+  - `data-href` provides an alternate URL to the `build.json` config endpoint.
+  - **any other** data attributes are passed as environment variables to the Go
+    program; access them the normal way with `os.Getenv("name")`
 
 ## What
 
