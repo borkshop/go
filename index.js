@@ -7,12 +7,14 @@ global.GoRunner = class {
 	// - data-args may provide a JSON-encoded argument array to pass to the Go program.
 	// - data-argv0 overrides the program name (argv0) that the Go program is
 	//   invoked under; defaults to "package_name.wasm"
+	// - any other data-* keys are passed as environment variables to the Go program.
 	static parseConfigData(el) {
 		const cfg = {
 			el: null,
 			href: 'build.json',
 			argv0: null,
 			args: null,
+			env: {},
 		};
 		for (let i = 0; i < el.attributes.length; i++) {
 			const {nodeName, nodeValue} = el.attributes[i];
@@ -32,6 +34,9 @@ global.GoRunner = class {
 				case 'args':
 					cfg.args = JSON.parse(nodeValue);
 					break;
+				default:
+					cfg.env[name] = nodeValue;
+					break;
 			}
 		}
 		return cfg;
@@ -41,6 +46,7 @@ global.GoRunner = class {
 		this.el = cfg.el;
 		this.href = cfg.href;
 		this.args = null;
+		this.env = cfg.env;
 		this.argv0 = cfg.argv0;
 		this.data = null;
 		this.module = null;
@@ -123,6 +129,7 @@ global.GoRunner = class {
 
 	async run(argv) {
 		const go = new Go();
+		go.env = this.env;
 		go.argv = argv;
 		const instance = await WebAssembly.instantiate(this.module, go.importObject);
 		await go.run(instance);
