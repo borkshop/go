@@ -6,9 +6,9 @@ global.GoRunner = class {
 		this.data = null;
 		this.module = null;
 		this.argv0 = 'wasm';
-		this.run = null;
-		if (opts.run) {
-			this.run = Array.isArray(opts.run) ? opts.run : [];
+		this.args = null;
+		if (opts.args) {
+			this.args = Array.isArray(opts.args) ? opts.args : [];
 		}
 		this.load();
 	}
@@ -38,13 +38,13 @@ global.GoRunner = class {
 		}
 		this.module = await WebAssembly.compileStreaming(resp);
 
-		if (this.el && !this.run) {
+		if (this.el && !this.args) {
 			return this.interact();
 		}
 
 		let argv = [this.argv0];
-		if (this.run) {
-			argv = argv.concat(this.run);
+		if (this.args) {
+			argv = argv.concat(this.args);
 		}
 
 		if (this.el) {
@@ -97,8 +97,8 @@ global.GoRunner = class {
 	const scr = document.currentScript;
 	const href = scr.getAttribute('data-href') || 'build.json';
 	const elSel = scr.getAttribute('data-status-selector')
-	const runData = scr.getAttribute('data-run') || null;
-	const run = runData ? JSON.parse(runData) : null;
+	const run = scr.getAttribute('data-args') || null;
+	const args = run ? JSON.parse(run) : null;
 	const el = document.querySelector(elSel) || null;
-	global.goRun = new GoRunner({el, run, href});
+	global.goRun = new GoRunner({el, args, href});
 })();
