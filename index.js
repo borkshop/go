@@ -68,6 +68,8 @@ global.GoRunner = class {
 		argvInput.value = JSON.stringify([this.argv0]);
 
 		runButton.onclick = async () => {
+			if (runButton.disabled) return;
+
 			const argv = JSON.parse(argvInput.value);
 
 			runButton.disabled = true;
