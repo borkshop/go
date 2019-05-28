@@ -2,6 +2,7 @@ package bottletectonic
 
 import (
 	"borkshop/bottle"
+	"borkshop/bottlepid"
 	"borkshop/hilbert"
 	"image"
 	"math"
@@ -24,36 +25,42 @@ func init() {
 }
 
 type Quakes struct {
-	Scale     hilbert.Scale
-	Magnitude int
-	Disabled  bool
+	Scale      hilbert.Scale
+	Magnitude  int
+	Controller bottlepid.Controller
+	Disabled   bool
 }
 
 var _ bottle.Ticker = (*Quakes)(nil)
 
 func (sim *Quakes) Tick(next, prev *bottle.Generation) {
-	if sim.Disabled || prev.EarthElevationStats.Spread() > 60 {
+	if sim.Disabled {
 		return
 	}
+
+	sim.Controller.Tick(&next.ElevationSpreadController, &prev.ElevationSpreadController, prev.EarthElevationStats.Spread())
+	control := next.ElevationSpreadController.Control
 
 	var pt image.Point
 	for pt.Y = 0; pt.Y < int(sim.Scale); pt.Y++ {
 		for pt.X = 0; pt.X < int(sim.Scale); pt.X++ {
-			cel := &next.Grid[sim.Scale.Encode(pt)]
-			lat := &next.Grid[sim.Scale.Encode(pt.Add(image.Pt(1, 0)))]
-			lon := &next.Grid[sim.Scale.Encode(pt.Add(image.Pt(0, 1)))]
-			vector := vectors[cel.Plate]
-			total := mag(vector.X) + mag(vector.Y)
-			if rand.Intn(total) < mag(vector.X) {
-				latdel := clamp(vector.X, -sim.Magnitude, sim.Magnitude)
-				cel.Earth -= latdel
-				lat.Earth += latdel
-				next.QuakeFlow += mag(latdel)
-			} else {
-				londel := clamp(vector.Y, -sim.Magnitude, sim.Magnitude)
-				cel.Earth -= londel
-				lon.Earth += londel
-				next.QuakeFlow += mag(londel)
+			if rand.Intn(sim.Controller.Max) < control {
+				cel := &next.Grid[sim.Scale.Encode(pt)]
+				lat := &next.Grid[sim.Scale.Encode(pt.Add(image.Pt(1, 0)))]
+				lon := &next.Grid[sim.Scale.Encode(pt.Add(image.Pt(0, 1)))]
+				vector := vectors[cel.Plate]
+				total := mag(vector.X) + mag(vector.Y)
+				if rand.Intn(total) < mag(vector.X) {
+					latdel := clamp(vector.X, -sim.Magnitude, sim.Magnitude)
+					cel.Earth -= latdel
+					lat.Earth += latdel
+					next.QuakeFlow += mag(latdel)
+				} else {
+					londel := clamp(vector.Y, -sim.Magnitude, sim.Magnitude)
+					cel.Earth -= londel
+					lon.Earth += londel
+					next.QuakeFlow += mag(londel)
+				}
 			}
 		}
 	}

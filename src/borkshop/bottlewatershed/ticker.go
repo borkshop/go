@@ -15,6 +15,8 @@ var _ bottle.Ticker = (*Simulation)(nil)
 func (sim *Simulation) Tick(next, prev *bottle.Generation) {
 	for i := 0; i < len(next.Grid); i++ {
 		next.Grid[i].Water = prev.Grid[i].Water
+		next.Grid[i].WaterFlowLat = 0
+		next.Grid[i].WaterFlowLon = 0
 	}
 
 	var pt image.Point
@@ -50,11 +52,15 @@ func (sim *Simulation) Tick(next, prev *bottle.Generation) {
 					latdel = clamp(latdel/2, -lat.Water, cel.Water)
 					cel.Water -= latdel
 					lat.Water += latdel
+					cel.WaterFlowLat -= latdel
+					lat.WaterFlowLat += latdel
 					next.WaterFlow += mag(latdel)
 				case Lon:
 					londel = clamp(londel/2, -lon.Water, cel.Water)
 					cel.Water -= londel
 					lon.Water += londel
+					cel.WaterFlowLon -= londel
+					lon.WaterFlowLon += londel
 					next.WaterFlow += mag(londel)
 				}
 			}

@@ -51,7 +51,7 @@ func main() {
 }
 
 func newView() *view {
-	const scale = 128
+	const scale = 256
 	rect := image.Rect(0, 0, scale, scale)
 	plates := &bottletectonic.Plates{
 		Scale: hilbert.Scale(scale),
@@ -59,6 +59,14 @@ func newView() *view {
 	quakes := &bottletectonic.Quakes{
 		Scale:     hilbert.Scale(scale),
 		Magnitude: 1,
+		Controller: bottlepid.Controller{
+			Proportional: bottlepid.G(0xfff, 1),
+			Integral:     bottlepid.G(0xf, 1),
+			Differential: bottlepid.G(0xf, 1),
+			Value:        50,
+			Min:          0,
+			Max:          0xffff,
+		},
 		// Disabled:  true,
 	}
 	mudSlide := &bottlemudslide.Simulation{
@@ -112,6 +120,7 @@ func newView() *view {
 		ticker:        ticker,
 		resetter:      res,
 		waterCoverage: waterCoverage,
+		quakes:        quakes,
 		prev:          prev,
 		next:          next,
 
@@ -124,13 +133,15 @@ func newView() *view {
 }
 
 type view struct {
-	rect          image.Rectangle
-	ticker        bottle.Ticker
-	resetter      bottle.Resetter
-	waterCoverage *bottlewatercoverage.Simulation
-	next, prev    *bottle.Generation
+	rect       image.Rectangle
+	ticker     bottle.Ticker
+	resetter   bottle.Resetter
+	next, prev *bottle.Generation
 
 	ticking int
+
+	waterCoverage *bottlewatercoverage.Simulation
+	quakes        *bottletectonic.Quakes
 
 	view      bottleview.View
 	earthView bottleview.View
@@ -196,6 +207,12 @@ func (v *view) Update(ctx *platform.Context) (err error) {
 	screen.WriteString(fmt.Sprintf(" P %d\r\n", gen.WaterCoverageController.Integral))
 	screen.WriteString(fmt.Sprintf(" I %d\r\n", gen.WaterCoverageController.Differential))
 	screen.WriteString(fmt.Sprintf(" D %d\r\n", gen.WaterCoverageController.Control))
+	screen.WriteString(fmt.Sprintf("ElevationSpread %d\r\n", gen.EarthElevationStats.Spread()))
+	screen.WriteString(fmt.Sprintf("       Converge %d\r\n", v.quakes.Controller.Value))
+	screen.WriteString(fmt.Sprintf(" C %d\r\n", gen.ElevationSpreadController.Proportional))
+	screen.WriteString(fmt.Sprintf(" P %d\r\n", gen.ElevationSpreadController.Integral))
+	screen.WriteString(fmt.Sprintf(" I %d\r\n", gen.ElevationSpreadController.Differential))
+	screen.WriteString(fmt.Sprintf(" D %d\r\n", gen.ElevationSpreadController.Control))
 	screen.WriteString(fmt.Sprintf("WaterFlow %d\r\n", gen.WaterFlow))
 	screen.WriteString(fmt.Sprintf("EarthFlow %d\r\n", gen.EarthFlow))
 	screen.WriteString(fmt.Sprintf("QuakeFlow %d\r\n", gen.QuakeFlow))

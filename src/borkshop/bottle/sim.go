@@ -15,10 +15,12 @@ const NumPlates = 5
 
 // Cell is a unit of the cellular automaton.
 type Cell struct {
-	Random xorshiftstar.Source
-	Earth  int
-	Water  int
-	Plate  uint8
+	Random       xorshiftstar.Source
+	Earth        int
+	Water        int
+	WaterFlowLat int
+	WaterFlowLon int
+	Plate        uint8
 }
 
 // Grid is a slice of cells indexed by hilbert number to maximize
@@ -38,9 +40,10 @@ type Generation struct {
 	WaterFlow           int
 	QuakeFlow           int
 	PlateSizes          [NumPlates]int
+	WaterCoverage       int
 
-	WaterCoverage           int
-	WaterCoverageController bottlepid.Generation
+	WaterCoverageController   bottlepid.Generation
+	ElevationSpreadController bottlepid.Generation
 }
 
 // NewGeneration constructs a generation at a particular scale.
