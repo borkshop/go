@@ -193,7 +193,7 @@ func buildWASM() error {
 	t0 := time.Now()
 	defer func() {
 		t1 := time.Now()
-		fmt.Fprintf(&builtWASMLog, "\n# Build Took: %v\n", t1.Sub(t0))
+		fmt.Fprintf(&builtWASMLog, "\nBuild Took %v\n", t1.Sub(t0))
 	}()
 
 	builtWASMTime = time.Time{}
@@ -207,25 +207,17 @@ func buildWASM() error {
 	cmd.Stderr = &builtWASMLog
 	cmd.Dir = srcDir
 
-	fmt.Fprintf(&builtWASMLog, "\n# Running `%q`\n", cmd.Args)
+	fmt.Fprintf(&builtWASMLog, "Building %s\n", buildPackage.ImportPath)
 
-	fmt.Fprintf(&builtWASMLog, "\n## Output:\n\n```\n")
 	err = cmd.Start()
 	_ = pw.Close()
 	if err == nil {
 		err = cmd.Wait()
 	}
-	fmt.Fprintf(&builtWASMLog, "\n```\n")
 
 	if err != nil {
-		fmt.Fprintf(&builtWASMLog, "\n## Command Error: `%v`\n", err)
+		fmt.Fprintf(&builtWASMLog, "\n%v\n", err)
 	}
-
-	fmt.Fprintf(&builtWASMLog, "\n## Env:\n\n```\n")
-	for _, keyval := range cmd.Env {
-		fmt.Fprintf(&builtWASMLog, "%s\n", keyval)
-	}
-	fmt.Fprintf(&builtWASMLog, "```\n")
 
 	if err != nil {
 		return nil
