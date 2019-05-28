@@ -70,15 +70,17 @@ global.GoRunner = class {
 		}
 
 		resp = await fetch(this.data.Bin);
-		if (/^text\/plain($|;)/.test(resp.headers.get('Content-Type'))) {
-			if (this.el) {
-				this.el.innerHTML = `<pre class="buildLog"></pre>`;
-				this.el.querySelector('pre').innerText = await resp.text();
-			} else {
-				console.error(await resp.text());
-			}
-			return;
+
+		const match = /^([^;]+)/.exec(resp.headers.get('Content-Type'));
+		switch (match && match[1]) {
+			case 'text/plain':
+				const el = this.el || document.body;
+				el.innerHTML = `<pre class="buildLog"></pre>`;
+				el.querySelector('pre').innerText = await resp.text();
+				return;
+			// case 'application/json': TODO support structured error response with
 		}
+
 		this.module = await WebAssembly.compileStreaming(resp);
 
 		if (this.el && !this.args) {

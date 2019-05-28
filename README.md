@@ -79,7 +79,7 @@ Any custom `index.html`:
   harness, which can be further customized with data attributes:
   - `data-status-selector` provides a selector query for an html element used
     to display build and runtime status; without this, interactive (re)-running
-    is not possible, and any build error log is simply logged to the console.
+    is not possible, and any build error replaces all body content.
   - `data-args` provides JSON-encoded command line arguments, and causes the
     wasm program to be immediately ran after compilation (disabling any
     interactive run prompting through the status element).
