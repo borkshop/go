@@ -34,7 +34,7 @@ func main() {
 	rand.Seed(time.Now().UnixNano()) // TODO find the right place to seed
 	// TODO load config from file
 	flag.Parse()
-	platform.MustRun(os.Stdout, func(p *platform.Platform) error {
+	platform.MustRun(os.Stdin, os.Stdout, func(p *platform.Platform) error {
 		for {
 			if err := p.Run(newView()); platform.IsReplayDone(err) {
 				continue // loop replay
@@ -193,10 +193,13 @@ func (v *view) Update(ctx *platform.Context) (err error) {
 		v.next, v.prev = v.prev, v.next
 	}
 
-	v.view.Draw(ctx.Output, ctx.Output.Grid.Rect, v.next, image.ZP)
+	screen := &ctx.Output.VirtualScreen
+
+	v.view.Draw(
+		&screen.Screen, screen.Screen.Rect, // TODO should just use screen.Grid; maybe pass a sub-grid if you need to
+		v.next, image.ZP)
 
 	gen := v.next
-	screen := ctx.Output
 	screen.To(ansi.Pt(1, 1))
 	screen.WriteString(fmt.Sprintf("EarthElevation %d...%f...%d\r\n", gen.EarthElevationStats.Min, gen.EarthElevationStats.Mean(), gen.EarthElevationStats.Max))
 	screen.WriteString(fmt.Sprintf("WaterElevation %d...%f...%d\r\n", gen.WaterElevationStats.Min, gen.WaterElevationStats.Mean(), gen.WaterElevationStats.Max))

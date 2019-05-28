@@ -10,7 +10,7 @@ import (
 )
 
 type popup struct {
-	anansi.Screen
+	anansi.ScreenDiffer
 	active bool
 	at     ansi.Point
 }
@@ -22,7 +22,7 @@ func (pop *popup) drawInto(grid *anansi.Grid) {
 func (pop *popup) Reset() {
 	pop.active = false
 	pop.at = ansi.ZP
-	pop.Screen.Reset()
+	pop.ScreenDiffer.Reset()
 }
 
 func (pop *popup) Reload(contents []byte, at ansi.Point) {
@@ -30,10 +30,10 @@ func (pop *popup) Reload(contents []byte, at ansi.Point) {
 	sz := measureTextBounds(contents)
 	// +1,1 because at is the location of the subject, which we don't want to occlude
 	pop.at = at.Add(image.Pt(1, 1))
-	pop.Screen.Reset()
-	pop.Screen.Resize(sz)
-	pop.CursorState.Attr = ansi.SGRAttrClear | ansi.RGB(0x20, 0x20, 0x40).BG()
-	pop.Screen.Write(contents)
+	pop.ScreenDiffer.Reset()
+	pop.ScreenDiffer.Resize(sz)
+	pop.Cursor.Attr = ansi.SGRAttrClear | ansi.RGB(0x20, 0x20, 0x40).BG()
+	pop.ScreenDiffer.Write(contents)
 	pop.active = true
 }
 
