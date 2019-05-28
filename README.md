@@ -2,35 +2,89 @@
 
 ## Demo
 
-```bash
+[`hello/index.html`](hello/index.html):
 
-$ go get github.com/jcorbin/gorunwasm
+```html
+<!doctype html>
 
-$ gorunwasm github.com/jcorbin/gorunwasm
-2019/05/26 17:03:11 listening on http://127.0.0.1:50059
+<title>Go WASM Hello World</title>
+
+<body>
+
+	<div>
+		<label for="who">Whe are you?</label>
+		<input id="who" type="text" size="20">
+	</div>
+
+	<div id="output">...</div>
+
+	<script src="wasm_exec.js"></script>
+	<script src="index.js" data-input="#who" data-output="#output"></script>
+
+</body>
 ```
 
-![Then open the browser](demo.png)
+[`hello/main.go`](hello/main.go):
+
+```golang
+// +build js
+
+package main
+
+import (
+	"fmt"
+	"os"
+	"syscall/js"
+)
+
+var document = js.Global().Get("document")
+
+func main() {
+	input := document.Call("querySelector", os.Getenv("input"))
+	output := document.Call("querySelector", os.Getenv("output"))
+	input.Call("addEventListener", "change", js.FuncOf(func(this js.Value, args []js.Value) interface{} {
+		val := input.Get("value")
+		output.Set("innerText", fmt.Sprintf("Hello %q", val))
+		return nil
+	}))
+	select {}
+}
+```
+
+Then just `gorunwasm` within the folder containing those two files:
+
+```bash
+$ go get github.com/jcorbin/gorunwasm
+
+$ gorunwasm
+2019/05/27 19:14:53 Serving http files from "/Users/joshua/gorunwasm/hello"
+2019/05/27 19:14:53 listening on http://127.0.0.1:58241
+```
+
+Open the browser, and type in the input:
+
+![Hello go wasm browser](hello.png)
 
 But the real joy comes during development, let's break it:
 
 ```diff
-diff --git a/wasm_main.go b/wasm_main.go
-index 8d183f3..5ee8cc1 100644
---- a/wasm_main.go
-+++ b/wasm_main.go
-@@ -17,7 +17,7 @@ func main() {
-        doc := js.Global().Get("document")
-        demo := doc.Call("querySelector", "body #demo")
 
--       if !demo.Truthy() {
-+       if !demo { // FIXME that's not how Go works!
-                demo = doc.Call("createElement", "h1")
-                demo.Call("setAttribute", "id", "demo")
-                doc.Get("body").Call("appendChild", demo)
+diff --git a/main.go b/main.go
+index 58886f6..956b143 100644
+--- a/hello/main.go
++++ b/hello/main.go
+@@ -24,7 +24,7 @@ func main() {
+        input.Call("addEventListener", "change", js.FuncOf(func(this js.Value, args []js.Value) interf
+                val := input.Get("value")
+                output.Set("innerText", fmt.Sprintf("Hello %q", val))
+-               return nil
++               // return nil FIXME oops
+        }))
+
+        select {}
 ```
 
-![Now refresh the browser](no_truthy.png)
+![Now refresh, and see the build error](broke.png)
 
 ## How
 
