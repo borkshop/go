@@ -1,5 +1,7 @@
 package handler_test
 
+// +build js
+
 import "syscall/js"
 
 var (
