@@ -54,6 +54,8 @@ func init() {
 }
 
 func handleBuildJSON(w http.ResponseWriter, req *http.Request) {
+	w.Header().Set("Content-Type", "application/json")
+	w.Header().Set("X-Content-Type-Options", "nosniff")
 	type builtContext struct {
 		GOARCH        string
 		GOOS          string
@@ -89,8 +91,6 @@ func handleBuildJSON(w http.ResponseWriter, req *http.Request) {
 func handleBuildLog(w http.ResponseWriter, req *http.Request) {
 	builtWASMMutex.RLock()
 	defer builtWASMMutex.RUnlock()
-	// w.Header().Set("Content-Type", "text/plain; charset=utf-8")
-	// w.Header().Set("X-Content-Type-Options", "nosniff")
 	http.ServeContent(w, req, "build.log", builtWASMTime, bytes.NewReader(builtWASMLog.Bytes()))
 }
 
@@ -111,8 +111,6 @@ func handleMainWasm(w http.ResponseWriter, req *http.Request) {
 	defer builtWASMMutex.RUnlock()
 	if !builtWASMOk {
 		http.Redirect(w, req, "/build.log", http.StatusSeeOther)
-		// w.Header().Set("Location", "/build.log")
-		// http.Error(w, "build failed", http.StatusInternalServerError)
 	} else {
 		http.ServeContent(w, req, "main.wasm", builtWASMTime, builtWASM)
 	}
