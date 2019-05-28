@@ -1,10 +1,6 @@
 package handler_test
 
-// +build js
-
-import (
-	"syscall/js"
-)
+import "syscall/js"
 
 var (
 	window = js.Global().Get("window")
