@@ -17,8 +17,11 @@ import (
 	"time"
 )
 
-// WASMHandler implements an http.Handler that dynamically builds and serves a
-// wasm binary.
+// WASMHandler implements an http.Handler that serves a dynamically built wasm
+// binary from a Go "main" package.
+//
+// The target package must be a normal main package with a func main() entry
+// point and should contain a js build tag. See the package examples for detail.
 type WASMHandler struct {
 	mu sync.RWMutex
 
@@ -78,8 +81,11 @@ func (wh *WASMHandler) Close() error {
 // ServeHTTP dispatches the request dynamically.
 //
 // It serves a text build log if the "log" form value is set.
+//
 // It serves a json build config if the "build" form value is set.
+//
 // It builds a wasm binary if none has been built before or if the "force" form value is set.
+//
 // It serves the built wasm binary, or redirects to the build log if the build fails.
 func (wh *WASMHandler) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 	req.ParseForm()
