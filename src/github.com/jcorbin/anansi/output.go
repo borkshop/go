@@ -1,7 +1,6 @@
 package anansi
 
 import (
-	"errors"
 	"io"
 	"os"
 	"syscall"
@@ -53,24 +52,13 @@ func (out *Output) Stalls(consume bool) []time.Duration {
 	return blocks
 }
 
-// Enter retains the passed the terminal file handle if one isn't already,
-// returns an error otherwise.
-func (out *Output) Enter(term *Term) error {
-	if out.File != nil {
-		return errors.New("anansi.Output may only only be attached to one terminal")
-	}
-	out.File = term.File
-	return nil
-}
+// Enter is a no-op.
+func (out *Output) Enter(term *Term) error { return nil }
 
-// Exit clears the retained file handle (only if it's the same as the
-// terminal's).
-func (out *Output) Exit(term *Term) error {
-	if out.File == term.File {
-		out.File = nil
-	}
-	return nil
-}
+// Exit is a no-op.
+func (out *Output) Exit(term *Term) error { return nil }
+
+// TODO should this be ReadFrom(r Reader) (n int64, err error) ?
 
 // Flush calls the given io.Writerto on any active file handle. If EWOULDBLOCK
 // occurs, it transitions the file into blocking mode, and restarts the write.
@@ -89,33 +77,34 @@ func (out *Output) Flush(wer io.WriterTo) error {
 
 func (out *Output) blockingFlush(wer io.WriterTo) error {
 	if out.blocks != nil {
-		defer func(t0 time.Time) {
-			t1 := time.Now()
-			if len(out.blocks) < cap(out.blocks) {
-				out.blocks = append(out.blocks, t1.Sub(t0))
-			}
-		}(time.Now())
+		defer out.recordStall(time.Now())
 	}
-
-	const mask = syscall.O_NONBLOCK | syscall.O_ASYNC
-
-	flags, _, e := syscall.Syscall(syscall.SYS_FCNTL, out.File.Fd(), syscall.F_GETFL, 0)
-	if e != 0 {
-		return e
+	flags, _, err := out.fcntl(syscall.F_GETFL, 0)
+	if err != nil {
+		return err
 	}
-
-	if _, _, e = syscall.Syscall(syscall.SYS_FCNTL, out.File.Fd(), syscall.F_SETFL, 0); e != 0 {
-		return e
+	if _, _, err = out.fcntl(syscall.F_SETFL, flags & ^uintptr(syscall.O_NONBLOCK)); err != nil {
+		return err
 	}
-
 	n, err := wer.WriteTo(out.File)
 	out.Flushed += int(n)
-
-	if _, _, e = syscall.Syscall(syscall.SYS_FCNTL, out.File.Fd(), syscall.F_SETFL, flags&mask); e != 0 {
-		if err == nil {
-			err = e
-		}
+	if _, _, ferr := out.fcntl(syscall.F_SETFL, flags); err == nil {
+		err = ferr
 	}
-
 	return err
+}
+
+func (out *Output) recordStall(t0 time.Time) {
+	t1 := time.Now()
+	if len(out.blocks) < cap(out.blocks) {
+		out.blocks = append(out.blocks, t1.Sub(t0))
+	}
+}
+
+func (out *Output) fcntl(a2, a3 uintptr) (r1, r2 uintptr, err error) {
+	r1, r2, e := syscall.Syscall(syscall.SYS_FCNTL, out.File.Fd(), a2, a3)
+	if e != 0 {
+		return 0, 0, e
+	}
+	return r1, r2, nil
 }

@@ -2,7 +2,6 @@ package main
 
 import (
 	"errors"
-	"image"
 	"math"
 	"os"
 
@@ -10,14 +9,21 @@ import (
 	"github.com/jcorbin/anansi/x/platform"
 )
 
+type schotterDemoUI struct {
+	*schotterDemo
+}
+
 func runInteractive() {
-	sd.squareSide = 20 // TODO push down, pre-compute based on initial width and squaresPerRow
-	platform.MustRun(os.Stdout, func(p *platform.Platform) error {
-		return p.Run(&sd)
+	platform.MustRun(os.Stdin, os.Stdout, func(p *platform.Platform) error {
+		var ui schotterDemoUI
+		ui.schotterDemo = &sd
+		ui.squareSide = 20 // TODO push down, pre-compute based on initial width and squaresPerRow
+
+		return p.Run(&ui)
 	}, platform.FrameRate(60))
 }
 
-func (sd *schotterDemo) Update(ctx *platform.Context) (err error) {
+func (sd *schotterDemoUI) Update(ctx *platform.Context) (err error) {
 	// Ctrl-C interrupts
 	if ctx.Input.HasTerminal('\x03') {
 		// ... AFTER any other available input has been processed
@@ -44,10 +50,7 @@ func (sd *schotterDemo) Update(ctx *platform.Context) (err error) {
 		zoomed = true
 	}
 
-	var canvasSize image.Point
-	if sd.canvas != nil {
-		canvasSize = sd.canvas.Rect.Size()
-	}
+	canvasSize := sd.canvas.Rect.Size()
 
 	if screenSize := ctx.Output.Bounds().Size(); screenSize.X != canvasSize.X/2 || zoomed {
 		sd.padding = 0
@@ -63,7 +66,7 @@ func (sd *schotterDemo) Update(ctx *platform.Context) (err error) {
 		sd.squaresPerCol = ((screenSize.Y-sd.padding)*4 + roundUp) / sd.squareSide
 
 		// TODO resize if != nil
-		sd.canvas = anansi.NewBitmapSize(canvasSize)
+		sd.canvas.Resize(canvasSize)
 	}
 
 	for i := range sd.canvas.Bit {

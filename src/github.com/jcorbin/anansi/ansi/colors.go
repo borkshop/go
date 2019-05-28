@@ -437,6 +437,46 @@ type ColorModel interface {
 	Convert(c SGRColor) SGRColor
 }
 
+type colorModels []ColorModel
+
+func (models colorModels) Convert(c SGRColor) SGRColor {
+	for _, model := range models {
+		c = model.Convert(c)
+	}
+	return c
+}
+
+// ColorModels combines the given models into a single ColorModel that applies
+// each in serial.
+func ColorModels(models ...ColorModel) ColorModel {
+	if len(models) == 0 {
+		return nil
+	}
+	a := models[0]
+	for i := 1; i < len(models); i++ {
+		b := models[i]
+		if b == nil || b == ColorModel(nil) {
+			continue
+		}
+		if a == nil || a == ColorModel(nil) {
+			a = b
+			continue
+		}
+		as, haveAs := a.(colorModels)
+		bs, haveBs := b.(colorModels)
+		if haveAs && haveBs {
+			a = append(as, bs...)
+		} else if haveAs {
+			a = append(as, b)
+		} else if haveBs {
+			a = append(colorModels{a}, bs...)
+		} else {
+			a = colorModels{a, b}
+		}
+	}
+	return a
+}
+
 // ColorModelFunc is a convenient way to implement to implement simple SGR
 // color models.
 type ColorModelFunc func(c SGRColor) SGRColor
@@ -680,6 +720,6 @@ func (p Palette) Index(c SGRColor) int {
 
 // sqDiff borrowed from image/color
 func sqDiff(x, y uint8) uint32 {
-	d := uint32(x - y)
+	d := uint32(x) - uint32(y)
 	return (d * d) >> 2
 }

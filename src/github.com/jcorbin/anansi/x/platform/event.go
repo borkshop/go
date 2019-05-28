@@ -13,9 +13,7 @@ import (
 // Events holds a queue of input events that were available at the start of the
 // current frame's time window.
 type Events struct {
-	Type []EventType
-
-	input *anansi.Input
+	Type  []EventType
 	esc   []ansi.Escape
 	arg   [][]byte
 	mouse []Mouse
@@ -30,7 +28,6 @@ const (
 	EventEscape
 	EventRune
 	EventMouse
-	// EventKey TODO key code translation
 )
 
 // Escape represents ansi escape sequence data stored in an Events queue.
@@ -48,6 +45,16 @@ type Mouse struct {
 // ZM is a convenience name for the zero value of Mouse.
 var ZM Mouse
 
+// Empty returns true if there are non-EventNone typed events left.
+func (es *Events) Empty() bool {
+	for i := 0; i < len(es.Type); i++ {
+		if es.Type[i] != EventNone {
+			return false
+		}
+	}
+	return true
+}
+
 // HasTerminal returns true if the given terminal rune is in the event queue,
 // striking it and truncating any events after it.
 func (es *Events) HasTerminal(r rune) bool {
@@ -62,12 +69,17 @@ func (es *Events) HasTerminal(r rune) bool {
 	return false
 }
 
-// CountRune counts occurrences of the given rune, striking them out.
-func (es *Events) CountRune(r rune) (n int) {
+// CountRune counts occurrences of any of the given runes, striking them out.
+func (es *Events) CountRune(rs ...rune) (n int) {
 	for i := 0; i < len(es.Type); i++ {
-		if es.Type[i] == EventRune && es.esc[i] == ansi.Escape(r) {
-			es.Type[i] = EventNone
-			n++
+		if es.Type[i] != EventRune {
+			continue
+		}
+		for _, r := range rs {
+			if es.esc[i] == ansi.Escape(r) {
+				es.Type[i] = EventNone
+				n++
+			}
 		}
 	}
 	return n
@@ -172,49 +184,33 @@ func (es *Events) Clear() {
 	es.mouse = es.mouse[:0]
 }
 
-// Load clears the event queue, and then parses from the given byte slice;
-// useful for replays and testing.
-func (es *Events) Load(b []byte) {
-	es.Clear()
+// DecodeBytes parses from the given byte slice; useful for replays and testing.
+func (es *Events) DecodeBytes(b []byte) {
 	for len(b) > 0 {
 		e, a, n := ansi.DecodeEscape(b)
 		b = b[n:]
-		if e != 0 {
-			es.add(e, a, 0)
-		} else {
+		if e == 0 {
 			r, n := utf8.DecodeRune(b)
 			b = b[n:]
-			es.add(0, nil, r)
+			e = ansi.Escape(r)
 		}
+		es.add(e, a)
 	}
 }
 
-// Poll clears the event queue, polls for input, and then parses as many input
-// bytes as possible.
-func (es *Events) Poll() error {
-	es.Clear()
-	if n, err := es.input.ReadAny(); n == 0 && err != nil {
-		return err
-	}
-	for {
-		e, a := es.input.DecodeEscape()
-		if e != 0 {
-			es.add(e, a, 0)
-		} else if r, ok := es.input.DecodeRune(); ok {
-			es.add(0, nil, r)
-		} else {
-			return nil
-		}
+// DecodeInput decodes all input currently read into the given input.
+func (es *Events) DecodeInput(in *anansi.Input) {
+	for e, a, ok := in.Decode(); ok; e, a, ok = in.Decode() {
+		es.add(e, a)
 	}
 }
 
-func (es *Events) add(e ansi.Escape, a []byte, r rune) {
+func (es *Events) add(e ansi.Escape, a []byte) {
 	kind := EventEscape
 	m := Mouse{}
 
-	if e == 0 {
+	if !e.IsEscape() {
 		kind = EventRune
-		e = ansi.Escape(r)
 	}
 
 	switch e {
@@ -225,8 +221,6 @@ func (es *Events) add(e ansi.Escape, a []byte, r rune) {
 		} else if m.State != 0 || m.Point.Valid() {
 			kind = EventMouse
 		}
-
-		// TODO map special keys to eventKey
 	}
 
 	es.Type = append(es.Type, kind)

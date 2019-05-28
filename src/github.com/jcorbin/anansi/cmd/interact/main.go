@@ -40,7 +40,7 @@ import (
 var errInt = errors.New("interrupt")
 
 func main() {
-	platform.MustRun(os.Stdout, Run, platform.FrameRate(60))
+	platform.MustRun(os.Stdin, os.Stdout, Run, platform.FrameRate(60))
 }
 
 // Run the demo under an active terminal platform.
@@ -69,7 +69,7 @@ type inspect struct {
 	edid int
 	ed   platform.EditLine
 
-	cmdOutput anansi.Screen
+	cmdOutput anansi.ScreenDiffer
 }
 
 func (in *inspect) setCmd(cmd []string) {
@@ -172,9 +172,9 @@ func (in *inspect) Update(ctx *platform.Context) (err error) {
 			ctx.Output.WriteSGR(attr)
 		}
 		var r ansi.Rectangle
-		r.Min = ctx.Output.Point
+		r.Min = ctx.Output.Cursor.Point
 		ctx.Output.WriteString(arg)
-		r.Max = ctx.Output.Point
+		r.Max = ctx.Output.Cursor.Point
 		r.Max.Y++
 		if attr != 0 {
 			ctx.Output.WriteSGR(ansi.SGRAttrClear)

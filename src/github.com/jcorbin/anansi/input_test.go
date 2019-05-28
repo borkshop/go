@@ -6,6 +6,7 @@ import (
 	"io"
 	"os"
 	"sync"
+	"syscall"
 	"testing"
 	"time"
 
@@ -13,6 +14,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/jcorbin/anansi"
+	"github.com/jcorbin/anansi/ansi"
 )
 
 func TestInput_ReadMore(t *testing.T) {
@@ -119,15 +121,143 @@ func TestInput_ReadMore(t *testing.T) {
 
 func slurpInput(buf *bytes.Buffer, in *anansi.Input) {
 	for {
-		e, a := in.DecodeEscape()
-		if e == 0 {
-			r, ok := in.DecodeRune()
-			if !ok {
-				break
-			}
-			buf.WriteRune(r)
-		} else {
+		if e, a, ok := in.Decode(); !ok {
+			break
+		} else if e.IsEscape() {
 			fmt.Fprintf(buf, "[ansi %v %q]", e, a)
+		} else {
+			buf.WriteRune(rune(e))
 		}
 	}
+}
+
+// Reading input in blocking mode, like a simple REPL-style program might.
+//
+// See cmd/decode/main.go for a more advanced example (including use of raw
+// mode in addition to line-oriented as shown here).
+func ExampleInput_blocking() {
+	term := anansi.NewTerm(os.Stdin, os.Stdout)
+	term.SetEcho(true)
+	anansi.MustRun(term.RunWith(func(term *anansi.Term) error {
+		for {
+			// process any (maybe partial) input first before stopping on error
+			_, err := term.ReadMore()
+
+			i := 0
+			for e, a, ok := term.Decode(); ok; e, a, ok = term.Decode() {
+				if !e.IsEscape() {
+					fmt.Printf("read[%v]: %q\n", i, rune(e))
+				} else if a != nil {
+					fmt.Printf("read[%v]: %v %q\n", i, e, a)
+				} else {
+					fmt.Printf("read[%v]: %v\n", i, e)
+				}
+				i++
+			}
+
+			if err != nil {
+				return err // likely io.EOF
+			}
+		}
+	}))
+}
+
+// Reading input in non-blocking mode 10 times a second, like an animated
+// frame-rendering-loop program might.
+func ExampleInput_nonblocking() {
+	// We need to handle these signals so that we restore terminal state
+	// properly (raw mode and exit the alternate screen).
+	halt := anansi.Notify(syscall.SIGTERM, syscall.SIGINT)
+
+	term := anansi.NewTerm(os.Stdin, os.Stdout, &halt)
+
+	// run in a dedicated fullscreen, and handle input as it comes in
+	term.SetRaw(true)
+	term.AddMode(ansi.ModeAlternateScreen)
+
+	anansi.MustRun(term.RunWith(func(term *anansi.Term) error {
+		for range time.Tick(time.Second / 10) {
+			// poll for halting signal before reading input
+			if err := halt.AsErr(); err != nil {
+				return err
+			}
+
+			// process any (maybe partial) input first before stopping on error
+			// NOTE the need for CR below since we're in raw mode
+			_, err := term.ReadAny()
+
+			i := 0
+			for e, a, ok := term.Decode(); ok; e, a, ok = term.Decode() {
+				if e == 0x03 {
+					return fmt.Errorf("read %v", e) // stop on Ctrl-C
+				} else if !e.IsEscape() {
+					fmt.Printf("read[%v]: %q\r\n", i, rune(e))
+				} else if a != nil {
+					fmt.Printf("read[%v]: %v %q\r\n", i, e, a)
+				} else {
+					fmt.Printf("read[%v]: %v\r\n", i, e)
+				}
+				i++
+			}
+
+			if err != nil {
+				return err // likely io.EOF
+			}
+		}
+		return nil
+	}))
+}
+
+// Reading input driven by asynchronous notifications (and doing so in the
+// normative non-blocking way). This is another option for a fullscreen program
+// when there's no need for an animation frame rendering loop or when input is
+// processed independently from one.
+func ExampleInput_nonblockingAsync() {
+	// We need to handle these signals so that we restore terminal state
+	// properly (raw mode and exit the alternate screen).
+	halt := anansi.Notify(syscall.SIGTERM, syscall.SIGINT)
+
+	term := anansi.NewTerm(os.Stdin, os.Stdout, &halt)
+
+	// run in a dedicated fullscreen, and handle input as it comes in
+	term.SetRaw(true)
+	term.AddMode(ansi.ModeAlternateScreen)
+
+	anansi.MustRun(term.RunWith(func(term *anansi.Term) error {
+		canRead := make(chan os.Signal, 1)
+		if err := term.Notify(canRead); err != nil {
+			return err
+		}
+
+		for {
+			select {
+
+			case sig := <-halt.C:
+				return anansi.SigErr(sig)
+
+			case <-canRead:
+				// process any (maybe partial) input first before stopping on error
+				// NOTE the need for CR below since we're in raw mode
+				_, err := term.ReadAny()
+
+				i := 0
+				for e, a, ok := term.Decode(); ok; e, a, ok = term.Decode() {
+					if e == 0x03 {
+						return fmt.Errorf("read %v", e) // stop on Ctrl-C
+					} else if !e.IsEscape() {
+						fmt.Printf("read[%v]: %q\r\n", i, rune(e))
+					} else if a != nil {
+						fmt.Printf("read[%v]: %v %q\r\n", i, e, a)
+					} else {
+						fmt.Printf("read[%v]: %v\r\n", i, e)
+					}
+					i++
+				}
+
+				if err != nil {
+					return err // likely io.EOF
+				}
+			}
+		}
+	}))
 }

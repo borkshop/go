@@ -13,11 +13,17 @@ import (
 	anansitest "github.com/jcorbin/anansi/test"
 )
 
+func makeTestBitmap(set string, lines ...string) Bitmap {
+	var bi Bitmap
+	bi.Load(MustParseBitmap(set, lines...))
+	return bi
+}
+
 func TestWriteBitmap(t *testing.T) {
 	for _, tc := range []struct {
 		name     string
 		sz       image.Point
-		bi       *Bitmap
+		bi       Bitmap
 		outLines []string
 		styles   []Style
 	}{
@@ -25,7 +31,7 @@ func TestWriteBitmap(t *testing.T) {
 		{
 			name: "basic test pattern",
 			sz:   image.Pt(2, 2),
-			bi: NewBitmap(MustParseBitmap("# ",
+			bi: makeTestBitmap("# ",
 				"# . # . ",
 				". # . # ",
 				"# . # . ",
@@ -34,7 +40,7 @@ func TestWriteBitmap(t *testing.T) {
 				". # . # ",
 				"# . # . ",
 				". # . # ",
-			)),
+			),
 			outLines: []string{
 				"⢕⢕",
 				"⢕⢕",
@@ -44,7 +50,7 @@ func TestWriteBitmap(t *testing.T) {
 		{
 			name: "basic test pattern",
 			sz:   image.Pt(3, 3),
-			bi: NewBitmap(MustParseBitmap("# ",
+			bi: makeTestBitmap("# ",
 				"# . # . ",
 				". # . # ",
 				"# . # . ",
@@ -53,7 +59,7 @@ func TestWriteBitmap(t *testing.T) {
 				". # . # ",
 				"# . # . ",
 				". # . # ",
-			)),
+			),
 			outLines: []string{
 				"⢕⢕ ",
 				"⢕⢕ ",
@@ -76,14 +82,14 @@ func testWithScreenModes(
 ) func(t *testing.T) {
 	return func(t *testing.T) {
 		t.Run("direct to anansi.Screen", func(t *testing.T) {
-			var sc Screen
+			var sc ScreenDiffer
 			sc.Resize(sz)
 			require.NoError(t, f(t, &sc))
 			outLines := anansitest.GridLines(sc.Grid, ' ')
 			assert.Equal(t, outLines, outLines)
 		})
 		t.Run("buffered flush to anansi.Screen", func(t *testing.T) {
-			var sc Screen
+			var sc ScreenDiffer
 			sc.Resize(sz)
 			var buf bytes.Buffer
 			err := f(t, &buf)

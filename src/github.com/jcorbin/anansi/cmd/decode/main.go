@@ -9,7 +9,6 @@ import (
 	"io"
 	"log"
 	"os"
-	"os/signal"
 	"syscall"
 	"unicode/utf8"
 
@@ -26,21 +25,13 @@ var (
 
 func main() {
 	flag.Parse()
-	switch err := run(os.Stdin, os.Stdout); err {
-	case nil:
-	case io.EOF:
-		fmt.Println(err)
-	default:
-		log.Fatal(err)
-	}
+	anansi.MustRun(run(anansi.NewTerm(os.Stdin, os.Stdout)))
 }
 
-func run(in, out *os.File) error {
-	if !anansi.IsTerminal(in) || !anansi.IsTerminal(out) {
-		return runBatch(in, out)
+func run(term *anansi.Term) error {
+	if !term.IsTerminal() {
+		return runBatch(term.Input.File, term.Output.File)
 	}
-
-	term := anansi.NewTerm(out)
 
 	if *mouseMode {
 		term.AddMode(
@@ -56,8 +47,12 @@ func run(in, out *os.File) error {
 		)
 	}
 
-	term.SetEcho(!*rawMode)
-	term.SetRaw(*rawMode)
+	if err := term.SetEcho(!*rawMode); err != nil {
+		return err
+	}
+	if err := term.SetRaw(*rawMode); err != nil {
+		return err
+	}
 
 	return term.RunWith(runInteractive)
 }
@@ -141,23 +136,72 @@ func readMore(buf *bytes.Buffer, r io.Reader) error {
 	return err
 }
 
-func runInteractive(term *anansi.Term) (err error) {
-	in := anansi.Input{File: term.File}
-	for err == nil {
-		_, err = in.ReadMore()
-		for err == nil {
-			e, a := in.DecodeEscape()
-			if e == 0 {
-				r, ok := in.DecodeRune()
-				if !ok {
-					break
+func runInteractive(term *anansi.Term) error {
+	var (
+		stop      = anansi.Notify(syscall.SIGTERM, syscall.SIGHUP)
+		interrupt = anansi.Notify(syscall.SIGINT)
+		resize    = anansi.Notify(syscall.SIGWINCH)
+	)
+
+	type readData struct {
+		e   ansi.Escape
+		a   []byte
+		err error
+	}
+
+	input := make(chan readData)
+	go func() {
+		defer close(input)
+		for {
+			_, err := term.ReadMore()
+			for e, a, ok := term.Decode(); ok; e, a, ok = term.Decode() {
+				if a != nil {
+					a = append([]byte(nil), a...)
 				}
-				e = ansi.Escape(r)
+				input <- readData{e: e, a: a}
 			}
-			err = handle(term, e, a)
+			if err != nil {
+				input <- readData{err: err}
+				return
+			}
+		}
+	}()
+
+	stop.Open()
+	interrupt.Open()
+	resize.Open()
+
+	defer stop.Close()
+	defer interrupt.Close()
+	defer resize.Close()
+
+	for {
+		select {
+		case sig := <-stop.C:
+			return anansi.SigErr(sig)
+
+		case <-interrupt.C:
+			// synthesize and handle a ^C escape
+			if err := handle(term, 0x03, nil); err != nil {
+				return err
+			}
+
+		case <-resize.C:
+			if sz, err := term.Size(); err != nil {
+				fmt.Printf("[ resize err:%v ]", err)
+			} else {
+				fmt.Printf("[ resize size:%v ]", sz)
+			}
+
+		case in := <-input:
+			if in.err != nil {
+				return in.err
+			}
+			if err := handle(term, in.e, in.a); err != nil {
+				return err
+			}
 		}
 	}
-	return err
 }
 
 var prior ansi.Escape
@@ -208,7 +252,7 @@ func handle(term *anansi.Term, e ansi.Escape, a []byte) error {
 	// ^Z to suspend
 	case 0x1a:
 		if prior == 0x1a {
-			if err := term.RunWithout(suspend); err != nil {
+			if err := term.Suspend(); err != nil {
 				return err
 			}
 		} else if _, err := fmt.Printf(" \x1b[92m<press Ctrl-Z again to suspend>\x1b[0m"); err != nil {
@@ -221,16 +265,4 @@ func handle(term *anansi.Term, e ansi.Escape, a []byte) error {
 
 	_, err := fmt.Printf("\r\n")
 	return err
-}
-
-func suspend(_ *anansi.Term) error {
-	cont := make(chan os.Signal)
-	signal.Notify(cont, syscall.SIGCONT)
-	log.Printf("suspending")
-	if err := syscall.Kill(0, syscall.SIGTSTP); err != nil {
-		return err
-	}
-	<-cont
-	log.Printf("resumed")
-	return nil
 }

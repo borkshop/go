@@ -6,6 +6,8 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"os/signal"
+	"runtime"
 	"syscall"
 	"time"
 	"unicode/utf8"
@@ -26,6 +28,8 @@ type Input struct {
 	oldFlags uintptr
 	ateof    bool
 	nonblock bool
+	async    bool
+	sigio    chan os.Signal
 	buf      bytes.Buffer
 
 	rec    io.Writer
@@ -83,14 +87,57 @@ func (in *Input) AtEOF() bool {
 	return in.ateof
 }
 
-// DecodeEscape tries to decode an ANSI escape sequence from the internal byte
-// buffer; if the returned escape identifier is 0, then the user may proceed to
-// call DecodeRune().
+// Notify sets up async notification to the given channel, replacing (stopping
+// notifications to) any prior channel passed to Notify(). If the passed
+// channel is nil, async mode is disabled.
+func (in *Input) Notify(sigio chan os.Signal) error {
+	prior := in.sigio
+	in.sigio = sigio
+	if sigio != nil {
+		signal.Notify(in.sigio, syscall.SIGIO)
+	}
+	if prior != nil {
+		signal.Stop(prior)
+	}
+	return in.setAsync(sigio != nil)
+}
+
+// InputSignal is a convenience wrapper for using a Signal and Input.Notify
+// contextually.
+type InputSignal struct {
+	Signal
+}
+
+// Enter opens the signal, and sets up input notification.
+func (is *InputSignal) Enter(term *Term) error {
+	err := is.Open()
+	if err == nil {
+		err = term.Input.Notify(is.C)
+	}
+	return err
+}
+
+// Decode decodes the next available ANSI escape sequence or UTF8 rune from the
+// internal buffer filled by ReadMore or ReadAny. If the ok return value is
+// false, then none can be decoded without first reading more input.
 //
-// NOTE any returned argument slice becomes invalid after the next call to
-// DecodeEscape or DecodeRune; the caller must copy any bytes out if it needs
-// to retain them.
-func (in *Input) DecodeEscape() (e ansi.Escape, a []byte) {
+// The caller should call e.IsEscape() to tell the difference between
+// escape-sequence-signifying runes, and normal ones. Normal runes may then be
+// cast and handled ala `if !e.IsEscape() { r := rune(e) }`.
+//
+// NOTE any returned escape argument slice becomes invalid after the next call
+// to Decode; the caller MUST copy any bytes out if it needs to retain them.
+func (in *Input) Decode() (e ansi.Escape, a []byte, ok bool) {
+	if e, a := in.decodeEscape(); e != 0 {
+		return e, a, true
+	}
+	if r, ok := in.decodeRune(); ok {
+		return ansi.Escape(r), nil, true
+	}
+	return 0, nil, false
+}
+
+func (in *Input) decodeEscape() (e ansi.Escape, a []byte) {
 	if in.buf.Len() == 0 {
 		return 0, nil
 	}
@@ -101,13 +148,7 @@ func (in *Input) DecodeEscape() (e ansi.Escape, a []byte) {
 	return e, a
 }
 
-// DecodeRune tries to decode a complete non ANSI escape-sequence-related rune
-// from the internal buffer, returning it and true if possible.
-//
-// Otherwise it returns 0 and false, not advancing the internal byte buffer
-// beyond the partial control/rune so that DecodeEscape can have a chance to
-// decode it with future input.
-func (in *Input) DecodeRune() (rune, bool) {
+func (in *Input) decodeRune() (rune, bool) {
 	if in.buf.Len() == 0 {
 		return 0, false
 	}
@@ -116,7 +157,6 @@ func (in *Input) DecodeRune() (rune, bool) {
 		switch r {
 		case 0x90, 0x9B, 0x9D, 0x9E, 0x9F: // DCS, CSI, OSC, PM, APC
 			return 0, false
-		case utf8.RuneError:
 		case 0x1B: // ESC
 			if p := in.buf.Bytes(); len(p) == cap(p) && !in.ateof {
 				return 0, false
@@ -233,29 +273,33 @@ func (in *Input) ReadAny() (n int, err error) {
 	return n, err
 }
 
-// Enter retains the passed the terminal file handle if one isn't already,
-// returns an error otherwise.  Either way, it then gets the current fcntl
-// flags for restoration during exit, and parses them fur current state.
+// Enter gets the current fcntl flags for restoration during Exit(), and sets
+// non-blocking/async modes if needed.
 func (in *Input) Enter(term *Term) error {
-	if in.File != nil {
-		return errors.New("anansi.Input may only only be attached to one terminal")
+	prior, err := in.setFlags()
+	if err == nil {
+		in.oldFlags = prior
 	}
-	in.File = term.File
-	return in.getFlags()
+	return err
 }
 
-// Exit clears the retained file handle (only if it's the same as the
-// terminal's). File mode flags are restored to as they were at Enter time.
+// Exit restores fcntl flags to their Enter() time value.
 func (in *Input) Exit(term *Term) error {
-	if in.File != term.File {
+	if in.File == nil {
 		return nil
 	}
 	if _, _, err := in.fcntl(syscall.F_SETFL, in.oldFlags); err != nil {
-		return err
+		return fmt.Errorf("failed to set input file flags: %v", err)
 	}
-	in.oldFlags = 0
-	in.nonblock = false
-	in.File = nil
+	return nil
+}
+
+// Close stops any signal notification setup by Notify().
+func (in *Input) Close() error {
+	if in.sigio != nil {
+		signal.Stop(in.sigio)
+		in.sigio = nil
+	}
 	return nil
 }
 
@@ -299,33 +343,57 @@ func (in *Input) readBuf() []byte {
 	return p
 }
 
-func (in *Input) setNonblock(nonblock bool) error {
-	if nonblock != in.nonblock {
-		in.nonblock = nonblock
-		return in.setFlags()
+func (in *Input) setAsync(async bool) error {
+	if async == in.async {
+		return nil
+	}
+	in.async = async
+	if _, err := in.setFlags(); err != nil {
+		return err
+	}
+	if in.async && in.File != nil {
+		_, _, err := in.fcntl(syscall.F_SETOWN, uintptr(syscall.Getpid()))
+		if err != nil && runtime.GOOS != "darwin" {
+			return fmt.Errorf("failed to set input file owner: %v", err)
+		}
 	}
 	return nil
 }
 
-func (in *Input) getFlags() error {
-	flags, _, err := in.fcntl(syscall.F_GETFL, 0)
-	if err == nil {
-		in.oldFlags = flags
-		in.nonblock = flags&syscall.O_NONBLOCK != 0
+func (in *Input) setNonblock(nonblock bool) error {
+	if nonblock == in.nonblock {
+		return nil
 	}
+	in.nonblock = nonblock
+	_, err := in.setFlags()
 	return err
 }
 
-func (in *Input) setFlags() error {
-	var flags uintptr
-	flags, _, err := in.fcntl(syscall.F_GETFL, 0)
-	if err == nil {
-		if in.nonblock {
-			flags |= syscall.O_NONBLOCK
-		}
-		_, _, err = in.fcntl(syscall.F_SETFL, flags)
+func (in *Input) setFlags() (prior uintptr, _ error) {
+	if in.File == nil {
+		return 0, nil
 	}
-	return err
+	flags, _, err := in.fcntl(syscall.F_GETFL, 0)
+	if err != nil {
+		return 0, fmt.Errorf("failed to get input file flags: %v", err)
+	}
+	prior = flags
+	flags = in.buildFlags(flags)
+	_, _, err = in.fcntl(syscall.F_SETFL, flags)
+	if err != nil {
+		return prior, fmt.Errorf("failed to set input file flags: %v", err)
+	}
+	return prior, nil
+}
+
+func (in *Input) buildFlags(flags uintptr) uintptr {
+	if in.nonblock {
+		flags |= syscall.O_NONBLOCK
+	}
+	if in.async {
+		flags |= syscall.O_ASYNC
+	}
+	return flags
 }
 
 func (in *Input) fcntl(a2, a3 uintptr) (r1, r2 uintptr, err error) {
@@ -419,7 +487,17 @@ func ReadInputReplay(f *os.File) (InputReplay, error) {
 	}
 
 	for {
-		if e, a := in.DecodeEscape(); e == 0x9F { // APC
+		e, a, ok := in.Decode()
+		if !ok {
+			if _, err := in.ReadMore(); err == io.EOF {
+				push()
+				break
+			} else if err != nil {
+				return nil, err
+			}
+		}
+
+		if e == 0x9F { // APC
 			switch {
 			case bytes.HasPrefix(a, []byte("recTime:")):
 				push()
@@ -437,17 +515,12 @@ func ReadInputReplay(f *os.File) (InputReplay, error) {
 				prot.m = [2]int{off, len(bs)}
 				off = len(bs)
 			}
-		} else if e != 0 {
+		} else if e.IsEscape() {
 			bs = e.AppendWith(bs, a...)
-		} else if r, ok := in.DecodeRune(); ok {
+		} else {
 			var tmp [4]byte
-			n := utf8.EncodeRune(tmp[:], r)
+			n := utf8.EncodeRune(tmp[:], rune(e))
 			bs = append(bs, tmp[:n]...)
-		} else if _, err := in.ReadMore(); err == io.EOF {
-			push()
-			break
-		} else if err != nil {
-			return nil, err
 		}
 	}
 
