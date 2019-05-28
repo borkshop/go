@@ -1,7 +1,6 @@
 global.GoRunner = class {
 	// parseConfigData from an element's data-* attributes:
-	// - data-href may provide a build config URL alternative to the default
-	//   defaults build.json.
+	// - data-href optional URL to fetch the WASM binary, defaults to main.wasm.
 	// - data-status-selector may provide a dom query selector for a displaying
 	//   build errors and (re)running the Go main.
 	// - data-args may provide a JSON-encoded argument array to pass to the Go program.
@@ -11,7 +10,7 @@ global.GoRunner = class {
 	static parseConfigData(el) {
 		const cfg = {
 			el: null,
-			href: 'build.json',
+			href: 'main.wasm',
 			argv0: null,
 			args: null,
 			env: {},
