@@ -49,36 +49,47 @@ global.GoRunner = class {
 		this.args = cfg.args;
 		this.env = cfg.env;
 		this.argv0 = cfg.argv0;
-		this.data = null;
 		this.module = null;
 		this.load();
 	}
 
 	async load() {
+		const parseContentType = (resp) => {
+			const match = /^([^;]+)/.exec(resp.headers.get('Content-Type'));
+			return match ? match[1] : '';
+		};
+
+		const setTitle = (title) => {
+			if (document.title === 'Go Run') {
+				document.title += ': ' + title;
+			}
+		};
+
 		let resp = await fetch(this.href);
-		this.data = await resp.json();
-		if (document.title === 'Go Run') {
-			document.title += ': ' + this.data.Package.ImportPath;
-		}
-		if (this.el) {
-			this.el.innerHTML = `Building <tt>${this.data.Package.ImportPath}</tt>...`;
+		if (parseContentType(resp) === 'application/json') {
+			const data = await resp.json();
+			setTitle(data.Package.ImportPath);
+			if (this.el) {
+				this.el.innerHTML = `Building <tt>${data.Package.ImportPath}</tt>...`;
+			}
+			const basename = data.Package.Dir.split('/').pop();
+			if (!this.argv0) {
+				this.argv0 = basename + '.wasm';
+			}
+			resp = await fetch(data.Bin);
+		} else {
+			if (!this.argv0) {
+				const match = /\/([^\/]+$)/.exec(this.href);
+				this.argv0 = match ? match[1] : this.href;
+			}
+			setTitle(this.argv0);
 		}
 
-		const basename = this.data.Package.Dir.split('/').pop();
-		if (!this.argv0) {
-			this.argv0 = basename + '.wasm';
-		}
-
-		resp = await fetch(this.data.Bin);
-
-		const match = /^([^;]+)/.exec(resp.headers.get('Content-Type'));
-		switch (match && match[1]) {
-			case 'text/plain':
-				const el = this.el || document.body;
-				el.innerHTML = `<pre class="buildLog"></pre>`;
-				el.querySelector('pre').innerText = await resp.text();
-				return;
-			// case 'application/json': TODO support structured error response with
+		if (parseContentType(resp) === 'text/plain') { // TODO support text/html formatted error
+			const el = this.el || document.body;
+			el.innerHTML = `<pre class="buildLog"></pre>`;
+			el.querySelector('pre').innerText = await resp.text();
+			return;
 		}
 
 		this.module = await WebAssembly.compileStreaming(resp);
