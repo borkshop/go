@@ -10,6 +10,8 @@ type Resetter struct{}
 
 func (r Resetter) Reset(gen *bottle.Generation) {
 	for i := 0; i < len(gen.Grid); i++ {
-		gen.Grid[i].Plate = uint8(rand.Intn(bottle.NumPlates))
+		plate := rand.Intn(bottle.NumPlates)
+		gen.Grid[i].Plate = uint8(plate)
+		gen.PlateSizes[plate]++
 	}
 }

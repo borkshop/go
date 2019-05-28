@@ -12,6 +12,7 @@ func (Pre) Tick(next, prev *bottle.Generation) {
 	next.WaterCoverage = 0
 	next.EarthFlow = 0
 	next.WaterFlow = 0
+	next.QuakeFlow = 0
 	next.PlateSizes = [bottle.NumPlates]int{}
 	for i := 0; i < len(next.Grid); i++ {
 		next.Grid[i].Random = prev.Grid[i].Random

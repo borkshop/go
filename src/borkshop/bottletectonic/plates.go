@@ -7,17 +7,13 @@ import (
 	"math/rand"
 )
 
-type Simulation struct {
+type Plates struct {
 	Scale hilbert.Scale
 }
 
-var _ bottle.Ticker = (*Simulation)(nil)
+var _ bottle.Ticker = (*Plates)(nil)
 
-func (sim *Simulation) Tick(next, prev *bottle.Generation) {
-	for i := 0; i < len(next.Grid); i++ {
-		next.Grid[i].Earth = prev.Grid[i].Earth
-	}
-
+func (sim *Plates) Tick(next, prev *bottle.Generation) {
 	var pt image.Point
 	for pt.Y = 0; pt.Y < int(sim.Scale); pt.Y++ {
 		for pt.X = 0; pt.X < int(sim.Scale); pt.X++ {
@@ -46,6 +42,10 @@ func (sim *Simulation) Tick(next, prev *bottle.Generation) {
 				// globally in the previous generation.
 				weights[i] = weight * weight * (int(sim.Scale*sim.Scale) - prev.PlateSizes[i])
 				total += weights[i]
+			}
+
+			if total == 0 {
+				continue
 			}
 
 			// Chose a random plate, weighted by local and global statistics.

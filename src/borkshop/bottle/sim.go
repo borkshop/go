@@ -11,7 +11,7 @@ import (
 
 // NumPlates is the number of tectonic plate classes, by shared direction of
 // movement.
-const NumPlates = 17
+const NumPlates = 5
 
 // Cell is a unit of the cellular automaton.
 type Cell struct {
@@ -36,6 +36,7 @@ type Generation struct {
 	WaterStats          bottlestats.Stats
 	EarthFlow           int
 	WaterFlow           int
+	QuakeFlow           int
 	PlateSizes          [NumPlates]int
 
 	WaterCoverage           int

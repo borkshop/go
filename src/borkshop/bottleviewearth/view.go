@@ -10,11 +10,7 @@ import (
 	"github.com/jcorbin/anansi/ansi"
 )
 
-var (
-	black = color.Black
-	brown = color.RGBA{205, 178, 117, 0}
-	// brown = color.RGBA{155, 78, 17, 0}
-)
+var white = color.RGBA{0xff, 0xff, 0xff, 0}
 
 func New(scale int) *View {
 	rect := image.Rect(0, 0, scale, scale)
@@ -67,6 +63,6 @@ func (v *View) draw(gen *bottle.Generation) {
 		}
 	}
 
-	draw.Draw(v.color, rect, &image.Uniform{black}, image.ZP, draw.Over)
-	draw.DrawMask(v.color, rect, &image.Uniform{brown}, image.ZP, v.earth, image.ZP, draw.Over)
+	draw.Draw(v.color, rect, &image.Uniform{color.Black}, image.ZP, draw.Over)
+	draw.DrawMask(v.color, rect, &image.Uniform{white}, image.ZP, v.earth, image.ZP, draw.Over)
 }

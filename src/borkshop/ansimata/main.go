@@ -6,9 +6,11 @@ import (
 	"borkshop/bottlepid"
 	"borkshop/bottlesimstats"
 	"borkshop/bottletectonic"
-	"borkshop/bottletoposimplex"
 	"borkshop/bottleview"
+	"borkshop/bottleviewearth"
 	"borkshop/bottleviewplate"
+	"borkshop/bottleviewtopo"
+	"borkshop/bottleviewwater"
 	"borkshop/bottlewatercoverage"
 	"borkshop/bottlewatershed"
 	"borkshop/hilbert"
@@ -49,12 +51,17 @@ func main() {
 }
 
 func newView() *view {
-	const scale = 256
+	const scale = 128
 	rect := image.Rect(0, 0, scale, scale)
-	tectonic := &bottletectonic.Simulation{
+	plates := &bottletectonic.Plates{
 		Scale: hilbert.Scale(scale),
 	}
-	mudslide := &bottlemudslide.Simulation{
+	quakes := &bottletectonic.Quakes{
+		Scale:     hilbert.Scale(scale),
+		Magnitude: 1,
+		// Disabled:  true,
+	}
+	mudSlide := &bottlemudslide.Simulation{
 		Scale:  hilbert.Scale(scale),
 		Repose: 2,
 	}
@@ -66,13 +73,14 @@ func newView() *view {
 			Proportional: bottlepid.G(0xff, 1),
 			Integral:     bottlepid.G(1, 1),
 			Differential: bottlepid.G(1, 1),
-			Value:        scale * scale / 3,
+			Value:        scale * scale / 2,
 			Min:          -0xffffffff,
 			Max:          0xffffffff,
 		},
 	}
 	res := bottle.Resetters{
-		bottletoposimplex.New(scale),
+		// bottletower.Resetter{Scale: scale},
+		// bottletoposimplex.New(scale),
 		bottletectonic.Resetter{},
 		// bottleflood.New(scale, 0),
 	}
@@ -81,14 +89,24 @@ func newView() *view {
 	res.Reset(prev)
 	ticker := bottle.Tickers{
 		bottlesimstats.Pre{},
-		tectonic,
-		mudslide,
+		mudSlide,
+		plates,
+		quakes,
 		watershed,
 		waterCoverage,
 		bottlesimstats.Post{},
 	}
-	// topo := bottleviewtopo.New(scale)
-	plate := bottleviewplate.New(scale)
+
+	_ = plates
+	_ = quakes
+	_ = watershed
+
+	// Views
+	topoView := bottleviewtopo.New(scale)
+	plateView := bottleviewplate.New(scale)
+	earthView := bottleviewearth.New(scale)
+	waterView := bottleviewwater.New(scale)
+
 	return &view{
 		rect:          rect,
 		ticker:        ticker,
@@ -96,7 +114,12 @@ func newView() *view {
 		waterCoverage: waterCoverage,
 		prev:          prev,
 		next:          next,
-		view:          plate,
+
+		earthView: earthView,
+		waterView: waterView,
+		plateView: plateView,
+		topoView:  topoView,
+		view:      topoView,
 	}
 }
 
@@ -105,8 +128,15 @@ type view struct {
 	ticker        bottle.Ticker
 	resetter      bottle.Resetter
 	waterCoverage *bottlewatercoverage.Simulation
-	view          bottleview.View
 	next, prev    *bottle.Generation
+
+	ticking int
+
+	view      bottleview.View
+	earthView bottleview.View
+	waterView bottleview.View
+	plateView bottleview.View
+	topoView  bottleview.View
 }
 
 func (v *view) Update(ctx *platform.Context) (err error) {
@@ -124,18 +154,42 @@ func (v *view) Update(ctx *platform.Context) (err error) {
 		}()
 	}
 
-	for i := 0; i < 1; i++ {
+	switch {
+	case ctx.Input.CountRune('E') > 0:
+		v.view = v.earthView
+	case ctx.Input.CountRune('W') > 0:
+		v.view = v.waterView
+	case ctx.Input.CountRune('P') > 0:
+		v.view = v.plateView
+	case ctx.Input.CountRune('T') > 0:
+		v.view = v.topoView
+	}
+
+	v.ticking += ctx.Input.CountRune('p')
+	var ticks int
+	if v.ticking%2 == 0 {
+		ticks = 1
+	}
+	ticks += ctx.Input.CountRune('n')
+
+	if ctx.Input.CountRune('r') > 0 {
+		v.resetter.Reset(v.prev)
+		v.resetter.Reset(v.next)
+	}
+
+	for i := 0; i < ticks; i++ {
 		v.ticker.Tick(v.next, v.prev)
 		v.next, v.prev = v.prev, v.next
 	}
+
 	v.view.Draw(ctx.Output, ctx.Output.Grid.Rect, v.next, image.ZP)
 
 	gen := v.next
 	screen := ctx.Output
 	screen.To(ansi.Pt(1, 1))
-	screen.WriteString(fmt.Sprintf("EarthElevation %d...%d\r\n", gen.EarthElevationStats.Min, gen.EarthElevationStats.Max))
-	screen.WriteString(fmt.Sprintf("WaterElevation %d...%d\r\n", gen.WaterElevationStats.Min, gen.WaterElevationStats.Max))
-	screen.WriteString(fmt.Sprintf("Water %d...%d\r\n", gen.WaterStats.Min, gen.WaterStats.Max))
+	screen.WriteString(fmt.Sprintf("EarthElevation %d...%f...%d\r\n", gen.EarthElevationStats.Min, gen.EarthElevationStats.Mean(), gen.EarthElevationStats.Max))
+	screen.WriteString(fmt.Sprintf("WaterElevation %d...%f...%d\r\n", gen.WaterElevationStats.Min, gen.WaterElevationStats.Mean(), gen.WaterElevationStats.Max))
+	screen.WriteString(fmt.Sprintf("Water %d...%f...%d\r\n", gen.WaterStats.Min, gen.WaterStats.Mean(), gen.WaterStats.Max))
 	screen.WriteString(fmt.Sprintf("WaterCoverage %d\r\n", gen.WaterCoverage))
 	screen.WriteString(fmt.Sprintf("     Converge %d\r\n", v.waterCoverage.Controller.Value))
 	screen.WriteString(fmt.Sprintf(" C %d\r\n", gen.WaterCoverageController.Proportional))
@@ -144,6 +198,7 @@ func (v *view) Update(ctx *platform.Context) (err error) {
 	screen.WriteString(fmt.Sprintf(" D %d\r\n", gen.WaterCoverageController.Control))
 	screen.WriteString(fmt.Sprintf("WaterFlow %d\r\n", gen.WaterFlow))
 	screen.WriteString(fmt.Sprintf("EarthFlow %d\r\n", gen.EarthFlow))
+	screen.WriteString(fmt.Sprintf("QuakeFlow %d\r\n", gen.QuakeFlow))
 	for i := 0; i < bottle.NumPlates; i++ {
 		screen.WriteString(fmt.Sprintf("Plate[%d] %d\r\n", i, gen.PlateSizes[i]))
 	}

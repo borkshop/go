@@ -3,6 +3,7 @@ package bottlemudslide
 import (
 	"borkshop/bottle"
 	"borkshop/hilbert"
+	"borkshop/repose"
 	"image"
 )
 
@@ -27,62 +28,40 @@ func (sim *Simulation) Tick(next, prev *bottle.Generation) {
 			lon := &next.Grid[sim.Scale.Encode(pt.Add(image.Pt(0, 1)))]
 
 			// Settle slopes to angle of repose
-			{
-				latdel := (cel.Earth - lat.Earth)
-				londel := (cel.Earth - lon.Earth)
-				latmag := mag(latdel)
-				lonmag := mag(londel)
+			latdel := (cel.Earth - lat.Earth)
+			londel := (cel.Earth - lon.Earth)
+			latmag := mag(latdel)
+			lonmag := mag(londel)
 
-				var latlon LatOrLon
-				switch {
-				case latmag <= sim.Repose && lonmag <= sim.Repose:
-					latlon = LatNorLon
-				case latmag > sim.Repose && lonmag <= sim.Repose:
-					latlon = Lat
-				case latmag <= sim.Repose && lonmag > sim.Repose:
-					latlon = Lon
-				case latmag > lonmag:
-					latlon = Lat
-				case latmag < lonmag:
-					latlon = Lon
-				case cel.Random.Uint64()&1 == 0:
-					latlon = Lat
-				default:
-					latlon = Lon
-				}
+			var latlon LatOrLon
+			switch {
+			case latmag <= sim.Repose && lonmag <= sim.Repose:
+				latlon = LatNorLon
+			case latmag > sim.Repose && lonmag <= sim.Repose:
+				latlon = Lat
+			case latmag <= sim.Repose && lonmag > sim.Repose:
+				latlon = Lon
+			case latmag > lonmag:
+				latlon = Lat
+			case latmag < lonmag:
+				latlon = Lon
+			case cel.Random.Uint64()&1 == 0:
+				latlon = Lat
+			default:
+				latlon = Lon
+			}
 
-				switch latlon {
-				case Lat:
-					latdel = clamp(latdel, -1, 1)
-					cel.Earth -= latdel
-					lat.Earth += latdel
-					next.EarthFlow += mag(latdel)
-				case Lon:
-					londel = clamp(londel, -1, 1)
-					cel.Earth -= londel
-					lon.Earth += londel
-					next.EarthFlow += mag(londel)
-				}
+			var flow int
+			switch latlon {
+			case Lat:
+				cel.Earth, lat.Earth, flow = repose.Slide(cel.Earth, lat.Earth, sim.Repose)
+				next.EarthFlow += flow
+			case Lon:
+				cel.Earth, lon.Earth, flow = repose.Slide(cel.Earth, lon.Earth, sim.Repose)
+				next.EarthFlow += flow
 			}
 		}
 	}
-}
-
-func mag(n int) int {
-	if n < 0 {
-		return -n
-	}
-	return n
-}
-
-func clamp(n, min, max int) int {
-	if n < min {
-		return min
-	}
-	if n > max {
-		return max
-	}
-	return n
 }
 
 type LatOrLon int
@@ -92,3 +71,10 @@ const (
 	Lat
 	Lon
 )
+
+func mag(n int) int {
+	if n < 0 {
+		return -n
+	}
+	return n
+}

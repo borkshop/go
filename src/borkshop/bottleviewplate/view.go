@@ -15,8 +15,8 @@ var colors [bottle.NumPlates]color.RGBA
 func newColor(over, under int) color.RGBA {
 	r, g, b := hsluv.HsluvToRGB(
 		360*float64(over)/float64(under),
-		75,
-		50,
+		100,
+		30,
 	)
 	return color.RGBA{
 		uint8(r * 0xff),
