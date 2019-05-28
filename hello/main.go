@@ -1,6 +1,6 @@
 // +build js
 
-// package main implements a simple hello prompter.
+// Package main implements a simple hello prompter.
 package main
 
 import (
