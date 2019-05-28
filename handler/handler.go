@@ -1,3 +1,4 @@
+// Package handler implements a dynamic wasm building http.Handler.
 package handler
 
 import (
