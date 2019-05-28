@@ -1,5 +1,7 @@
 # `gorunwasm` -- an HTTP Server Wrapper For Go
 
+[![GoDoc](https://godoc.org/github.com/jcorbin/gorunwasm?status.svg)](https://godoc.org/github.com/jcorbin/gorunwasm)
+
 ## Demo
 
 [`hello/index.html`](hello/index.html):
