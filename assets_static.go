@@ -1,4 +1,4 @@
-// +build !js,!dev
+// +build !dev
 
 package main
 

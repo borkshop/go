@@ -10,7 +10,7 @@ import (
 	"text/template"
 )
 
-var tmpl = template.Must(template.New("").Parse(`// +build !js,!dev
+var tmpl = template.Must(template.New("").Parse(`// +build !dev
 
 package main
 
