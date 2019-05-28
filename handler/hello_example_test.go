@@ -11,7 +11,7 @@ var (
 	document = js.Global().Get("document")
 )
 
-func Example_hello_world() {
+func ExampleHello() {
 	window.Call("addEventListener", "DOMContentLoaded", js.FuncOf(contentLoaded))
 }
 
