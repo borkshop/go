@@ -31,7 +31,7 @@ func Encode(pt image.Point, scale int) int {
 		h += s * ((3 * rotation.X) ^ rotation.Y)
 		pt = rotate(pt, s, rotation)
 	}
-	return h
+	return h & (scale*scale - 1)
 }
 
 // Decode returns the point corresponding to a given position along a Hilbert
