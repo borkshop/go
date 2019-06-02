@@ -62,14 +62,14 @@ func newApp() *App {
 }
 
 func (a *App) Update(ctx *imContext) (err error) {
-	if ctx.input == 'p' {
+	if ctx.key.press == 'p' {
 		a.ticking++
 	}
 	var ticks int
 	if a.ticking%2 == 1 {
 		ticks = 1
 	}
-	if ctx.input == 'n' {
+	if ctx.key.press == 'n' {
 		ticks++
 	}
 
@@ -77,7 +77,7 @@ func (a *App) Update(ctx *imContext) (err error) {
 		a.automaton.Tick()
 	}
 
-	switch ctx.input {
+	switch ctx.key.press {
 	case 'P':
 		a.view = a.platesView
 	case 'E':

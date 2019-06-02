@@ -24,9 +24,9 @@ type imClient interface {
 type imContext struct {
 	client imClient
 
-	input  rune
-	screen *image.RGBA
-	info   bytes.Buffer
+	// TODO animation/simulation time
+	imInput
+	imOutput
 
 	// bindings
 	anim        frameAnimator
@@ -35,6 +35,19 @@ type imContext struct {
 	renderCtx   js.Value
 
 	done chan error
+}
+
+type imInput struct {
+	key struct {
+		press rune
+		// TODO down buttons
+	}
+	// TODO mouse struct {}
+}
+
+type imOutput struct {
+	screen *image.RGBA // TODO clarify screen-space vs cell-space
+	info   bytes.Buffer
 }
 
 func (ctx *imContext) Run(client imClient) error {
@@ -82,19 +95,13 @@ func (ctx *imContext) Init(client imClient) (err error) {
 }
 
 func (ctx *imContext) onKeyPress(this js.Value, args []js.Value) interface{} {
-	event := args[0]
-	ctx.clearInput()
-	for _, r := range event.Get("key").String() {
-		ctx.input = r
-		break
-	}
+	ctx.imInput.onKeyPress(this, args)
 	ctx.Update(ctx.client)
 	ctx.Render()
 	return nil
 }
 
 func (ctx *imContext) animate(now float64) {
-	ctx.clearInput()
 	ctx.Update(ctx.client)
 	ctx.Render()
 }
@@ -109,10 +116,15 @@ func (ctx *imContext) Wait() error {
 }
 
 func (ctx *imContext) Update(client imClient) {
-	ctx.clearOutput()
+	// clear output so that client may rebuild it
+	ctx.imOutput.clear()
+
 	if err := client.Update(ctx); err != nil {
 		ctx.done <- err
 	}
+
+	// clear one-shot input that's now been processed by the client
+	ctx.imInput.clear()
 }
 
 func (ctx *imContext) Render() {
@@ -130,19 +142,28 @@ func (ctx *imContext) Render() {
 	ctx.renderCtx.Call("putImageData", img, 0, 0)
 }
 
-func (ctx *imContext) infof(mess string, args ...interface{}) {
-	_, _ = fmt.Fprintf(&ctx.info, mess, args...)
+func (in *imInput) clear() {
+	in.key.press = 0
 }
 
-func (ctx *imContext) clearInput() {
-	ctx.input = 0
-}
-
-func (ctx *imContext) clearOutput() {
-	for i := range ctx.screen.Pix {
-		ctx.screen.Pix[i] = 0
+func (in *imInput) onKeyPress(this js.Value, args []js.Value) interface{} {
+	event := args[0]
+	for _, r := range event.Get("key").String() {
+		in.key.press = r
+		break
 	}
-	ctx.info.Reset()
+	return nil
+}
+
+func (out *imOutput) clear() {
+	for i := range out.screen.Pix {
+		out.screen.Pix[i] = 0
+	}
+	out.info.Reset()
+}
+
+func (out *imContext) infof(mess string, args ...interface{}) {
+	_, _ = fmt.Fprintf(&out.info, mess, args...)
 }
 
 func getEnvSelector(name string) (js.Value, error) {
