@@ -150,8 +150,6 @@ func (ctx *imContext) Render() {
 	// TODO can we just retain this image object between renders?
 	img := ImageData.New(Uint8ClampedArray.New(ar), size.X, size.Y)
 
-	ctx.canvas.Set("width", size.X)
-	ctx.canvas.Set("height", size.Y)
 	ctx.renderCtx.Call("putImageData", img, 0, 0)
 }
 
