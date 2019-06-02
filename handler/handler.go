@@ -30,14 +30,18 @@ type WASMHandler struct {
 	ctxt   build.Context
 	path   string
 
-	pkg      build.Package
-	pkgTime  time.Time
+	pkg      map[entry]*build.Package
+	pkgTime  map[entry]time.Time
 	wasmExec string // class Go implemented by $GOROOT/misc/wasm_exec.js
 
 	wasm     *os.File
 	wasmOk   bool
 	wasmTime time.Time
 	wasmLog  bytes.Buffer
+}
+
+type entry struct {
+	srcDir, path string
 }
 
 // NewWASMHandler creates a WASMHandler for a given package path and source
@@ -51,6 +55,8 @@ func NewWASMHandler(srcDir, path string) (*WASMHandler, error) {
 	wh.ctxt.GOOS = "js"
 	wh.path = path
 	wh.wasmExec = filepath.Join(wh.ctxt.GOROOT, "misc", "wasm", "wasm_exec.js")
+	wh.pkg = make(map[entry]*build.Package)
+	wh.pkgTime = make(map[entry]time.Time)
 	if err := wh.refreshPackage(); err != nil {
 		return nil, err
 	}
@@ -70,7 +76,7 @@ func (wh *WASMHandler) WASMExec() string {
 func (wh *WASMHandler) PackageDir() string {
 	wh.mu.RLock()
 	defer wh.mu.RUnlock()
-	return wh.pkg.Dir
+	return wh.pkg[entry{wh.srcDir, wh.path}].Dir
 }
 
 // Close removes any temporary built wasm binary.
@@ -156,7 +162,7 @@ func (wh *WASMHandler) serveJSON(w http.ResponseWriter, req *http.Request) {
 	}
 	if err := json.NewEncoder(w).Encode(struct {
 		Context builtContext
-		Package build.Package
+		Package *build.Package
 	}{builtContext{
 		wh.ctxt.GOARCH,
 		wh.ctxt.GOOS,
@@ -168,7 +174,7 @@ func (wh *WASMHandler) serveJSON(w http.ResponseWriter, req *http.Request) {
 		wh.ctxt.BuildTags,
 		wh.ctxt.ReleaseTags,
 		wh.ctxt.InstallSuffix,
-	}, wh.pkg}); err != nil {
+	}, wh.pkg[entry{wh.srcDir, wh.path}]}); err != nil {
 		http.Error(w, fmt.Sprintf("Failed to marshal json: %v", err), http.StatusInternalServerError)
 	}
 }
@@ -220,7 +226,7 @@ func (wh *WASMHandler) build() error {
 	wh.wasmLog.Reset()
 	wh.wasmLog.Grow(64 * 1024)
 
-	importPath := wh.path
+	importPath := wh.pkg[entry{wh.srcDir, wh.path}].ImportPath
 	cmd := exec.Command("go", "build", "-o", "/dev/stdout", importPath)
 	cmd.Env = wh.buildEnv()
 	cmd.Stdout = pw
@@ -277,9 +283,11 @@ func (wh *WASMHandler) buildNeeded() (bool, error) {
 
 func (wh *WASMHandler) pkgModTime() (time.Time, error) {
 	var mtc modTimeChecker
-	mtc.offer(wh.pkgTime)
-	mtc.check(wh.pkg.Dir)
-	for _, path := range wh.pkg.GoFiles {
+	ent := entry{wh.srcDir, wh.path}
+	pkg := wh.pkg[ent]
+	mtc.offer(wh.pkgTime[ent])
+	mtc.check(pkg.Dir)
+	for _, path := range pkg.GoFiles {
 		mtc.check(path)
 	}
 	return mtc.t, mtc.err
@@ -312,12 +320,13 @@ func (wh *WASMHandler) refreshPackage() error {
 	if wh.path == "" {
 		return errors.New("no package path set")
 	}
-	pkg, err := wh.ctxt.Import(wh.path, wh.srcDir, 0)
+	ent := entry{wh.srcDir, wh.path}
+	pkg, err := wh.ctxt.Import(ent.path, ent.srcDir, 0)
 	if err != nil {
 		return fmt.Errorf("failed to import %q: %v", wh.path, err)
 	}
-	wh.pkg = *pkg
-	wh.pkgTime = time.Now()
+	wh.pkg[ent] = pkg
+	wh.pkgTime[ent] = time.Now()
 	return nil
 }
 
