@@ -277,7 +277,7 @@ func (wh *WASMHandler) buildNeeded() (bool, error) {
 
 func (wh *WASMHandler) pkgModTime() (time.Time, error) {
 	var mtc modTimeChecker
-	mtc.t = wh.pkgTime
+	mtc.offer(wh.pkgTime)
 	mtc.check(wh.pkg.Dir)
 	for _, path := range wh.pkg.GoFiles {
 		mtc.check(path)
@@ -348,6 +348,12 @@ type modTimeChecker struct {
 	err error
 }
 
+func (mtc *modTimeChecker) offer(t time.Time) {
+	if mtc.t.IsZero() || t.After(mtc.t) {
+		mtc.t = t
+	}
+}
+
 func (mtc *modTimeChecker) check(paths ...string) {
 	for _, path := range paths {
 		if mtc.err != nil {
@@ -358,8 +364,6 @@ func (mtc *modTimeChecker) check(paths ...string) {
 			mtc.err = err
 			return
 		}
-		if it := info.ModTime(); mtc.t.IsZero() || it.After(mtc.t) {
-			mtc.t = it
-		}
+		mtc.offer(info.ModTime())
 	}
 }
