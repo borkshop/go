@@ -1,6 +1,7 @@
 package handler
 
 import (
+	"go/build"
 	"net/http"
 	"os"
 	"path/filepath"
@@ -47,6 +48,20 @@ func (wh *WASMHandler) Mount(prefix string, mux *http.ServeMux) {
 // http.DefaultServeMux. The caller should defer a call WASMHandler.Close() to
 // ensure temporary file deletion.
 func Handle(prefix, srcDir, path string) (*WASMHandler, error) {
+	if srcDir == "" {
+		var err error
+		srcDir, err = os.Getwd()
+		if err != nil {
+			return nil, err
+		}
+
+		pkg, err := build.Default.Import(path, srcDir, 0)
+		if err != nil {
+			return nil, err
+		}
+		srcDir, path = pkg.Dir, "."
+	}
+
 	wh, err := NewWASMHandler(srcDir, path)
 	if err == nil {
 		wh.Mount(prefix, http.DefaultServeMux)
