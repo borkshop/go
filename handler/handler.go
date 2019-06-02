@@ -263,7 +263,13 @@ func (wh *WASMHandler) buildNeeded() (bool, error) {
 	}
 	mt, err := wh.pkgModTime()
 	if err != nil {
-		return false, fmt.Errorf("failed to get build package mod time: %v", err)
+		err = wh.refreshPackage()
+		if err == nil {
+			mt, err = wh.pkgModTime()
+		}
+		if err != nil {
+			return false, fmt.Errorf("failed to get build package mod time: %v", err)
+		}
 	}
 	return mt.After(wh.wasmTime), nil
 }
@@ -275,11 +281,7 @@ func (wh *WASMHandler) pkgModTime() (time.Time, error) {
 	for _, path := range wh.pkg.GoFiles {
 		mtc.check(path)
 	}
-	err := mtc.err
-	if err != nil {
-		err = wh.refreshPackage()
-	}
-	return mtc.t, err
+	return mtc.t, mtc.err
 }
 
 func (wh *WASMHandler) buildEnv() []string {
