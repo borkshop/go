@@ -41,10 +41,10 @@ type App struct {
 	ticking    int
 	automaton  *Automaton
 	view       View
-	platesView *AnansiPlatesView
-	earthView  *AnansiEarthView
-	waterView  *AnansiWaterView
-	mapView    *AnansiMapView
+	platesView *PlatesView
+	earthView  *EarthView
+	waterView  *WaterView
+	mapView    *MapView
 }
 
 type View interface {

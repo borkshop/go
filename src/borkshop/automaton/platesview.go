@@ -9,25 +9,25 @@ import (
 	"github.com/jcorbin/anansi/ansi"
 )
 
-type AnansiPlatesView struct {
+type PlatesView struct {
 	automaton *Automaton
 	image     *image.RGBA
 	colors    []color.RGBA
 }
 
-func NewAnansiPlatesView(automaton *Automaton) *AnansiPlatesView {
+func NewAnansiPlatesView(automaton *Automaton) *PlatesView {
 	image := image.NewRGBA(automaton.rect)
 	colors := make([]color.RGBA, automaton.numPlates)
 	writePlateColors(colors)
 
-	return &AnansiPlatesView{
+	return &PlatesView{
 		automaton: automaton,
 		image:     image,
 		colors:    colors,
 	}
 }
 
-func (v *AnansiPlatesView) Draw(screen *anansi.Screen, rect ansi.Rectangle) {
+func (v *PlatesView) Draw(screen *anansi.Screen, rect ansi.Rectangle) {
 	// TODO offset point
 	drawPlates(v.image, v.automaton.plates, v.automaton.points, v.colors)
 	drawAnansi(screen, rect, v.image)

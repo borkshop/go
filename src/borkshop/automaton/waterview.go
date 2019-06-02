@@ -7,20 +7,20 @@ import (
 	"github.com/jcorbin/anansi/ansi"
 )
 
-type AnansiWaterView struct {
+type WaterView struct {
 	automaton *Automaton
 	image     *image.RGBA
 }
 
-func NewAnansiWaterView(automaton *Automaton) *AnansiWaterView {
+func NewAnansiWaterView(automaton *Automaton) *WaterView {
 	image := image.NewRGBA(automaton.rect)
-	return &AnansiWaterView{
+	return &WaterView{
 		automaton: automaton,
 		image:     image,
 	}
 }
 
-func (v *AnansiWaterView) Draw(screen *anansi.Screen, rect ansi.Rectangle) {
+func (v *WaterView) Draw(screen *anansi.Screen, rect ansi.Rectangle) {
 	// TODO offset point
 	drawScale(v.image, v.automaton.water, v.automaton.waterStats, 0, 255, v.automaton.points)
 	drawAnansi(screen, rect, v.image)

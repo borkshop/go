@@ -15,18 +15,18 @@ var (
 	blue  = color.RGBA{20, 20, 64, 0}
 )
 
-type AnansiMapView struct {
+type MapView struct {
 	automaton *Automaton
 	img       *image.RGBA
 	earth     *image.RGBA
 	water     *image.RGBA
 }
 
-func NewAnansiMapView(automaton *Automaton) *AnansiMapView {
+func NewAnansiMapView(automaton *Automaton) *MapView {
 	img := image.NewRGBA(automaton.rect)
 	earth := image.NewRGBA(automaton.rect)
 	water := image.NewRGBA(automaton.rect)
-	return &AnansiMapView{
+	return &MapView{
 		automaton: automaton,
 		img:       img,
 		earth:     earth,
@@ -34,7 +34,7 @@ func NewAnansiMapView(automaton *Automaton) *AnansiMapView {
 	}
 }
 
-func (v *AnansiMapView) Draw(screen *anansi.Screen, rect ansi.Rectangle) {
+func (v *MapView) Draw(screen *anansi.Screen, rect ansi.Rectangle) {
 	draw.Draw(v.img, v.img.Rect, &image.Uniform{black}, image.ZP, draw.Over)
 
 	drawAlpha(v.earth, v.automaton.earth, v.automaton.earthStats, 0, 255, v.automaton.points)
