@@ -31,64 +31,6 @@ const (
 	UnsignedInt
 )
 
-var (
-	errNoCanvas  = errors.New("no canvas element given")
-	errNoContext = errors.New("unable to get webgl context")
-)
-
-func getContext(el js.Value) js.Value {
-	for _, contextType := range []string{"webgl", "experimental-webgl"} {
-		gl := el.Call("getContext", contextType)
-		if gl.Truthy() {
-			return gl
-		}
-	}
-	return js.Value{}
-}
-
-func NewCanvas(el js.Value) (*Canvas, error) {
-	if !el.Truthy() {
-		return nil, errNoCanvas
-	}
-
-	gl := getContext(el)
-	if gl.Truthy() {
-		return nil, errNoContext
-	}
-
-	can := Canvas{
-		can: el,
-		par: el.Get("parentNode"),
-		gl:  gl,
-	}
-
-	// TODO hookup resize event handler
-	can.updateSize()
-
-	return &can, nil
-}
-
-type Canvas struct {
-	can js.Value
-	par js.Value
-	gl  js.Value
-
-	shaders map[ShaderSource]js.Value
-}
-
-func (can *Canvas) updateSize() {
-	width := can.par.Get("clientWidth").Int()
-	height := can.par.Get("clientHeight").Int()
-	can.can.Set("width", width)
-	can.can.Set("height", height)
-}
-
-func (can *Canvas) Size() image.Point {
-	width := can.can.Get("width").Int()
-	height := can.can.Get("height").Int()
-	return image.Pt(width, height)
-}
-
 type ShaderSource struct {
 	Type   string
 	Source string
@@ -97,41 +39,106 @@ type ShaderSource struct {
 func VertexShader(source string) ShaderSource   { return ShaderSource{"VERTEX_SHADER", source} }
 func FragmentShader(source string) ShaderSource { return ShaderSource{"FRAGMENT_SHADER", source} }
 
-func (can *Canvas) compile(src ShaderSource) (js.Value, error) {
-	handle, defined := can.shaders[src]
-	if !defined {
-		handle = can.gl.Call("createShader", can.gl.Get(src.Type))
-		can.gl.Call("shaderSource", handle, src)
-		can.gl.Call("compileShader", handle)
-		if !can.gl.Call("getShaderParameter", handle, can.gl.Get("COMPILE_STATUS")).Bool() {
-			return handle, fmt.Errorf("could not compile %s: %v", src.Type,
-				can.gl.Call("getShaderInfoLog", handle).String())
-		}
-		can.shaders[src] = handle
-	}
-	return handle, nil
+type Canvas struct {
+	el js.Value
+	gl js.Value
+
+	shaders map[ShaderSource]js.Value
+	progs   []Program
 }
 
-func (can *Canvas) BuildProgram(srcs ...ShaderSource) (Program, error) {
-	prog := can.gl.Call("createProgram")
-	for _, src := range srcs {
+func (can *Canvas) Init(el js.Value) error {
+	if !el.Truthy() {
+		return errors.New("no canvas element given")
+	}
+	can.el = el
+
+	for _, contextType := range []string{
+		// TODO webgl2
+		"webgl",
+		"experimental-webgl",
+	} {
+		gl := el.Call("getContext", contextType)
+		if gl.Truthy() {
+			can.gl = gl
+			break
+		}
+	}
+	if can.gl.Truthy() {
+		return errors.New("unable to get webgl context")
+	}
+
+	return nil
+}
+
+func (can *Canvas) Release() {
+	for i := range can.progs {
+		can.progs[i].Release()
+	}
+	can.progs = can.progs[:0]
+
+	for key, shader := range can.shaders {
+		can.gl.Call("deleteShader", shader)
+		delete(can.shaders, key)
+	}
+}
+
+func (can *Canvas) Size() image.Point {
+	width := can.el.Get("width").Int()
+	height := can.el.Get("height").Int()
+	return image.Pt(width, height)
+}
+
+func (can *Canvas) Resize(size image.Point) {
+	can.el.Set("width", size.X)
+	can.el.Set("height", size.Y)
+}
+
+func (can *Canvas) Build(srcs ...ShaderSource) (prog Program, err error) {
+	// TODO dedupe?
+	prog.gl = can.gl
+	prog.srcs = srcs
+	prog.handle = can.gl.Call("createProgram")
+
+	for _, src := range prog.srcs {
 		shader, err := can.compile(src)
 		if err != nil {
 			return Program{}, err
 		}
-		can.gl.Call("attachShader", prog, shader)
+		prog.attach(shader)
 	}
 
-	var err error
-	p := Program{can.gl, prog, srcs}
-	can.gl.Call("linkProgram", p.handle)
-	can.gl.Call("validateProgram", p.handle)
+	err = prog.link()
+	return prog, err
+}
 
-	if !can.gl.Call("getProgramParameter", p.handle, can.gl.Get("LINK_STATUS")).Bool() {
-		infoLog := can.gl.Call("getProgramInfoLog", p.handle)
-		err = fmt.Errorf("could not link program: %v", infoLog.String())
+func (can *Canvas) compile(src ShaderSource) (js.Value, error) {
+	shader, defined := can.shaders[src]
+	if !defined {
+		shader = can.gl.Call("createShader", can.gl.Get(src.Type))
+		can.gl.Call("shaderSource", shader, src)
+		can.gl.Call("compileShader", shader)
+		if !can.gl.Call("getShaderParameter", shader, can.gl.Get("COMPILE_STATUS")).Bool() {
+			return shader, fmt.Errorf("could not compile %s: %v", src.Type,
+				can.gl.Call("getShaderInfoLog", shader).String())
+		}
+		can.shaders[src] = shader
 	}
-	return p, err
+	return shader, nil
+}
+
+func (prog Program) attach(shader js.Value) {
+	prog.gl.Call("attachShader", prog.handle, shader)
+}
+
+func (prog Program) link() error {
+	prog.gl.Call("linkProgram", prog.handle)
+	prog.gl.Call("validateProgram", prog.handle)
+	if !prog.gl.Call("getProgramParameter", prog.handle, prog.gl.Get("LINK_STATUS")).Bool() {
+		infoLog := prog.gl.Call("getProgramInfoLog", prog.handle)
+		return fmt.Errorf("could not link program: %v", infoLog.String())
+	}
+	return nil
 }
 
 type Program struct {
@@ -140,10 +147,17 @@ type Program struct {
 	srcs   []ShaderSource
 }
 
-func (prog *Program) Init(inst interface{}) error {
+func (prog *Program) Release() {
+	if prog.handle != js.Undefined() {
+		prog.gl.Call("deleteProgram", prog.handle)
+		prog.handle = js.Undefined()
+	}
+}
+
+func (prog *Program) Bind(inst interface{}) error {
 	val := reflect.ValueOf(inst)
 	if val.Kind() != reflect.Struct {
-		return errors.New("prog must be a struct")
+		return errors.New("gl.Program binding instance must be a struct")
 	}
 
 	// TODO integrate into building, reflect for source fields
@@ -187,34 +201,95 @@ func (prog *Program) Use() {
 	prog.gl.Call("useProgram", prog.handle)
 }
 
-func (prog *Program) DrawArrays(mode Mode, first, count int) {
-	prog.gl.Call("drawArrays", mode, first, count)
+func (prog *Program) DrawArrays(mode Mode, first, count int) error {
+	modeVal, err := mode.get(prog.gl)
+	if err == nil {
+		prog.gl.Call("drawArrays", modeVal, first, count)
+	}
+	return err
 }
 
-func (prog *Program) DrawElements(mode Mode, count int, typ Type, offset uint) {
-	prog.gl.Call("drawElements", mode, count, typ, offset)
+func (prog *Program) DrawElements(mode Mode, count int, typ Type, offset uint) error {
+	modeVal, err := mode.get(prog.gl)
+	if err == nil {
+		typVal, err := typ.get(prog.gl)
+		if err == nil {
+			prog.gl.Call("drawElements", modeVal, count, typVal, offset)
+		}
+	}
+	return err
 }
 
-/*
+// TODO webgl2 drawing routines
 
-	ParametersSection
-	mode
+func (mode Mode) String() string {
+	switch mode {
+	case Points:
+		return "Points"
+	case LineStrip:
+		return "LineStrip"
+	case LineLoop:
+		return "LineLoop"
+	case Lines:
+		return "Lines"
+	case TriangleStrip:
+		return "TriangleStrip"
+	case TriangleFan:
+		return "TriangleFan"
+	case Triangles:
+		return "Triangles"
+	default:
+		return fmt.Sprintf("InvalidMode(%02x)", uint8(mode))
+	}
+}
 
-	first A GLint specifying the starting index in the array of vector points.
-	count A GLsizei specifying the number of indices to be rendered.
+func (mode Mode) get(gl js.Value) (val js.Value, err error) {
+	switch mode {
+	case Points:
+		val = gl.Get("POINTS")
+	case LineStrip:
+		val = gl.Get("LINE_STRIP")
+	case LineLoop:
+		val = gl.Get("LINE_LOOP")
+	case Lines:
+		val = gl.Get("LINES")
+	case TriangleStrip:
+		val = gl.Get("TRIANGLE_STRIP")
+	case TriangleFan:
+		val = gl.Get("TRIANGLE_FAN")
+	case Triangles:
+		val = gl.Get("TRIANGLES")
+	}
+	if val == js.Undefined() {
+		err = fmt.Errorf("unsupported gl drawing mode %v", mode)
+	}
+	return val, err
+}
 
-	ParametersSection
-	mode
+func (typ Type) get(gl js.Value) (val js.Value, err error) {
+	switch typ {
+	case UnsignedByte:
+		val = gl.Get("UNSIGNED_BYTE")
+	case UnsignedShort:
+		val = gl.Get("UNSIGNED_SHORT")
+	case UnsignedInt:
+		val = gl.Get("UNSIGNED_INT")
+	}
+	if val == js.Undefined() {
+		err = fmt.Errorf("unsupported gl type %v", typ)
+	}
+	return val, err
+}
 
-	count A GLsizei specifying the number of elements to be rendered.
-
-	type
-	A GLenum specifying the type of the values in the element array buffer. Possible values are:
-	gl.UNSIGNED_BYTE
-	gl.UNSIGNED_SHORT
-	When using the OES_element_index_uint extension:
-	gl.UNSIGNED_INT
-
-	offset A GLintptr specifying a byte offset in the element array buffer. Must be a valid multiple of the size of the given type.
-
-*/
+func (typ Type) String() string {
+	switch typ {
+	case UnsignedByte:
+		return "UnsignedByte"
+	case UnsignedShort:
+		return "UnsignedShort"
+	case UnsignedInt:
+		return "UnsignedInt"
+	default:
+		return fmt.Sprintf("InvalidType(%02x)", uint8(typ))
+	}
+}
