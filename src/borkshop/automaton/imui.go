@@ -77,15 +77,21 @@ func (ctx *imContext) Init(client imClient) (err error) {
 	ctx.renderCtx = ctx.canvas.Call("getContext", "2d")
 
 	parent := ctx.canvas.Get("parentNode")
-
-	// TODO observe keydown/up instead of presses directly
 	parent.Call("addEventListener", "keypress", js.FuncOf(ctx.onKeyPress))
+	window.Call("addEventListener", "resize", js.FuncOf(ctx.onResize))
 
 	ctx.done = make(chan error)
 	ctx.anim.Init(ctx)
 
 	ctx.updateSize()
 
+	return nil
+}
+
+func (ctx *imContext) onResize(this js.Value, args []js.Value) interface{} {
+	ctx.updateSize()
+	ctx.Update(ctx.client)
+	ctx.Render()
 	return nil
 }
 
