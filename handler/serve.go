@@ -55,7 +55,7 @@ func Handle(prefix, srcDir, path string) (*WASMHandler, error) {
 			return nil, err
 		}
 
-		pkg, err := build.Default.Import(path, srcDir, 0)
+		pkg, err := build.Default.Import(path, srcDir, build.FindOnly)
 		if err != nil {
 			return nil, err
 		}

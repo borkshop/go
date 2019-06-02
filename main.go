@@ -56,7 +56,7 @@ func genServer() error {
 			return err
 		}
 	}
-	pkg, err := build.Default.Import(path, srcDir, 0)
+	pkg, err := build.Default.Import(path, srcDir, build.FindOnly)
 	if err != nil {
 		return err
 	}
