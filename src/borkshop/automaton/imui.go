@@ -91,7 +91,6 @@ func (ctx *imContext) Init(client imClient) (err error) {
 func (ctx *imContext) onResize(this js.Value, args []js.Value) interface{} {
 	ctx.updateSize()
 	ctx.Update(ctx.client)
-	ctx.Render()
 	return nil
 }
 
@@ -111,11 +110,11 @@ func (ctx *imContext) updateSize() {
 func (ctx *imContext) onKeyPress(this js.Value, args []js.Value) interface{} {
 	ctx.imInput.onKeyPress(this, args)
 	ctx.Update(ctx.client)
-	ctx.Render()
 	return nil
 }
 
 func (ctx *imContext) animate(now float64) {
+	// TODO inject animation/simulation time delta
 	ctx.Update(ctx.client)
 	ctx.Render()
 }
