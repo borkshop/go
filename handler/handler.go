@@ -283,12 +283,20 @@ func (wh *WASMHandler) buildNeeded() (bool, error) {
 
 func (wh *WASMHandler) pkgModTime() (time.Time, error) {
 	var mtc modTimeChecker
-	ent := entry{wh.srcDir, wh.path}
-	pkg := wh.pkg[ent]
-	mtc.offer(wh.pkgTime[ent])
-	mtc.check(pkg.Dir)
-	for _, path := range pkg.GoFiles {
-		mtc.check(path)
+	var ps pkgStack
+	ps.add(wh.srcDir, wh.path)
+	for !ps.empty() {
+		if ent, ok := ps.pop(); ok {
+			pkg := wh.pkg[ent]
+			mtc.offer(wh.pkgTime[ent])
+			mtc.check(pkg.Dir)
+			for _, file := range pkg.GoFiles {
+				file = filepath.Join(pkg.Dir, file)
+				file = filepath.Clean(file)
+				mtc.check(file)
+			}
+			ps.extend(pkg.Dir, pkg.Imports...)
+		}
 	}
 	return mtc.t, mtc.err
 }
@@ -320,14 +328,62 @@ func (wh *WASMHandler) refreshPackage() error {
 	if wh.path == "" {
 		return errors.New("no package path set")
 	}
-	ent := entry{wh.srcDir, wh.path}
-	pkg, err := wh.ctxt.Import(ent.path, ent.srcDir, 0)
-	if err != nil {
-		return fmt.Errorf("failed to import %q: %v", wh.path, err)
+	var ps pkgStack
+	ps.add(wh.srcDir, wh.path)
+	for !ps.empty() {
+		if ent, ok := ps.pop(); ok {
+			pkg, err := wh.ctxt.Import(ent.path, ent.srcDir, 0)
+			if err != nil {
+				return fmt.Errorf("failed to import %q in %q: %v", ent.path, ent.srcDir, err)
+			}
+			wh.pkg[ent] = pkg
+			wh.pkgTime[ent] = time.Now()
+			ps.extend(pkg.Dir, pkg.Imports...)
+		}
 	}
-	wh.pkg[ent] = pkg
-	wh.pkgTime[ent] = time.Now()
 	return nil
+}
+
+type pkgStack struct {
+	seen  map[entry]struct{}
+	stack []entry
+}
+
+func (ps *pkgStack) empty() bool {
+	return len(ps.stack) == 0
+}
+
+func (ps *pkgStack) pop() (entry, bool) {
+	i := len(ps.stack) - 1
+	if i < 0 {
+		return entry{}, false
+	}
+	ent := ps.stack[i]
+	ps.stack = ps.stack[:i]
+	_, seen := ps.seen[ent]
+	if !seen {
+		ps.seen[ent] = struct{}{}
+	}
+	return ent, !seen
+}
+
+func (ps *pkgStack) extend(srcDir string, paths ...string) {
+	for _, path := range paths {
+		ps.add(srcDir, path)
+	}
+}
+
+func (ps *pkgStack) add(srcDir, path string) {
+	if ps.seen == nil {
+		ps.seen = make(map[entry]struct{}, 64)
+	}
+	if ps.stack == nil {
+		ps.stack = make([]entry, 0, 64)
+	}
+	ent := entry{srcDir, path}
+	if _, have := ps.seen[ent]; !have {
+		ps.stack = append(ps.stack, ent)
+	}
 }
 
 func (wh *WASMHandler) openWasm() error {
