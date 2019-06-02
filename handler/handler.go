@@ -72,6 +72,13 @@ func (wh *WASMHandler) ExecHandler() http.Handler {
 	return serveFile(wh.wasmExec)
 }
 
+func (wh *WASMHandler) String() string {
+	wh.mu.RLock()
+	defer wh.mu.RUnlock()
+	pkg := wh.pkg[entry{wh.srcDir, wh.path}]
+	return fmt.Sprintf("WASMHandler %q => %q", pkg.ImportPath, pkg.Dir)
+}
+
 func (wh *WASMHandler) packageDir() string {
 	wh.mu.RLock()
 	defer wh.mu.RUnlock()
