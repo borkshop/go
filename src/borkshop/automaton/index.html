@@ -10,8 +10,29 @@ html, body {
 }
 
 body {
-    background-color: #121212;
-    color: #9e9e9e;
+    background-color: rgb(18,18,18);
+    color: rgb(158,158,158);
+}
+
+canvas {
+    position: fixed;
+    top: 0; left: 0;
+    bottom: 0; right: 0;
+    height: 100%;
+    width: 100%;
+}
+
+#simInfo {
+    position: fixed;
+    bottom: 0; left: 0;
+    margin: 0;
+    padding: 0.5em 1em;
+    color: rgb(95,135,95);
+    background-color: rgba(38, 38, 38, 0.75);
+}
+
+#simInfo summary {
+    color: rgb(95,135,175);
 }
 
 /* darkula colors for easy cheat/stealing
@@ -40,29 +61,18 @@ YELLOW          #808000  rgb(128,128,0)
 YELLOW_ORANGE   #d7af00  rgb(215,175,0)
 */
 
-canvas {
-    position: fixed;
-    top: 0; left: 0;
-    bottom: 0; right: 0;
-    height: 100%;
-    width: 100%;
-}
-
-#simInfo {
-    position: fixed;
-    bottom: 0; left: 0;
-    color: #5f875f;
-}
-
 </style>
 
 <body>
     <canvas></canvas>
 
-    <pre id="simInfo"></pre>
+    <details id="simInfo" open>
+        <summary>Sim Info</summary>
+        <pre>Loading...</pre>
+    </details>
 
     <script src="wasm_exec.js"></script>
     <script src="index.js"
         data-canvas="canvas"
-        data-info-overlay="#simInfo"></script>
+        data-info-overlay="#simInfo pre"></script>
 </body>
