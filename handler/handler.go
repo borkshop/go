@@ -219,13 +219,14 @@ func (wh *WASMHandler) build() error {
 	wh.wasmLog.Reset()
 	wh.wasmLog.Grow(64 * 1024)
 
-	cmd := exec.Command("go", "build", "-o", "/dev/stdout", wh.pkg.ImportPath)
+	importPath := wh.pkg.ImportPath
+	cmd := exec.Command("go", "build", "-o", "/dev/stdout", importPath)
 	cmd.Env = wh.buildEnv()
 	cmd.Stdout = pw
 	cmd.Stderr = &wh.wasmLog
 	cmd.Dir = wh.srcDir
 
-	fmt.Fprintf(&wh.wasmLog, "Building %s\n", wh.pkg.ImportPath)
+	fmt.Fprintf(&wh.wasmLog, "Building %s\n", importPath)
 
 	err = cmd.Start()
 	_ = pw.Close()
