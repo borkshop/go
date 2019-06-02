@@ -64,16 +64,15 @@ func NewWASMHandler(srcDir, path string) (*WASMHandler, error) {
 	return &wh, nil
 }
 
-// WASMExec returns the path to the runtime wasm_exec.js stub.
-func (wh *WASMHandler) WASMExec() string {
+// ExecHandler returns an http handler that will serve the appropriate
+// wasm_exec.js stub from $GOROOT.
+func (wh *WASMHandler) ExecHandler() http.Handler {
 	wh.mu.RLock()
 	defer wh.mu.RUnlock()
-	return wh.wasmExec
+	return serveFile(wh.wasmExec)
 }
 
-// PackageDir returns the directory path to the main package being built as a
-// wasm binary.
-func (wh *WASMHandler) PackageDir() string {
+func (wh *WASMHandler) packageDir() string {
 	wh.mu.RLock()
 	defer wh.mu.RUnlock()
 	return wh.pkg[entry{wh.srcDir, wh.path}].Dir

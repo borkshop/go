@@ -12,13 +12,6 @@ import (
 	"github.com/jcorbin/gorunwasm/handler"
 )
 
-//go:generate go run assets_build.go
-
-var (
-	mux          = http.NewServeMux()
-	indexHandler http.Handler
-)
-
 func run() error {
 	var listenAddr string
 	flag.StringVar(&listenAddr, "listen", "localhost:0", "listen address for http server")
@@ -41,23 +34,11 @@ func run() error {
 		}
 	}
 
-	wh, err := handler.NewWASMHandler(srcDir, path)
+	wh, err := handler.Handle("", srcDir, path)
 	if err != nil {
 		return err
 	}
 	defer wh.Close()
-
-	mux.Handle("/wasm_exec.js", serveFile(wh.WASMExec()))
-	mux.Handle("/main.wasm", wh)
-
-	pkgDir := wh.PackageDir()
-	if _, err := os.Stat(filepath.Join(pkgDir, "index.html")); err == nil {
-		log.Printf("Serving http files from %q", pkgDir)
-		mux.Handle("/", http.FileServer(http.Dir(pkgDir)))
-	} else {
-		log.Printf("Providing default index handler")
-		mux.Handle("/", indexHandler)
-	}
 
 	ln, err := net.Listen("tcp", listenAddr)
 	if err != nil {
@@ -66,17 +47,11 @@ func run() error {
 
 	log.Printf("listening on http://%v", ln.Addr())
 
-	return http.Serve(ln, mux)
+	return http.Serve(ln, nil)
 }
 
 func main() {
 	if err := run(); err != nil {
 		log.Fatalln(err)
 	}
-}
-
-type serveFile string
-
-func (sf serveFile) ServeHTTP(w http.ResponseWriter, req *http.Request) {
-	http.ServeFile(w, req, string(sf))
 }
