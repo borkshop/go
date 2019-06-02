@@ -85,7 +85,7 @@ func NewAutomaton(order int, numPlates int) *Automaton {
 	stencil.WriteHilbertStencil3Table(stencil3, length)
 	stencil.WriteHilbertStencil5Table(stencil5, length)
 	stencil.WriteHilbertStencil9Table(stencil9, length)
-	stencil.InitInt64Vector(repose, 0x1f)
+	stencil.InitInt64Vector(repose, 0x03)
 
 	earthPID := PID{
 		Target:           0xff,
@@ -178,8 +178,18 @@ func (a *Automaton) Tick() {
 
 	// Slides
 	if !a.disableSlides {
+		a.slide = 0
+
+		// Lateral
 		stencil.WriteStencil3Int64Vector(a.earth3s, a.earth, a.stencil3)
-		SlideInt64Vector(a.temp3s, &a.slide, a.earth3s, a.repose, a.entropy)
+		SlideInt64Vector(a.temp3s, &a.slide, a.earth3s, a.repose, a.entropy, 1)
+		stencil.EraseInt64Vector(a.earth)
+		stencil.AddInt64VectorStencil3(a.earth, a.temp3s, a.stencil3)
+		WriteNextRandomInt64Vector(a.entropy)
+
+		// Longitudinal
+		stencil.WriteStencil3Int64Vector(a.earth3s, a.earth, a.stencil3)
+		SlideInt64Vector(a.temp3s, &a.slide, a.earth3s, a.repose, a.entropy, 2)
 		stencil.EraseInt64Vector(a.earth)
 		stencil.AddInt64VectorStencil3(a.earth, a.temp3s, a.stencil3)
 		WriteNextRandomInt64Vector(a.entropy)

@@ -99,6 +99,7 @@ func (a *App) Update(ctx *imContext) (err error) {
 	ctx.infof("Water: %s\r\n", a.automaton.waterStats.String())
 	ctx.infof("Water Coverage PID: %s\r\n", a.automaton.waterPID.String())
 	ctx.infof("Quakes moved earth: %d\r\n", a.automaton.quake)
+	ctx.infof("Slides moved earth: %d\r\n", a.automaton.slide)
 	ctx.infof("Water flowed: %d\r\n", a.automaton.flow)
 
 	return

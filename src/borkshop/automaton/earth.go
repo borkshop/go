@@ -43,44 +43,16 @@ func Quake(dst [][3]int64, quake *int64, src [][3]int64, plates []int64, quakeVe
 	}
 }
 
-func SlideInt64Vector(dst [][3]int64, slide *int64, src [][3]int64, repose []int64, entropy []int64) {
-	*slide = 0
+func SlideInt64Vector(dst [][3]int64, slide *int64, src [][3]int64, repose []int64, entropy []int64, other int) {
 	for i := 0; i < len(dst); i++ {
 		dst[i][0] = src[i][0]
 		dst[i][1] = 0
 		dst[i][2] = 0
 
-		// Settle slopes to angle of repose
-		latdel := (src[i][0] - src[i][1])
-		londel := (src[i][0] - src[i][2])
-		latmag := mag64(latdel)
-		lonmag := mag64(londel)
-
-		other := 0
-		switch {
-		case latmag <= repose[i] && lonmag <= repose[i]:
-			other = 0
-		case latmag > repose[i] && lonmag <= repose[i]:
-			other = 1
-		case latmag <= repose[i] && lonmag > repose[i]:
-			other = 2
-		case latmag > lonmag:
-			other = 1
-		case latmag < lonmag:
-			other = 2
-		case entropy[i]&1 == 0:
-			other = 1
-		default:
-			other = 2
-		}
-
-		if other != 0 {
-			delta := SlideInt64(src[i][0], src[i][other], repose[i])
-			dst[i][0] -= delta
-			dst[i][other] += delta
-			*slide += mag64(delta)
-		}
-
+		delta := SlideInt64(src[i][0], src[i][other], repose[i])
+		dst[i][0] -= delta
+		dst[i][other] += delta
+		*slide += mag64(delta)
 	}
 }
 
