@@ -5,8 +5,6 @@ import (
 	"image/color"
 
 	"github.com/hsluv/hsluv-go"
-	"github.com/jcorbin/anansi"
-	"github.com/jcorbin/anansi/ansi"
 )
 
 type PlatesView struct {
@@ -15,7 +13,7 @@ type PlatesView struct {
 	colors    []color.RGBA
 }
 
-func NewAnansiPlatesView(automaton *Automaton) *PlatesView {
+func NewPlatesView(automaton *Automaton) *PlatesView {
 	image := image.NewRGBA(automaton.rect)
 	colors := make([]color.RGBA, automaton.numPlates)
 	writePlateColors(colors)
@@ -27,10 +25,10 @@ func NewAnansiPlatesView(automaton *Automaton) *PlatesView {
 	}
 }
 
-func (v *PlatesView) Draw(screen *anansi.Screen, rect ansi.Rectangle) {
+func (v *PlatesView) Draw(screen *image.RGBA, rect image.Rectangle) {
 	// TODO offset point
 	drawPlates(v.image, v.automaton.plates, v.automaton.points, v.colors)
-	drawAnansi(screen, rect, v.image)
+	drawScreen(screen, rect, v.image)
 }
 
 func writePlateColors(dst []color.RGBA) {

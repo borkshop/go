@@ -4,9 +4,6 @@ import (
 	"image"
 	"image/color"
 	"image/draw"
-
-	"github.com/jcorbin/anansi"
-	"github.com/jcorbin/anansi/ansi"
 )
 
 var (
@@ -22,7 +19,7 @@ type MapView struct {
 	water     *image.RGBA
 }
 
-func NewAnansiMapView(automaton *Automaton) *MapView {
+func NewMapView(automaton *Automaton) *MapView {
 	img := image.NewRGBA(automaton.rect)
 	earth := image.NewRGBA(automaton.rect)
 	water := image.NewRGBA(automaton.rect)
@@ -34,7 +31,7 @@ func NewAnansiMapView(automaton *Automaton) *MapView {
 	}
 }
 
-func (v *MapView) Draw(screen *anansi.Screen, rect ansi.Rectangle) {
+func (v *MapView) Draw(screen *image.RGBA, rect image.Rectangle) {
 	draw.Draw(v.img, v.img.Rect, &image.Uniform{black}, image.ZP, draw.Over)
 
 	drawAlpha(v.earth, v.automaton.earth, v.automaton.earthStats, 0, 255, v.automaton.points)
@@ -43,7 +40,7 @@ func (v *MapView) Draw(screen *anansi.Screen, rect ansi.Rectangle) {
 	drawWater(v.water, v.automaton.water, v.automaton.waterStats, 128, 255, v.automaton.significantWater, v.automaton.points)
 	draw.DrawMask(v.img, v.img.Rect, &image.Uniform{blue}, image.ZP, v.water, image.ZP, draw.Over)
 
-	drawAnansi(screen, rect, v.img)
+	drawScreen(screen, rect, v.img)
 }
 
 func drawWater(dst *image.RGBA, values []int64, stats Stats64, min, max, sig int64, points []image.Point) {

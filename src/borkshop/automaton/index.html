@@ -1,0 +1,68 @@
+<!doctype html>
+
+<meta charset="utf-8">
+<title>Bottle World Demo</title>
+<style>
+html, body {
+    margin: 0;
+    padding: 0;
+    height: 100%;
+}
+
+body {
+    background-color: #121212;
+    color: #9e9e9e;
+}
+
+/* darkula colors for easy cheat/stealing
+
+BLACK           #000000  rgb(0,0,0)
+DARKER_GREY     #121212  rgb(18,18,18)
+DARK_GREY       #262626  rgb(38,38,38)
+GREY            #444444  rgb(68,68,68)
+LIGHT_GREY      #585858  rgb(88,88,88)
+LIGHTER_GREY    #666666  rgb(102,102,102)
+WHITE           #c0c0c0  rgb(192,192,192)
+DARK_WHITE      #9e9e9e  rgb(158,158,158)
+BLUE            #5f87af  rgb(95,135,175)
+BRIGHT_PURPLE   #5f00ff  rgb(95,0,255)
+CYAN            #00d7d7  rgb(0,215,215)
+DARK_ORANGE     #af5f00  rgb(175,95,0)
+DARK_SEA_GREEN  #5f875f  rgb(95,135,95)
+GREEN           #00af00  rgb(0,175,0)
+LIGHT_CYAN      #5fafaf  rgb(95,175,175)
+MAGENTA         #ff0087  rgb(255,0,135)
+ORANGE          #d78700  rgb(215,135,0)
+PURPLE          #8787af  rgb(135,135,175)
+RED             #d70000  rgb(215,0,0)
+RED_ORANGE      #af5f5f  rgb(175,95,95)
+YELLOW          #808000  rgb(128,128,0)
+YELLOW_ORANGE   #d7af00  rgb(215,175,0)
+*/
+
+canvas {
+    position: fixed;
+    top: 0; left: 0;
+    bottom: 0; right: 0;
+    height: 100%;
+    width: 100%;
+}
+
+#simInfo {
+    position: fixed;
+    bottom: 0; left: 0;
+    color: #5f875f;
+}
+
+</style>
+
+<body>
+    <canvas></canvas>
+
+    <pre id="simInfo"></pre>
+
+    <script src="wasm_exec.js"></script>
+    <script src="index.js"
+        data-canvas="canvas"
+        data-info-overlay="#simInfo"></script>
+</body>

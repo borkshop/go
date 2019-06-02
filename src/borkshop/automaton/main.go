@@ -1,40 +1,24 @@
+// +build js
+
 package main
 
 import (
 	"errors"
-	"flag"
-	"fmt"
-	"io"
+	"image"
 	"log"
 	"math/rand"
-	"os"
 	"time"
-
-	"github.com/jcorbin/anansi"
-	"github.com/jcorbin/anansi/ansi"
-	"github.com/jcorbin/anansi/x/platform"
 )
 
 var errInt = errors.New("interrupt")
 
 func main() {
+	// TODO stop using the global locked rand
 	rand.Seed(time.Now().UnixNano()) // TODO find the right place to seed
-	// TODO load config from file
-	flag.Parse()
-	platform.MustRun(os.Stdout, func(p *platform.Platform) error {
-		for {
-			if err := p.Run(newApp()); platform.IsReplayDone(err) {
-				continue // loop replay
-			} else if err == io.EOF || err == errInt {
-				return nil
-			} else if err != nil {
-				log.Printf("exiting due to %v", err)
-				return err
-			}
-		}
-	}, platform.FrameRate(60), platform.Config{
-		LogFileName: "ansimata.log",
-	})
+	var ctx imContext
+	if err := ctx.Run(newApp()); err != nil {
+		log.Fatalln(err)
+	}
 }
 
 type App struct {
@@ -48,17 +32,17 @@ type App struct {
 }
 
 type View interface {
-	Draw(screen *anansi.Screen, rect ansi.Rectangle)
+	Draw(screen *image.RGBA, rect image.Rectangle)
 }
 
 func newApp() *App {
 	const order = 8
 	const numPlates = 5
 	automaton := NewAutomaton(order, numPlates)
-	platesView := NewAnansiPlatesView(automaton)
-	earthView := NewAnansiEarthView(automaton)
-	waterView := NewAnansiWaterView(automaton)
-	mapView := NewAnansiMapView(automaton)
+	platesView := NewPlatesView(automaton)
+	earthView := NewEarthView(automaton)
+	waterView := NewWaterView(automaton)
+	mapView := NewMapView(automaton)
 
 	// automaton.enableFaucet = true
 	// automaton.disableWaterCoverage = true
@@ -77,57 +61,45 @@ func newApp() *App {
 	}
 }
 
-func (a *App) Update(ctx *platform.Context) (err error) {
-	// Ctrl-C interrupts
-	if ctx.Input.HasTerminal('\x03') {
-		err = errInt
+func (a *App) Update(ctx *imContext) (err error) {
+	if ctx.input == 'p' {
+		a.ticking++
 	}
-
-	// Ctrl-Z suspends
-	if ctx.Input.CountRune('\x1a') > 0 {
-		defer func() {
-			if err == nil {
-				err = ctx.Suspend()
-			} // else NOTE don't bother suspending, e.g. if Ctrl-C was also present
-		}()
-	}
-
-	a.ticking += ctx.Input.CountRune('p')
 	var ticks int
 	if a.ticking%2 == 1 {
 		ticks = 1
 	}
-	ticks += ctx.Input.CountRune('n')
+	if ctx.input == 'n' {
+		ticks++
+	}
 
 	for i := 0; i < ticks; i++ {
 		a.automaton.Tick()
 	}
 
-	switch {
-	case ctx.Input.CountRune('P') > 0:
+	switch ctx.input {
+	case 'P':
 		a.view = a.platesView
-	case ctx.Input.CountRune('E') > 0:
+	case 'E':
 		a.view = a.earthView
-	case ctx.Input.CountRune('W') > 0:
+	case 'W':
 		a.view = a.waterView
-	case ctx.Input.CountRune('M') > 0:
+	case 'M':
 		a.view = a.mapView
 	}
 
 	// TODO thread viewport scroll offset
 	a.automaton.Predraw()
-	a.view.Draw(ctx.Output, ctx.Output.Grid.Rect)
+	a.view.Draw(ctx.screen, ctx.screen.Rect)
 
-	screen := ctx.Output
-	screen.To(ansi.Pt(1, 1))
-	screen.WriteString(fmt.Sprintf("Generation: %d\r\n", a.automaton.gen))
-	screen.WriteString(fmt.Sprintf("Plate Sizes: %v\r\n", a.automaton.plateSizes))
-	screen.WriteString(fmt.Sprintf("Earth Elevation: %s\r\n", a.automaton.earthStats.String()))
-	screen.WriteString(fmt.Sprintf("Earthquake PID: %s\r\n", a.automaton.earthPID.String()))
-	screen.WriteString(fmt.Sprintf("Water: %s\r\n", a.automaton.waterStats.String()))
-	screen.WriteString(fmt.Sprintf("Water Coverage PID: %s\r\n", a.automaton.waterPID.String()))
-	screen.WriteString(fmt.Sprintf("Quakes moved earth: %d\r\n", a.automaton.quake))
-	screen.WriteString(fmt.Sprintf("Water flowed: %d\r\n", a.automaton.flow))
+	ctx.infof("Generation: %d\r\n", a.automaton.gen)
+	ctx.infof("Plate Sizes: %v\r\n", a.automaton.plateSizes)
+	ctx.infof("Earth Elevation: %s\r\n", a.automaton.earthStats.String())
+	ctx.infof("Earthquake PID: %s\r\n", a.automaton.earthPID.String())
+	ctx.infof("Water: %s\r\n", a.automaton.waterStats.String())
+	ctx.infof("Water Coverage PID: %s\r\n", a.automaton.waterPID.String())
+	ctx.infof("Quakes moved earth: %d\r\n", a.automaton.quake)
+	ctx.infof("Water flowed: %d\r\n", a.automaton.flow)
 
 	return
 }

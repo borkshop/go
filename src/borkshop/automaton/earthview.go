@@ -2,9 +2,6 @@ package main
 
 import (
 	"image"
-
-	"github.com/jcorbin/anansi"
-	"github.com/jcorbin/anansi/ansi"
 )
 
 type EarthView struct {
@@ -12,7 +9,7 @@ type EarthView struct {
 	image     *image.RGBA
 }
 
-func NewAnansiEarthView(automaton *Automaton) *EarthView {
+func NewEarthView(automaton *Automaton) *EarthView {
 	image := image.NewRGBA(automaton.rect)
 	return &EarthView{
 		automaton: automaton,
@@ -20,8 +17,8 @@ func NewAnansiEarthView(automaton *Automaton) *EarthView {
 	}
 }
 
-func (v *EarthView) Draw(screen *anansi.Screen, rect ansi.Rectangle) {
+func (v *EarthView) Draw(screen *image.RGBA, rect image.Rectangle) {
 	// TODO offset point
 	drawScale(v.image, v.automaton.earth, v.automaton.earthStats, 0, 255, v.automaton.points)
-	drawAnansi(screen, rect, v.image)
+	drawScreen(screen, rect, v.image)
 }
