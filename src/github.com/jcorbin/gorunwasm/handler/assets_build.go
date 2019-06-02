@@ -3,16 +3,19 @@
 package main
 
 import (
+	"bufio"
+	"io"
 	"io/ioutil"
 	"log"
 	"os"
 	"os/exec"
+	"regexp"
 	"text/template"
 )
 
 var tmpl = template.Must(template.New("").Parse(`// +build !dev
 
-package main
+package handler
 
 import (
 	"net/http"
@@ -29,32 +32,55 @@ func staticHandler(name, content string) http.Handler {
 }
 
 func init() {
-	{{- range . -}}
-	{{- if eq .Path "/" -}}
-	indexHandler = staticHandler("{{ .Name }}", {{ printf "%q" .Content }})
-	{{ else -}}
-	mux.Handle("{{ .Path }}", staticHandler("{{ .Name }}", {{ printf "%q" .Content }}))
-	{{ end -}}
+	{{- range . }}
+	{{ .Handler }} = staticHandler("{{ .Name }}", {{ printf "%q" .Content }})
 	{{- end -}}
 }
 `))
 
+type servedFile struct {
+	Handler string
+	Name    string
+	Content string
+}
+
+var serveFilePattern = regexp.MustCompile(`(\w+) = serveFile\("(.+?)"\)`)
+
+func readServedFiles(r io.Reader) ([]servedFile, error) {
+	var servedFiles []servedFile
+	sc := bufio.NewScanner(r)
+	for sc.Scan() {
+		if match := serveFilePattern.FindSubmatch(sc.Bytes()); len(match) > 0 {
+			handler := string(match[1])
+			name := string(match[2])
+			servedFiles = append(servedFiles, servedFile{handler, name, slurp(name)})
+		} else {
+
+			log.Printf("WUT %q", sc.Bytes())
+		}
+	}
+	return servedFiles, sc.Err()
+}
+
 func run() error {
-	f, err := os.Create("assets_static.go")
+	f, err := os.Open("assets_dev.go")
+	if err != nil {
+		return err
+	}
+	defer f.Close()
+
+	servedFiles, err := readServedFiles(f)
 	if err != nil {
 		return err
 	}
 
+	f, err = os.Create("assets_static.go")
+	if err != nil {
+		return err
+	}
 	defer f.Close()
 
-	if err := tmpl.Execute(f, []struct {
-		Path    string
-		Name    string
-		Content string
-	}{
-		{"/", "index.html", slurp("index.html")},
-		{"/index.js", "index.js", slurp("index.js")},
-	}); err != nil {
+	if err := tmpl.Execute(f, servedFiles); err != nil {
 		return err
 	}
 
