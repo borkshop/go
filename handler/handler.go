@@ -28,6 +28,7 @@ type WASMHandler struct {
 
 	srcDir string
 	ctxt   build.Context
+	path   string
 
 	pkg      build.Package
 	pkgTime  time.Time
@@ -48,7 +49,7 @@ func NewWASMHandler(srcDir, path string) (*WASMHandler, error) {
 	wh.ctxt = build.Default
 	wh.ctxt.GOARCH = "wasm"
 	wh.ctxt.GOOS = "js"
-	wh.pkg.ImportPath = path
+	wh.path = path
 	wh.wasmExec = filepath.Join(wh.ctxt.GOROOT, "misc", "wasm", "wasm_exec.js")
 	if err := wh.refreshPackage(); err != nil {
 		return nil, err
@@ -219,7 +220,7 @@ func (wh *WASMHandler) build() error {
 	wh.wasmLog.Reset()
 	wh.wasmLog.Grow(64 * 1024)
 
-	importPath := wh.pkg.ImportPath
+	importPath := wh.path
 	cmd := exec.Command("go", "build", "-o", "/dev/stdout", importPath)
 	cmd.Env = wh.buildEnv()
 	cmd.Stdout = pw
@@ -308,12 +309,12 @@ func (wh *WASMHandler) buildEnv() []string {
 }
 
 func (wh *WASMHandler) refreshPackage() error {
-	if wh.pkg.ImportPath == "" {
+	if wh.path == "" {
 		return errors.New("no package path set")
 	}
-	pkg, err := wh.ctxt.Import(wh.pkg.ImportPath, wh.srcDir, 0)
+	pkg, err := wh.ctxt.Import(wh.path, wh.srcDir, 0)
 	if err != nil {
-		return fmt.Errorf("failed to import %q: %v", wh.pkg.ImportPath, err)
+		return fmt.Errorf("failed to import %q: %v", wh.path, err)
 	}
 	wh.pkg = *pkg
 	wh.pkgTime = time.Now()
