@@ -81,17 +81,25 @@ func (ctx *imContext) Init(client imClient) (err error) {
 	// TODO observe keydown/up instead of presses directly
 	parent.Call("addEventListener", "keypress", js.FuncOf(ctx.onKeyPress))
 
-	// TODO proper grid size calc
+	ctx.done = make(chan error)
+	ctx.anim.Init(ctx)
+
+	ctx.updateSize()
+
+	return nil
+}
+
+func (ctx *imContext) updateSize() {
+	parent := ctx.canvas.Get("parentNode")
 	size := image.Pt(
 		parent.Get("clientWidth").Int(),
 		parent.Get("clientHeight").Int(),
 	)
+
+	// TODO decouple grid size from screen size
+
+	// TODO reuse prior capacity when possible
 	ctx.screen = image.NewRGBA(image.Rect(0, 0, size.X, size.Y))
-	ctx.done = make(chan error)
-
-	ctx.anim.Init(ctx)
-
-	return nil
 }
 
 func (ctx *imContext) onKeyPress(this js.Value, args []js.Value) interface{} {
