@@ -18,23 +18,25 @@ func WriteQuakeVectors(vectors []image.Point) {
 	}
 }
 
-func Quake(dst [][3]int64, quake *int64, src [][3]int64, plates []int64, quakeVectors []image.Point, numerator, denominator int64, entropy []int64) {
+func Quake(dst [][3]int64, quake *int64, src [][3]int64, plates []int64, quakeVectors []image.Point, num, den int64, sig uint, entropy []int64) {
 	*quake = 0
+	mag := clamp64(num>>sig, 1, den)
 	for i := 0; i < len(dst); i++ {
 		dst[i][0] = src[i][0]
 		dst[i][1] = 0
 		dst[i][2] = 0
-		if uint64(entropy[i])%uint64(denominator) < uint64(numerator) {
+		if (num>>sig) > 0 || uint64(entropy[i])%uint64(den>>sig) < uint64(num) {
 			plate := plates[i]
 			vector := quakeVectors[plate]
 			x, y := int64(vector.X), int64(vector.Y)
+			mag := int64(uint64(entropy[i]) % uint64(mag))
 			if entropy[i]%(mag64(x)+mag64(y)) < mag64(x) {
-				del := clamp64(x, -1, 1)
+				del := clamp64(x, -mag, mag)
 				dst[i][0] -= del
 				dst[i][1] += del
 				*quake += mag64(del)
 			} else {
-				del := clamp64(y, -1, 1)
+				del := clamp64(y, -mag, mag)
 				dst[i][0] -= del
 				dst[i][2] += del
 				*quake += mag64(del)
@@ -43,13 +45,13 @@ func Quake(dst [][3]int64, quake *int64, src [][3]int64, plates []int64, quakeVe
 	}
 }
 
-func SlideInt64Vector(dst [][3]int64, slide *int64, src [][3]int64, repose []int64, entropy []int64, other int) {
+func SlideInt64Vector(dst [][3]int64, slide *int64, src [][3]int64, repose []int64, entropy []int64, mute int64, other int) {
 	for i := 0; i < len(dst); i++ {
 		dst[i][0] = src[i][0]
 		dst[i][1] = 0
 		dst[i][2] = 0
 
-		delta := SlideInt64(src[i][0], src[i][other], repose[i])
+		delta := SlideInt64(src[i][0], src[i][other], repose[i]) / mute
 		dst[i][0] -= delta
 		dst[i][other] += delta
 		*slide += mag64(delta)

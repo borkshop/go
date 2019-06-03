@@ -1,16 +1,18 @@
 package main
 
-func WatershedInt64Vector(dst [][3]int64, flow *int64, water [][3]int64, earth [][3]int64, entropy []int64, other int) {
+func WatershedInt64Vector(dst [][3]int64, flow *int64, water [][3]int64, earth [][3]int64, entropy []int64, mute int64, other int) {
 	*flow = 0
 	for i := 0; i < len(dst); i++ {
 		dst[i][0] = water[i][0]
 		dst[i][1] = 0
 		dst[i][2] = 0
 
-		delta := ShedInt64(water[i][0]/2, water[i][other]/2, earth[i][0], earth[i][other])
+		delta := ShedInt64(water[i][0]/2, water[i][other]/2, earth[i][0], earth[i][other]) / mute
 		dst[i][0] -= delta
 		dst[i][other] += delta
-		*flow += mag64(delta)
+		if mag64(delta) > 1 {
+			*flow += mag64(delta)
+		}
 	}
 }
 
@@ -34,12 +36,14 @@ func ShedInt64(leftWater, rightWater, leftEarth, rightEarth int64) int64 {
 	return 0
 }
 
-func AdjustWaterInt64Vector(water []int64, control int64, entropy []int64, volume int64) {
+func AdjustWaterInt64Vector(water []int64, adjusted *int64, control int64, entropy []int64, volume int64) {
+	*adjusted = 0
 	switch {
 	case control > 0:
 		for i := 0; i < len(water); i++ {
 			if uint64(entropy[i])&0xffffffff < uint64(control) {
 				water[i] += volume
+				*adjusted += volume
 			}
 		}
 	case control < 0:
@@ -47,6 +51,7 @@ func AdjustWaterInt64Vector(water []int64, control int64, entropy []int64, volum
 			if uint64(entropy[i])&0xffffffff < uint64(-control) {
 				if water[i] > volume {
 					water[i] -= volume
+					*adjusted -= volume
 				}
 			}
 		}

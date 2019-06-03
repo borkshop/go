@@ -96,10 +96,11 @@ func (a *App) Update(ctx *imContext) (err error) {
 	ctx.infof("Plate Sizes: %v\r\n", a.automaton.plateSizes)
 	ctx.infof("Earth Elevation: %s\r\n", a.automaton.earthStats.String())
 	ctx.infof("Earthquake PID: %s\r\n", a.automaton.earthPID.String())
-	ctx.infof("Water: %s\r\n", a.automaton.waterStats.String())
-	ctx.infof("Water Coverage PID: %s\r\n", a.automaton.waterPID.String())
 	ctx.infof("Quakes moved earth: %d\r\n", a.automaton.quake)
 	ctx.infof("Slides moved earth: %d\r\n", a.automaton.slide)
+	ctx.infof("Water: %s\r\n", a.automaton.waterStats.String())
+	ctx.infof("Water Coverage PID: %s\r\n", a.automaton.waterPID.String())
+	ctx.infof("Water created or destroyed: %d\r\n", a.automaton.waterAdjusted)
 	ctx.infof("Water flowed: %d\r\n", a.automaton.flow)
 
 	return

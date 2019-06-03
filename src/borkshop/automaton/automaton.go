@@ -29,13 +29,14 @@ type Automaton struct {
 	disablePlates bool
 
 	// Earth quakes
-	earth         []int64
-	earthStats    Stats64
-	earth3s       [][3]int64
-	quakeVectors  []image.Point
-	quake         int64
-	earthPID      PID
-	disableQuakes bool
+	earth               []int64
+	earthStats          Stats64
+	earth3s             [][3]int64
+	quakeVectors        []image.Point
+	quake               int64
+	earthPID            PID
+	quakeFractionalBits uint
+	disableQuakes       bool
 
 	// Earth slides
 	repose        []int64
@@ -52,6 +53,7 @@ type Automaton struct {
 	enableFaucet          bool
 	enableDrain           bool
 	waterAdjustmentVolume int64
+	waterAdjusted         int64
 	significantWater      int64
 
 	// Watershed
@@ -85,16 +87,18 @@ func NewAutomaton(order int, numPlates int) *Automaton {
 	stencil.WriteHilbertStencil3Table(stencil3, length)
 	stencil.WriteHilbertStencil5Table(stencil5, length)
 	stencil.WriteHilbertStencil9Table(stencil9, length)
-	stencil.InitInt64Vector(repose, 0x03)
+	stencil.InitInt64Vector(repose, 0x7)
 
 	earthPID := PID{
 		Target:           0xff,
 		ProportionalGain: 0xfff,
-		IntegralGain:     0xff,
-		DifferentialGain: 0xff,
+		IntegralGain:     0xfff,
+		DifferentialGain: 0xfff,
 		Min:              0x0,
-		Max:              0xffffff,
+		Max:              0xffff,
 	}
+
+	var quakeFractionalBits uint = 14
 
 	waterPID := PID{
 		Target:           int64(area) / 2,
@@ -136,11 +140,12 @@ func NewAutomaton(order int, numPlates int) *Automaton {
 		plateSizes:   plateSizes,
 		plateWeights: plateWeights,
 
-		earth:        earth,
-		earth3s:      earth3s,
-		quakeVectors: quakeVectors,
-		earthPID:     earthPID,
-		repose:       repose,
+		earth:               earth,
+		earth3s:             earth3s,
+		quakeVectors:        quakeVectors,
+		earthPID:            earthPID,
+		quakeFractionalBits: quakeFractionalBits,
+		repose:              repose,
 
 		water:                 water,
 		water3s:               water3s,
@@ -171,7 +176,7 @@ func (a *Automaton) Tick() {
 		WriteStatsFromInt64Vector(&a.earthStats, a.earth)
 		a.earthPID.Tick(a.earthStats.Spread())
 		stencil.WriteStencil3Int64Vector(a.earth3s, a.earth, a.stencil3)
-		Quake(a.temp3s, &a.quake, a.earth3s, a.plates, a.quakeVectors, a.earthPID.Control, a.earthPID.Max, a.entropy)
+		Quake(a.temp3s, &a.quake, a.earth3s, a.plates, a.quakeVectors, a.earthPID.Control, a.earthPID.Max, a.quakeFractionalBits, a.entropy)
 		stencil.EraseInt64Vector(a.earth)
 		stencil.AddInt64VectorStencil3(a.earth, a.temp3s, a.stencil3)
 	}
@@ -179,40 +184,26 @@ func (a *Automaton) Tick() {
 	// Slides
 	if !a.disableSlides {
 		a.slide = 0
-
-		// Lateral
-		stencil.WriteStencil3Int64Vector(a.earth3s, a.earth, a.stencil3)
-		SlideInt64Vector(a.temp3s, &a.slide, a.earth3s, a.repose, a.entropy, 1)
-		stencil.EraseInt64Vector(a.earth)
-		stencil.AddInt64VectorStencil3(a.earth, a.temp3s, a.stencil3)
-		WriteNextRandomInt64Vector(a.entropy)
-
-		// Longitudinal
-		stencil.WriteStencil3Int64Vector(a.earth3s, a.earth, a.stencil3)
-		SlideInt64Vector(a.temp3s, &a.slide, a.earth3s, a.repose, a.entropy, 2)
-		stencil.EraseInt64Vector(a.earth)
-		stencil.AddInt64VectorStencil3(a.earth, a.temp3s, a.stencil3)
-		WriteNextRandomInt64Vector(a.entropy)
+		for i := 0; i < 1; i++ {
+			stencil.WriteStencil3Int64Vector(a.earth3s, a.earth, a.stencil3)
+			SlideInt64Vector(a.temp3s, &a.slide, a.earth3s, a.repose, a.entropy, 2-int64(i), 1+(int(a.entropy[0]&1)+i)%2)
+			stencil.EraseInt64Vector(a.earth)
+			stencil.AddInt64VectorStencil3(a.earth, a.temp3s, a.stencil3)
+			WriteNextRandomInt64Vector(a.entropy)
+		}
 	}
 
 	// Watershed
 	if !a.disableWatershed {
 		stencil.WriteStencil3Int64Vector(a.earth3s, a.earth, a.stencil3)
 		a.flow = 0
-
-		// Lateral
-		stencil.WriteStencil3Int64Vector(a.water3s, a.water, a.stencil3)
-		WatershedInt64Vector(a.temp3s, &a.flow, a.water3s, a.earth3s, a.entropy, 1)
-		stencil.EraseInt64Vector(a.water)
-		stencil.AddInt64VectorStencil3(a.water, a.temp3s, a.stencil3)
-		WriteNextRandomInt64Vector(a.entropy)
-
-		// Longitudinal
-		stencil.WriteStencil3Int64Vector(a.water3s, a.water, a.stencil3)
-		WatershedInt64Vector(a.temp3s, &a.flow, a.water3s, a.earth3s, a.entropy, 2)
-		stencil.EraseInt64Vector(a.water)
-		stencil.AddInt64VectorStencil3(a.water, a.temp3s, a.stencil3)
-		WriteNextRandomInt64Vector(a.entropy)
+		for i := 0; i < 1; i++ {
+			stencil.WriteStencil3Int64Vector(a.water3s, a.water, a.stencil3)
+			WatershedInt64Vector(a.temp3s, &a.flow, a.water3s, a.earth3s, a.entropy, 2-int64(i), 1+(int(a.entropy[0]&1)+i)%2)
+			stencil.EraseInt64Vector(a.water)
+			stencil.AddInt64VectorStencil3(a.water, a.temp3s, a.stencil3)
+			WriteNextRandomInt64Vector(a.entropy)
+		}
 	}
 
 	// Water Coverage
@@ -220,7 +211,7 @@ func (a *Automaton) Tick() {
 		WriteStatsFromInt64Vector(&a.waterStats, a.water)
 		MeasureWaterCoverage(&a.waterCoverage, a.water, a.significantWater)
 		a.waterPID.Tick(a.waterCoverage)
-		AdjustWaterInt64Vector(a.water, a.waterPID.Control, a.entropy, a.waterAdjustmentVolume)
+		AdjustWaterInt64Vector(a.water, &a.waterAdjusted, a.waterPID.Control, a.entropy, a.waterAdjustmentVolume)
 		WriteNextRandomInt64Vector(a.entropy)
 	}
 
