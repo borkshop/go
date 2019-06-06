@@ -249,9 +249,6 @@ func (wh *WASMHandler) build() error {
 
 	if err != nil {
 		fmt.Fprintf(&wh.wasmLog, "\n%v\n", err)
-	}
-
-	if err != nil {
 		return nil
 	}
 
@@ -260,7 +257,7 @@ func (wh *WASMHandler) build() error {
 		return fmt.Errorf("build output copy failed: %v", err)
 	}
 
-	wh.wasmTime = time.Now()
+	wh.wasmTime = t0
 	wh.wasmOk = true
 	return nil
 }
