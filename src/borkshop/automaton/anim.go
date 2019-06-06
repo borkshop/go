@@ -4,7 +4,6 @@ package main
 
 import (
 	"borkshop/stats"
-	"log"
 	"math"
 	"syscall/js"
 	"time"
@@ -30,13 +29,8 @@ type frameAnimator struct {
 }
 
 func (anim *frameAnimator) Init(client animator) {
-	const reportEvery = 0
-	anim.rafTimes.Init(timingWindow, reportEvery, func(db *stats.Durations, i int) {
-		log.Printf("average frame ∂: %v", db.Average())
-	})
-	anim.clientTimes.Init(timingWindow, reportEvery, func(db *stats.Durations, i int) {
-		log.Printf("average client elapsed: %v", db.Average())
-	})
+	anim.rafTimes.Init(timingWindow)
+	anim.clientTimes.Init(timingWindow)
 	anim.animator = client
 	anim.request()
 }
