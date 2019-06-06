@@ -17,7 +17,7 @@ type Durations struct {
 
 func (db *Durations) Init(n, every int, report func(db *Durations, i int)) {
 	db.i = 0
-	db.d = make([]time.Duration, n)
+	db.d = make([]time.Duration, 0, n)
 	db.ReportEvery = every
 	db.Report = report
 }
