@@ -11,40 +11,40 @@ type Durations struct {
 	i int
 }
 
-func (db *Durations) Init(n int) {
-	db.i = 0
-	db.d = make([]time.Duration, 0, n)
+func (ds *Durations) Init(n int) {
+	ds.i = 0
+	ds.d = make([]time.Duration, 0, n)
 }
 
-func (db *Durations) Measure() func() {
+func (ds *Durations) Measure() func() {
 	t0 := time.Now()
 	return func() {
 		t1 := time.Now()
-		db.Collect(t1.Sub(t0))
+		ds.Collect(t1.Sub(t0))
 	}
 }
 
-func (db *Durations) Collect(d time.Duration) {
-	if len(db.d) < cap(db.d) {
-		db.d = append(db.d, d)
+func (ds *Durations) Collect(d time.Duration) {
+	if len(ds.d) < cap(ds.d) {
+		ds.d = append(ds.d, d)
 	} else {
-		db.d[db.i] = d
-		db.i = (db.i + 1) % len(db.d)
+		ds.d[ds.i] = d
+		ds.i = (ds.i + 1) % len(ds.d)
 	}
 }
 
-func (db *Durations) Count() int {
-	return len(db.d)
+func (ds *Durations) Count() int {
+	return len(ds.d)
 }
 
-func (db *Durations) Total() time.Duration {
+func (ds *Durations) Total() time.Duration {
 	var total time.Duration
-	for _, d := range db.d {
+	for _, d := range ds.d {
 		total += d
 	}
 	return total
 }
 
-func (db *Durations) Average() time.Duration {
-	return time.Duration(math.Round(float64(db.Total()) / float64(db.Count())))
+func (ds *Durations) Average() time.Duration {
+	return time.Duration(math.Round(float64(ds.Total()) / float64(ds.Count())))
 }
