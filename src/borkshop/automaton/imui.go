@@ -36,6 +36,7 @@ type imContext struct {
 	infoDetails js.Value
 	infoBody    js.Value
 
+	profTiming  bool
 	profDetails js.Value
 	profTitle   js.Value
 	profBody    js.Value
@@ -45,9 +46,36 @@ type imContext struct {
 	done chan error
 }
 
+type keyMod uint8
+
+const (
+	altKey keyMod = 1 << iota
+	ctrlKey
+	metaKey
+	shiftKey
+)
+
+func readKeyMod(event js.Value) keyMod {
+	var mod keyMod
+	if event.Get("altKey").Bool() {
+		mod |= altKey
+	}
+	if event.Get("ctrlKey").Bool() {
+		mod |= ctrlKey
+	}
+	if event.Get("shiftKey").Bool() {
+		mod |= metaKey
+	}
+	if event.Get("metaKey").Bool() {
+		mod |= shiftKey
+	}
+	return mod
+}
+
 type imInput struct {
 	key struct {
 		press rune
+		mod   keyMod
 		// TODO down buttons
 	}
 	// TODO mouse struct {}
@@ -148,31 +176,45 @@ func (ctx *imContext) Wait() error {
 
 func (ctx *imContext) Update(client imClient) {
 	// clear output so that client may rebuild it
-	ctx.imOutput.clear()
+	ctx.clearOutput()
 
-	ctx.proff("µ client: %v\n", ctx.anim.clientTimes.Average())
-	ctx.proff("µ raf ∂: %v\n", ctx.anim.rafTimes.Average())
+	if ctx.key.press == 'p' && ctx.key.mod == ctrlKey {
+		ctx.clearInput()
+		ctx.profTiming = !ctx.profTiming
+	}
+
+	if ctx.profTiming {
+		ctx.proff("µ client: %v\n", ctx.anim.clientTimes.Average())
+		ctx.proff("µ raf ∂: %v\n", ctx.anim.rafTimes.Average())
+	}
 
 	if err := client.Update(ctx); err != nil {
 		ctx.done <- err
 	}
 
 	// clear one-shot input that's now been processed by the client
-	ctx.imInput.clear()
+	ctx.clearInput()
 }
 
 func (ctx *imContext) Render() {
 	// update profiling details
-	if ctx.profDetails.Get("open").Bool() {
+	if ctx.prof.Len() == 0 {
+		ctx.profDetails.Get("style").Set("display", "none")
 		ctx.profTitle.Set("innerText", "")
-		ctx.profBody.Set("innerText", ctx.prof.String())
-	} else {
-		b := ctx.prof.Bytes()
-		if i := bytes.IndexByte(b, '\n'); i > 0 {
-			b = b[:i]
-		}
-		ctx.profTitle.Set("innerText", string(b))
 		ctx.profBody.Set("innerText", "")
+	} else {
+		ctx.profDetails.Get("style").Set("display", "")
+		if ctx.profDetails.Get("open").Bool() {
+			ctx.profTitle.Set("innerText", "")
+			ctx.profBody.Set("innerText", ctx.prof.String())
+		} else {
+			b := ctx.prof.Bytes()
+			if i := bytes.IndexByte(b, '\n'); i > 0 {
+				b = b[:i]
+			}
+			ctx.profTitle.Set("innerText", string(b))
+			ctx.profBody.Set("innerText", "")
+		}
 	}
 
 	// update simulation info details
@@ -189,12 +231,13 @@ func (ctx *imContext) Render() {
 	ctx.renderCtx.Call("putImageData", img, 0, 0)
 }
 
-func (in *imInput) clear() {
+func (in *imInput) clearInput() {
 	in.key.press = 0
 }
 
 func (in *imInput) onKeyPress(this js.Value, args []js.Value) interface{} {
 	event := args[0]
+	in.key.mod = readKeyMod(event)
 	for _, r := range event.Get("key").String() {
 		in.key.press = r
 		break
@@ -202,7 +245,7 @@ func (in *imInput) onKeyPress(this js.Value, args []js.Value) interface{} {
 	return nil
 }
 
-func (out *imOutput) clear() {
+func (out *imOutput) clearOutput() {
 	for i := range out.screen.Pix {
 		out.screen.Pix[i] = 0
 	}
