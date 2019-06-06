@@ -7,14 +7,13 @@ import (
 	"errors"
 	"fmt"
 	"go/build"
-	"io"
-	"io/ioutil"
 	"net/http"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"strings"
 	"sync"
+	"syscall"
 	"time"
 )
 
@@ -34,7 +33,7 @@ type WASMHandler struct {
 	pkgTime  map[entry]time.Time
 	wasmExec string // class Go implemented by $GOROOT/misc/wasm_exec.js
 
-	wasm     *os.File
+	wasmPath string
 	wasmOk   bool
 	wasmTime time.Time
 	wasmLog  bytes.Buffer
@@ -85,11 +84,9 @@ func (wh *WASMHandler) packageDir() string {
 	return wh.pkg[entry{wh.srcDir, wh.path}].Dir
 }
 
-// Close removes any temporary built wasm binary.
+// Close removes any persistent resources.
 func (wh *WASMHandler) Close() error {
-	wh.mu.Lock()
-	defer wh.mu.Unlock()
-	return wh.removeWasm()
+	return nil
 }
 
 // ServeHTTP dispatches the request dynamically.
@@ -145,7 +142,7 @@ func (wh *WASMHandler) serveWASM(w http.ResponseWriter, req *http.Request) {
 
 	w.Header().Set("Content-Type", "application/wasm")
 	w.Header().Set("X-Content-Type-Options", "nosniff")
-	http.ServeContent(w, req, "main.wasm", wh.wasmTime, wh.wasm)
+	http.ServeFile(w, req, wh.wasmPath)
 }
 
 func (wh *WASMHandler) serveJSON(w http.ResponseWriter, req *http.Request) {
@@ -193,34 +190,6 @@ func (wh *WASMHandler) serveLog(w http.ResponseWriter, req *http.Request) {
 }
 
 func (wh *WASMHandler) build() error {
-	if wh.wasm != nil {
-		if _, err := wh.wasm.Seek(0, os.SEEK_SET); err != nil {
-			wh.removeWasm()
-		}
-	}
-	if wh.wasm == nil {
-		if err := wh.openWasm(); err != nil {
-			return fmt.Errorf("unable to create temporary file: %v", err)
-		}
-	}
-
-	pr, pw, err := os.Pipe()
-	if err != nil {
-		return fmt.Errorf("failed to pipe: %v", err)
-	}
-	copyChan := make(chan error, 1)
-	go func() {
-		defer close(copyChan)
-		_, err := io.Copy(wh.wasm, pr)
-		if closeErr := pr.Close(); err == nil {
-			err = closeErr
-		}
-		if err == nil {
-			_, err = wh.wasm.Seek(0, os.SEEK_SET)
-		}
-		copyChan <- err
-	}()
-
 	t0 := time.Now()
 	defer func() {
 		t1 := time.Now()
@@ -233,28 +202,16 @@ func (wh *WASMHandler) build() error {
 	wh.wasmLog.Grow(64 * 1024)
 
 	importPath := wh.pkg[entry{wh.srcDir, wh.path}].ImportPath
-	cmd := exec.Command("go", "build", "-o", "/dev/stdout", importPath)
+	cmd := exec.Command("go", "build", "-o", wh.wasmPath, importPath)
 	cmd.Env = wh.buildEnv()
-	cmd.Stdout = pw
 	cmd.Stderr = &wh.wasmLog
 	cmd.Dir = wh.srcDir
 
 	fmt.Fprintf(&wh.wasmLog, "Building %s\n", importPath)
 
-	err = cmd.Start()
-	_ = pw.Close()
-	if err == nil {
-		err = cmd.Wait()
-	}
-
-	if err != nil {
+	if err := cmd.Run(); err != nil {
 		fmt.Fprintf(&wh.wasmLog, "\n%v\n", err)
 		return nil
-	}
-
-	if copyErr := <-copyChan; copyErr != nil {
-		wh.removeWasm()
-		return fmt.Errorf("build output copy failed: %v", err)
 	}
 
 	wh.wasmTime = t0
@@ -263,12 +220,8 @@ func (wh *WASMHandler) build() error {
 }
 
 func (wh *WASMHandler) buildNeeded() (bool, error) {
-	if wh.wasm != nil {
-		if _, err := wh.wasm.Seek(0, os.SEEK_SET); err != nil {
-			return true, nil
-		}
-	}
-	if wh.wasm == nil || !wh.wasmOk {
+	info, err := os.Stat(wh.wasmPath)
+	if err == syscall.ENOENT || !wh.wasmOk {
 		return true, nil
 	}
 	mt, err := wh.pkgModTime()
@@ -281,7 +234,11 @@ func (wh *WASMHandler) buildNeeded() (bool, error) {
 			return false, fmt.Errorf("failed to get build package mod time: %v", err)
 		}
 	}
-	return mt.After(wh.wasmTime), nil
+	wasmTime := wh.wasmTime
+	if ft := info.ModTime(); ft.After(wasmTime) {
+		wasmTime = ft
+	}
+	return mt.After(wasmTime), nil
 }
 
 func (wh *WASMHandler) pkgModTime() (time.Time, error) {
@@ -344,6 +301,9 @@ func (wh *WASMHandler) refreshPackage() error {
 			ps.extend(pkg.Dir, pkg.Imports...)
 		}
 	}
+
+	pkg := wh.pkg[entry{wh.srcDir, wh.path}]
+	wh.wasmPath = filepath.Join(pkg.Dir, "main.wasm")
 	return nil
 }
 
@@ -387,28 +347,6 @@ func (ps *pkgStack) add(srcDir, path string) {
 	if _, have := ps.seen[ent]; !have {
 		ps.stack = append(ps.stack, ent)
 	}
-}
-
-func (wh *WASMHandler) openWasm() error {
-	wh.removeWasm()
-	f, err := ioutil.TempFile("", "main.wasm")
-	if err != nil {
-		return err
-	}
-	wh.wasm = f
-	return nil
-}
-
-func (wh *WASMHandler) removeWasm() error {
-	if wh.wasm == nil {
-		return nil
-	}
-	err := os.Remove(wh.wasm.Name())
-	if cerr := wh.wasm.Close(); err == nil {
-		err = cerr
-	}
-	wh.wasm = nil
-	return err
 }
 
 type modTimeChecker struct {
