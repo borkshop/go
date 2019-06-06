@@ -22,6 +22,14 @@ func (db *Durations) Init(n, every int, report func(db *Durations, i int)) {
 	db.Report = report
 }
 
+func (db *Durations) Measure() func() {
+	t0 := time.Now()
+	return func() {
+		t1 := time.Now()
+		db.Collect(t1.Sub(t0))
+	}
+}
+
 func (db *Durations) Collect(d time.Duration) {
 	if len(db.d) < cap(db.d) {
 		i := len(db.d)
