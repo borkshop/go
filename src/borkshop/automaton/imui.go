@@ -269,6 +269,12 @@ func (ctx *imContext) Update() {
 		ctx.clearInput()
 	}(ctx.animating)
 
+	if ctx.key.press == 'q' && ctx.key.mod == ctrlKey {
+		ctx.clearInput()
+		ctx.done <- nil
+		return
+	}
+
 	if ctx.key.press == 'p' && ctx.key.mod == ctrlKey {
 		ctx.clearInput()
 		ctx.profTiming = !ctx.profTiming
