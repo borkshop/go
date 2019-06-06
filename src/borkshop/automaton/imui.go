@@ -136,7 +136,7 @@ func (ctx *imContext) Init(client imClient) (err error) {
 
 func (ctx *imContext) onResize(this js.Value, args []js.Value) interface{} {
 	ctx.updateSize()
-	ctx.Update(ctx.client)
+	ctx.Update()
 	return nil
 }
 
@@ -155,13 +155,13 @@ func (ctx *imContext) updateSize() {
 
 func (ctx *imContext) onKeyPress(this js.Value, args []js.Value) interface{} {
 	ctx.imInput.onKeyPress(this, args)
-	ctx.Update(ctx.client)
+	ctx.Update()
 	return nil
 }
 
 func (ctx *imContext) animate(elapsed time.Duration) {
 	// TODO inject elapsed time to derive animation/simulation step
-	ctx.Update(ctx.client)
+	ctx.Update()
 	ctx.Render()
 }
 
@@ -174,7 +174,7 @@ func (ctx *imContext) Wait() error {
 	return <-ctx.done
 }
 
-func (ctx *imContext) Update(client imClient) {
+func (ctx *imContext) Update() {
 	// clear output so that client may rebuild it
 	ctx.clearOutput()
 
@@ -188,12 +188,16 @@ func (ctx *imContext) Update(client imClient) {
 		ctx.proff("µ raf ∂: %v\n", ctx.anim.rafTimes.Average())
 	}
 
-	if err := client.Update(ctx); err != nil {
-		ctx.done <- err
-	}
+	ctx.updateClient()
 
 	// clear one-shot input that's now been processed by the client
 	ctx.clearInput()
+}
+
+func (ctx *imContext) updateClient() {
+	if err := ctx.client.Update(ctx); err != nil {
+		ctx.done <- err
+	}
 }
 
 func (ctx *imContext) Render() {
