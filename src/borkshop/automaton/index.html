@@ -22,16 +22,26 @@ canvas {
     width: 100%;
 }
 
+#prof {
+    position: fixed;
+    top: 0; right: 0;
+    margin: 0;
+    padding: 0.25em 0.5em;
+}
+
 #simInfo {
     position: fixed;
     bottom: 0; left: 0;
     margin: 0;
     padding: 0.5em 1em;
+}
+
+.overlay {
     color: rgb(95,135,95);
     background-color: rgba(38, 38, 38, 0.75);
 }
 
-#simInfo summary {
+.overlay summary {
     color: rgb(95,135,175);
 }
 
@@ -66,13 +76,13 @@ YELLOW_ORANGE   #d7af00  rgb(215,175,0)
 <body>
     <canvas></canvas>
 
-    <details id="simInfo" open>
-        <summary>Sim Info</summary>
-        <pre>Loading...</pre>
-    </details>
+    <details class="overlay" id="simInfo" open><summary>Sim Info</summary></details>
+
+    <details class="overlay" id="prof"><summary>Prof</summary></details>
 
     <script src="wasm_exec.js"></script>
     <script src="index.js"
         data-canvas="canvas"
-        data-info-overlay="#simInfo pre"></script>
+        data-info-details="#simInfo"
+        data-prof-details="#prof"></script>
 </body>

@@ -29,10 +29,17 @@ type imContext struct {
 	imOutput
 
 	// bindings
-	anim        frameAnimator
-	canvas      js.Value
-	infoOverlay js.Value
-	renderCtx   js.Value
+	anim   frameAnimator
+	canvas js.Value
+
+	infoDetails js.Value
+	infoBody    js.Value
+
+	profDetails js.Value
+	profTitle   js.Value
+	profBody    js.Value
+
+	renderCtx js.Value
 
 	done chan error
 }
@@ -47,6 +54,7 @@ type imInput struct {
 
 type imOutput struct {
 	screen *image.RGBA // TODO clarify screen-space vs cell-space
+	prof   bytes.Buffer
 	info   bytes.Buffer
 }
 
@@ -67,10 +75,19 @@ func (ctx *imContext) Init(client imClient) (err error) {
 		return err
 	}
 
-	ctx.infoOverlay, err = getEnvSelector("info-overlay")
+	ctx.infoDetails, err = getEnvSelector("info-details")
 	if err != nil {
 		return err
 	}
+
+	ctx.profDetails, err = getEnvSelector("prof-details")
+	if err != nil {
+		return err
+	}
+
+	ctx.infoBody = ctx.infoDetails.Call("appendChild", document.Call("createElement", "pre"))
+	ctx.profTitle = ctx.profDetails.Call("querySelector", "summary")
+	ctx.profBody = ctx.profDetails.Call("appendChild", document.Call("createElement", "pre"))
 
 	// TODO webgl instead
 	// TODO initialize cell rendering gl program
@@ -132,6 +149,9 @@ func (ctx *imContext) Update(client imClient) {
 	// clear output so that client may rebuild it
 	ctx.imOutput.clear()
 
+	ctx.proff("µ client: %v\n", ctx.anim.clientTimes.Average())
+	ctx.proff("µ raf ∂: %v\n", ctx.anim.rafTimes.Average())
+
 	if err := client.Update(ctx); err != nil {
 		ctx.done <- err
 	}
@@ -141,8 +161,23 @@ func (ctx *imContext) Update(client imClient) {
 }
 
 func (ctx *imContext) Render() {
-	ctx.infoOverlay.Set("innerText", ctx.info.String())
+	// update profiling details
+	if ctx.profDetails.Get("open").Bool() {
+		ctx.profTitle.Set("innerText", "")
+		ctx.profBody.Set("innerText", ctx.prof.String())
+	} else {
+		b := ctx.prof.Bytes()
+		if i := bytes.IndexByte(b, '\n'); i > 0 {
+			b = b[:i]
+		}
+		ctx.profTitle.Set("innerText", string(b))
+		ctx.profBody.Set("innerText", "")
+	}
 
+	// update simulation info details
+	ctx.infoBody.Set("innerText", ctx.info.String())
+
+	// render the world grid
 	size := ctx.screen.Rect.Size()
 	ar := js.TypedArrayOf(ctx.screen.Pix)
 	defer ar.Release()
@@ -171,6 +206,11 @@ func (out *imOutput) clear() {
 		out.screen.Pix[i] = 0
 	}
 	out.info.Reset()
+	out.prof.Reset()
+}
+
+func (out *imContext) proff(mess string, args ...interface{}) {
+	_, _ = fmt.Fprintf(&out.prof, mess, args...)
 }
 
 func (out *imContext) infof(mess string, args ...interface{}) {
