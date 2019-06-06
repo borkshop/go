@@ -3,6 +3,7 @@
 package main
 
 import (
+	"borkshop/stats"
 	"bytes"
 	"fmt"
 	"image"
@@ -24,6 +25,11 @@ type imClient interface {
 
 type imContext struct {
 	client imClient
+
+	// timing
+	updateTimes stats.Durations
+	clientTimes stats.Durations
+	renderTimes stats.Durations
 
 	// TODO animation/simulation time
 	imInput
@@ -97,6 +103,10 @@ func (ctx *imContext) Run(client imClient) error {
 }
 
 func (ctx *imContext) Init(client imClient) (err error) {
+	ctx.updateTimes.Init(timingWindow, 0, nil)
+	ctx.renderTimes.Init(timingWindow, 0, nil)
+	ctx.clientTimes.Init(timingWindow, 0, nil)
+
 	ctx.client = client
 
 	ctx.canvas, err = getEnvSelector("canvas")
@@ -175,6 +185,8 @@ func (ctx *imContext) Wait() error {
 }
 
 func (ctx *imContext) Update() {
+	defer ctx.updateTimes.Measure()()
+
 	// clear output so that client may rebuild it
 	ctx.clearOutput()
 
@@ -184,7 +196,10 @@ func (ctx *imContext) Update() {
 	}
 
 	if ctx.profTiming {
-		ctx.proff("µ client: %v\n", ctx.anim.clientTimes.Average())
+		ctx.proff("µ update: %v\n", ctx.updateTimes.Average())
+		ctx.proff("µ render: %v\n", ctx.renderTimes.Average())
+		ctx.proff("µ client: %v\n", ctx.clientTimes.Average())
+		ctx.proff("µ anim: %v\n", ctx.anim.clientTimes.Average())
 		ctx.proff("µ raf ∂: %v\n", ctx.anim.rafTimes.Average())
 	}
 
@@ -195,12 +210,15 @@ func (ctx *imContext) Update() {
 }
 
 func (ctx *imContext) updateClient() {
+	defer ctx.clientTimes.Measure()()
 	if err := ctx.client.Update(ctx); err != nil {
 		ctx.done <- err
 	}
 }
 
 func (ctx *imContext) Render() {
+	defer ctx.renderTimes.Measure()()
+
 	// update profiling details
 	if ctx.prof.Len() == 0 {
 		ctx.profDetails.Get("style").Set("display", "none")

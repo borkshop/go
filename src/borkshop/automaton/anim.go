@@ -10,6 +10,8 @@ import (
 	"time"
 )
 
+const timingWindow = 240
+
 type animator interface {
 	animate(elapsed time.Duration)
 }
@@ -28,7 +30,6 @@ type frameAnimator struct {
 }
 
 func (anim *frameAnimator) Init(client animator) {
-	const timingWindow = 240
 	const reportEvery = 0
 	anim.rafTimes.Init(timingWindow, reportEvery, func(db *stats.Durations, i int) {
 		log.Printf("average frame ∂: %v", db.Average())
