@@ -8,6 +8,7 @@ import (
 	"image"
 	"os"
 	"syscall/js"
+	"time"
 )
 
 var (
@@ -130,8 +131,8 @@ func (ctx *imContext) onKeyPress(this js.Value, args []js.Value) interface{} {
 	return nil
 }
 
-func (ctx *imContext) animate(now float64) {
-	// TODO inject animation/simulation time delta
+func (ctx *imContext) animate(elapsed time.Duration) {
+	// TODO inject elapsed time to derive animation/simulation step
 	ctx.Update(ctx.client)
 	ctx.Render()
 }

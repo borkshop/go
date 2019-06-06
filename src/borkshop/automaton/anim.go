@@ -11,12 +11,12 @@ import (
 )
 
 type animator interface {
-	animate(now float64)
+	animate(elapsed time.Duration)
 }
 
-type animatorFunc func(now float64)
+type animatorFunc func(elapsed time.Duration)
 
-func (af animatorFunc) animate(now float64) { af(now) }
+func (af animatorFunc) animate(elapsed time.Duration) { af(elapsed) }
 
 type frameAnimator struct {
 	last float64
@@ -40,7 +40,7 @@ func (anim *frameAnimator) Init(client animator) {
 	anim.request()
 }
 
-func (anim *frameAnimator) InitFunc(af func(now float64)) {
+func (anim *frameAnimator) InitFunc(af func(elapsed time.Duration)) {
 	anim.Init(animatorFunc(af))
 }
 
@@ -54,12 +54,11 @@ func (anim *frameAnimator) request() {
 func (anim *frameAnimator) callback(this js.Value, args []js.Value) interface{} {
 	if anim.animator != nil {
 		now := args[0].Float()
-		elapsed := now - anim.last
-		elapsedT := time.Duration(math.Round(elapsed*1000)) * time.Microsecond
-		anim.rafTimes.Collect(elapsedT)
+		elapsed := time.Duration(math.Round((now-anim.last)*1000)) * time.Microsecond
+		anim.rafTimes.Collect(elapsed)
 
 		t0 := time.Now()
-		anim.animate(now) // TODO pass elapsedT
+		anim.animate(elapsed)
 		t1 := time.Now()
 		anim.clientTimes.Collect(t1.Sub(t0))
 
