@@ -165,12 +165,12 @@ func (ctx *imContext) onFrame(this js.Value, args []js.Value) interface{} {
 	microsec := int64(math.Round(math.Mod(millisec, 1000) * 1000))
 
 	now := time.Unix(sec, microsec*1000)
-	ctx.frameTimes.Collect(now)
+	defer ctx.frameTimes.Collect(now)
 
 	var elapsed time.Duration
 	if !ctx.lastFrame.IsZero() {
 		elapsed = now.Sub(ctx.lastFrame)
-		ctx.elapsedTimes.Collect(elapsed)
+		defer ctx.elapsedTimes.Collect(elapsed)
 	}
 
 	ctx.animate(elapsed)
