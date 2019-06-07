@@ -35,9 +35,12 @@ type imContext struct {
 	imInput
 	imOutput
 
-	// bindings
-	anim   frameAnimator
-	canvas js.Value
+	// animation
+	anim frameAnimator
+
+	// dom bindings
+	canvas    js.Value
+	renderCtx js.Value
 
 	infoDetails js.Value
 	infoBody    js.Value
@@ -47,8 +50,7 @@ type imContext struct {
 	profTitle   js.Value
 	profBody    js.Value
 
-	renderCtx js.Value
-
+	// run done
 	done chan error
 }
 
@@ -94,21 +96,16 @@ type imOutput struct {
 }
 
 func (ctx *imContext) Run(client imClient) error {
-	err := ctx.Init(client)
-	defer ctx.Release()
+	ctx.client = client
+	err := ctx.init()
+	defer ctx.release()
 	if err == nil {
-		err = ctx.Wait()
+		err = <-ctx.done
 	}
 	return err
 }
 
-func (ctx *imContext) Init(client imClient) (err error) {
-	ctx.updateTimes = stats.MakeDurations(timingWindow)
-	ctx.renderTimes = stats.MakeDurations(timingWindow)
-	ctx.clientTimes = stats.MakeDurations(timingWindow)
-
-	ctx.client = client
-
+func (ctx *imContext) init() (err error) {
 	ctx.canvas, err = getEnvSelector("canvas")
 	if err != nil {
 		return err
@@ -124,6 +121,10 @@ func (ctx *imContext) Init(client imClient) (err error) {
 		return err
 	}
 
+	ctx.updateTimes = stats.MakeDurations(timingWindow)
+	ctx.renderTimes = stats.MakeDurations(timingWindow)
+	ctx.clientTimes = stats.MakeDurations(timingWindow)
+
 	ctx.infoBody = ctx.infoDetails.Call("appendChild", document.Call("createElement", "pre"))
 	ctx.profTitle = ctx.profDetails.Call("querySelector", "summary")
 	ctx.profBody = ctx.profDetails.Call("appendChild", document.Call("createElement", "pre"))
@@ -137,8 +138,8 @@ func (ctx *imContext) Init(client imClient) (err error) {
 	window.Call("addEventListener", "resize", js.FuncOf(ctx.onResize))
 
 	ctx.done = make(chan error)
-	ctx.anim.Init(ctx)
 
+	ctx.anim.Init(ctx)
 	ctx.updateSize()
 
 	return nil
@@ -175,13 +176,8 @@ func (ctx *imContext) animate(elapsed time.Duration) {
 	ctx.Render()
 }
 
-func (ctx *imContext) Release() {
+func (ctx *imContext) release() {
 	ctx.anim.Release()
-
-}
-
-func (ctx *imContext) Wait() error {
-	return <-ctx.done
 }
 
 func (ctx *imContext) Update() {
@@ -197,8 +193,8 @@ func (ctx *imContext) Update() {
 
 	if ctx.profTiming {
 		ctx.proff("µ update: %v\n", ctx.updateTimes.Average())
-		ctx.proff("µ render: %v\n", ctx.renderTimes.Average())
 		ctx.proff("µ client: %v\n", ctx.clientTimes.Average())
+		ctx.proff("µ render: %v\n", ctx.renderTimes.Average())
 		ctx.proff("µ anim: %v\n", ctx.anim.clientTimes.Average())
 		ctx.proff("µ raf ∂: %v\n", ctx.anim.rafTimes.Average())
 	}
