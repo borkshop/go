@@ -22,7 +22,7 @@ func main() {
 }
 
 type App struct {
-	ticking    int
+	ticking    bool
 	automaton  *Automaton
 	view       View
 	platesView *PlatesView
@@ -62,19 +62,12 @@ func newApp() *App {
 }
 
 func (a *App) Update(ctx *imContext) (err error) {
+	var tick bool
 	if ctx.key.press == 'p' {
-		a.ticking++
+		a.ticking = !a.ticking
 	}
-	var ticks int
-	if a.ticking%2 == 1 {
-		ticks = 1
-	}
-	if ctx.key.press == 'n' {
-		ticks++
-	}
-
-	for i := 0; i < ticks; i++ {
-		a.automaton.Tick()
+	if a.ticking || ctx.key.press == 'n' {
+		tick = true
 	}
 
 	switch ctx.key.press {
@@ -86,6 +79,10 @@ func (a *App) Update(ctx *imContext) (err error) {
 		a.view = a.waterView
 	case 'M':
 		a.view = a.mapView
+	}
+
+	if tick {
+		a.automaton.Tick()
 	}
 
 	// TODO thread viewport scroll offset
