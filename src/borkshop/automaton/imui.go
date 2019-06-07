@@ -30,6 +30,7 @@ type imContext struct {
 	client imClient
 
 	// timing
+	frameTimes   stats.Times
 	updateTimes  stats.Durations
 	clientTimes  stats.Durations
 	renderTimes  stats.Durations
@@ -126,6 +127,7 @@ func (ctx *imContext) init() (err error) {
 		return err
 	}
 
+	ctx.frameTimes = stats.MakeTimes(timingWindow)
 	ctx.updateTimes = stats.MakeDurations(timingWindow)
 	ctx.renderTimes = stats.MakeDurations(timingWindow)
 	ctx.clientTimes = stats.MakeDurations(timingWindow)
@@ -163,6 +165,7 @@ func (ctx *imContext) onFrame(this js.Value, args []js.Value) interface{} {
 	microsec := int64(math.Round(math.Mod(millisec, 1000) * 1000))
 
 	now := time.Unix(sec, microsec*1000)
+	ctx.frameTimes.Collect(now)
 
 	var elapsed time.Duration
 	if !ctx.lastFrame.IsZero() {
@@ -223,6 +226,7 @@ func (ctx *imContext) Update() {
 	}
 
 	if ctx.profTiming {
+		ctx.proff("%v FPS\n", ctx.frameTimes.CountRecent(ctx.lastFrame, time.Second))
 		ctx.proff("µ update: %v\n", ctx.updateTimes.Average())
 		ctx.proff("µ client: %v\n", ctx.clientTimes.Average())
 		ctx.proff("µ render: %v\n", ctx.renderTimes.Average())
