@@ -103,9 +103,9 @@ func (ctx *imContext) Run(client imClient) error {
 }
 
 func (ctx *imContext) Init(client imClient) (err error) {
-	ctx.updateTimes.Init(timingWindow)
-	ctx.renderTimes.Init(timingWindow)
-	ctx.clientTimes.Init(timingWindow)
+	ctx.updateTimes = stats.MakeDurations(timingWindow)
+	ctx.renderTimes = stats.MakeDurations(timingWindow)
+	ctx.clientTimes = stats.MakeDurations(timingWindow)
 
 	ctx.client = client
 

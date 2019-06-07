@@ -29,8 +29,8 @@ type frameAnimator struct {
 }
 
 func (anim *frameAnimator) Init(client animator) {
-	anim.rafTimes.Init(timingWindow)
-	anim.clientTimes.Init(timingWindow)
+	anim.rafTimes = stats.MakeDurations(timingWindow)
+	anim.clientTimes = stats.MakeDurations(timingWindow)
 	anim.animator = client
 	anim.request()
 }

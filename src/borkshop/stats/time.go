@@ -11,9 +11,8 @@ type Durations struct {
 	i int
 }
 
-func (ds *Durations) Init(n int) {
-	ds.i = 0
-	ds.d = make([]time.Duration, 0, n)
+func MakeDurations(n int) Durations {
+	return Durations{i: 0, d: make([]time.Duration, 0, n)}
 }
 
 func (ds *Durations) Measure() func() {
