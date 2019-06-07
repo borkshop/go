@@ -159,8 +159,12 @@ func (ctx *imContext) requestFrame() {
 
 func (ctx *imContext) onFrame(this js.Value, args []js.Value) interface{} {
 	now := args[0].Float()
-	elapsed := time.Duration(math.Round((now-ctx.lastFrame)*1000)) * time.Microsecond
-	ctx.elapsedTimes.Collect(elapsed)
+
+	var elapsed time.Duration
+	if ctx.lastFrame != 0 {
+		elapsed = time.Duration(math.Round((now-ctx.lastFrame)*1000)) * time.Microsecond
+		ctx.elapsedTimes.Collect(elapsed)
+	}
 
 	ctx.animate(elapsed)
 	ctx.requestFrame()
