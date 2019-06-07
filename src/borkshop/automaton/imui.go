@@ -40,7 +40,7 @@ type imContext struct {
 	imOutput
 
 	// animation
-	lastFrame float64
+	lastFrame time.Time
 	rafFn     js.Func
 
 	// dom bindings
@@ -158,11 +158,15 @@ func (ctx *imContext) requestFrame() {
 }
 
 func (ctx *imContext) onFrame(this js.Value, args []js.Value) interface{} {
-	now := args[0].Float()
+	millisec := args[0].Float()
+	sec := int64(millisec / 1000)
+	microsec := int64(math.Round(math.Mod(millisec, 1000) * 1000))
+
+	now := time.Unix(sec, microsec*1000)
 
 	var elapsed time.Duration
-	if ctx.lastFrame != 0 {
-		elapsed = time.Duration(math.Round((now-ctx.lastFrame)*1000)) * time.Microsecond
+	if !ctx.lastFrame.IsZero() {
+		elapsed = now.Sub(ctx.lastFrame)
 		ctx.elapsedTimes.Collect(elapsed)
 	}
 
