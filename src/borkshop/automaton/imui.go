@@ -7,6 +7,7 @@ import (
 	"bytes"
 	"fmt"
 	"image"
+	"math"
 	"os"
 	"syscall/js"
 	"time"
@@ -19,6 +20,8 @@ var (
 	Uint8ClampedArray = js.Global().Get("Uint8ClampedArray")
 )
 
+const timingWindow = 4 * 60
+
 type imClient interface {
 	Update(*imContext) error
 }
@@ -27,16 +30,18 @@ type imContext struct {
 	client imClient
 
 	// timing
-	updateTimes stats.Durations
-	clientTimes stats.Durations
-	renderTimes stats.Durations
+	updateTimes  stats.Durations
+	clientTimes  stats.Durations
+	renderTimes  stats.Durations
+	elapsedTimes stats.Durations
 
 	// TODO animation/simulation time
 	imInput
 	imOutput
 
 	// animation
-	anim frameAnimator
+	lastFrame float64
+	rafFn     js.Func
 
 	// dom bindings
 	canvas    js.Value
@@ -124,6 +129,9 @@ func (ctx *imContext) init() (err error) {
 	ctx.updateTimes = stats.MakeDurations(timingWindow)
 	ctx.renderTimes = stats.MakeDurations(timingWindow)
 	ctx.clientTimes = stats.MakeDurations(timingWindow)
+	ctx.elapsedTimes = stats.MakeDurations(timingWindow)
+
+	ctx.rafFn = js.FuncOf(ctx.onFrame)
 
 	ctx.infoBody = ctx.infoDetails.Call("appendChild", document.Call("createElement", "pre"))
 	ctx.profTitle = ctx.profDetails.Call("querySelector", "summary")
@@ -139,9 +147,24 @@ func (ctx *imContext) init() (err error) {
 
 	ctx.done = make(chan error)
 
-	ctx.anim.Init(ctx)
+	ctx.requestFrame()
 	ctx.updateSize()
 
+	return nil
+}
+
+func (ctx *imContext) requestFrame() {
+	js.Global().Call("requestAnimationFrame", ctx.rafFn)
+}
+
+func (ctx *imContext) onFrame(this js.Value, args []js.Value) interface{} {
+	now := args[0].Float()
+	elapsed := time.Duration(math.Round((now-ctx.lastFrame)*1000)) * time.Microsecond
+	ctx.elapsedTimes.Collect(elapsed)
+
+	ctx.animate(elapsed)
+	ctx.requestFrame()
+	ctx.lastFrame = now
 	return nil
 }
 
@@ -177,7 +200,7 @@ func (ctx *imContext) animate(elapsed time.Duration) {
 }
 
 func (ctx *imContext) release() {
-	ctx.anim.Release()
+	ctx.rafFn.Release()
 }
 
 func (ctx *imContext) Update() {
@@ -195,8 +218,7 @@ func (ctx *imContext) Update() {
 		ctx.proff("µ update: %v\n", ctx.updateTimes.Average())
 		ctx.proff("µ client: %v\n", ctx.clientTimes.Average())
 		ctx.proff("µ render: %v\n", ctx.renderTimes.Average())
-		ctx.proff("µ anim: %v\n", ctx.anim.clientTimes.Average())
-		ctx.proff("µ raf ∂: %v\n", ctx.anim.rafTimes.Average())
+		ctx.proff("µ 𝝙frame: %v\n", ctx.elapsedTimes.Average())
 	}
 
 	ctx.updateClient()
