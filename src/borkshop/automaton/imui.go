@@ -30,6 +30,8 @@ type imContext struct {
 	client Updater
 
 	// timing
+	now          time.Time
+	elapsed      time.Duration
 	frameTimes   stats.Times
 	updateTimes  stats.Durations
 	clientTimes  stats.Durations
@@ -165,15 +167,12 @@ func (ctx *imContext) onFrame(this js.Value, args []js.Value) interface{} {
 	microsec := int64(math.Round(math.Mod(millisec, 1000) * 1000))
 
 	now := time.Unix(sec, microsec*1000)
-	defer ctx.frameTimes.Collect(now)
-
-	var elapsed time.Duration
+	ctx.now = now
 	if !ctx.lastFrame.IsZero() {
-		elapsed = now.Sub(ctx.lastFrame)
-		defer ctx.elapsedTimes.Collect(elapsed)
+		ctx.elapsed = now.Sub(ctx.lastFrame)
+		ctx.elapsedTimes.Collect(ctx.elapsed)
 	}
-
-	// TODO inject elapsed time to derive animation/simulation step
+	ctx.frameTimes.Collect(ctx.now)
 	ctx.Update()
 	ctx.Render()
 	ctx.requestFrame()
@@ -213,8 +212,14 @@ func (ctx *imContext) release() {
 func (ctx *imContext) Update() {
 	defer ctx.updateTimes.Measure()()
 
+	if ctx.now.IsZero() {
+		ctx.now = time.Now()
+	}
+
 	// clear one-shot state after client update
 	defer func() {
+		ctx.now = time.Time{}
+		ctx.elapsed = 0
 		ctx.clearInput()
 	}()
 
