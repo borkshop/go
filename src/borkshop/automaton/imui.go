@@ -22,12 +22,12 @@ var (
 
 const timingWindow = 4 * 60
 
-type imClient interface {
+type Updater interface {
 	Update(*imContext) error
 }
 
 type imContext struct {
-	client imClient
+	client Updater
 
 	// timing
 	frameTimes   stats.Times
@@ -101,7 +101,7 @@ type imOutput struct {
 	info   bytes.Buffer
 }
 
-func (ctx *imContext) Run(client imClient) error {
+func (ctx *imContext) Run(client Updater) error {
 	ctx.client = client
 	err := ctx.init()
 	defer ctx.release()
