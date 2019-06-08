@@ -217,17 +217,16 @@ func (ctx *imContext) release() {
 func (ctx *imContext) Update() {
 	defer ctx.updateTimes.Measure()()
 
-	// clear output so that client may rebuild it
-	ctx.clearScreen()
-	ctx.clearInfo()
-	ctx.clearProf()
-
 	if ctx.key.press == 'p' && ctx.key.mod == ctrlKey {
 		ctx.clearInput()
 		ctx.profTiming = !ctx.profTiming
+		if !ctx.profTiming {
+			ctx.clearProf()
+		}
 	}
 
 	if ctx.profTiming {
+		ctx.clearProf()
 		ctx.proff("%v FPS\n", ctx.frameTimes.CountRecent(ctx.lastFrame, time.Second))
 		ctx.proff("µ update: %v\n", ctx.updateTimes.Average())
 		ctx.proff("µ client: %v\n", ctx.clientTimes.Average())

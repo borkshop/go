@@ -87,8 +87,10 @@ func (a *App) Update(ctx *imContext) (err error) {
 
 	// TODO thread viewport scroll offset
 	a.automaton.Predraw()
+	ctx.clearScreen()
 	a.view.Draw(ctx.screen, ctx.screen.Rect)
 
+	ctx.clearInfo()
 	ctx.infof("Generation: %d\r\n", a.automaton.gen)
 	ctx.infof("Plate Sizes: %v\r\n", a.automaton.plateSizes)
 	ctx.infof("Earth Elevation: %s\r\n", a.automaton.earthStats.String())
