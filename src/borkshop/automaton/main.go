@@ -3,6 +3,7 @@
 package main
 
 import (
+	"bytes"
 	"errors"
 	"fmt"
 	"image"
@@ -11,6 +12,9 @@ import (
 	"math/rand"
 	"net/url"
 	"os"
+	"regexp"
+	"runtime/pprof"
+	"runtime/trace"
 	"syscall/js"
 	"time"
 
@@ -19,13 +23,47 @@ import (
 
 var errInt = errors.New("interrupt")
 
+var perfFlagsPattern = regexp.MustCompile(`\b(trace)|(cpuProfile)\b`)
+
+type perfFlags uint8
+
+const (
+	tracePerfFlag perfFlags = 1 << iota
+	cpuProfilePerfFlag
+)
+
+func parsePerfFlags() (flags perfFlags) {
+	hash := js.Global().Get("location").Get("hash").String()
+	for _, match := range perfFlagsPattern.FindAllStringSubmatch(hash, -1) {
+		if match[1] != "" {
+			flags |= tracePerfFlag
+		}
+		if match[2] != "" {
+			flags |= cpuProfilePerfFlag
+		}
+	}
+	return flags
+}
+
 func main() {
+	flags := parsePerfFlags()
+	fn := run
+	if flags&tracePerfFlag != 0 {
+		fn = withTrace(fn)
+	}
+	if flags&cpuProfilePerfFlag != 0 {
+		fn = withCPUProfile(fn)
+	}
+	if err := fn(); err != nil {
+		log.Fatalln(err)
+	}
+}
+
+func run() error {
 	// TODO stop using the global locked rand
 	rand.Seed(time.Now().UnixNano()) // TODO find the right place to seed
 	var ctx imContext
-	if err := ctx.Run(newApp()); err != nil {
-		log.Fatalln(err)
-	}
+	return ctx.Run(newApp())
 }
 
 type App struct {
@@ -165,6 +203,36 @@ func (a *App) Update(ctx *imContext) (err error) {
 	return
 }
 
+func withTrace(f func() error) func() error {
+	return func() error {
+		log.Printf("enabling execution tracing")
+		var buf bytes.Buffer
+		buf.Grow(1024 * 1024)
+		err := trace.Start(&buf)
+		if err == nil {
+			err = f()
+			trace.Stop()
+			uploadBytes("trace.out", buf.Bytes())
+		}
+		return err
+	}
+}
+
+func withCPUProfile(f func() error) func() error {
+	return func() error {
+		log.Printf("enabling cpu profiling")
+		var buf bytes.Buffer
+		buf.Grow(32 * 1024)
+		err := pprof.StartCPUProfile(&buf)
+		if err == nil {
+			err = f()
+			pprof.StopCPUProfile()
+			uploadBytes("prof.cpu", buf.Bytes())
+		}
+		return err
+	}
+}
+
 var (
 	fetch      = js.Global().Get("fetch")
 	consoleLog = js.Global().Get("console")
@@ -182,7 +250,7 @@ func uploadBytes(name string, b []byte) {
 	}
 
 	if err := postBytes(
-		fmt.Sprintf("%s?name=%s", uploadURL, url.QueryEscape(name)),
+		fmt.Sprintf("%s?name=XXX/%s", uploadURL, url.QueryEscape(name)),
 		"application/octet-stream",
 		b,
 	); err != nil {
