@@ -80,38 +80,46 @@ func (a *App) Update(ctx *imContext) (err error) {
 		tick = true
 	}
 
+	draw := tick
+
 	switch ctx.key.press {
 	case 'P':
 		a.view = a.platesView
+		draw = true
 	case 'E':
 		a.view = a.earthView
+		draw = true
 	case 'W':
 		a.view = a.waterView
+		draw = true
 	case 'M':
 		a.view = a.mapView
+		draw = true
 	}
 
 	if tick {
 		a.tickTimes.Collect(ctx.now)
 		a.automaton.Tick()
+		a.automaton.Predraw()
 	}
 
-	// TODO thread viewport scroll offset
-	a.automaton.Predraw()
-	ctx.clearScreen()
-	a.view.Draw(ctx.screen, ctx.screen.Rect)
+	if draw {
+		// TODO thread viewport scroll offset
+		ctx.clearScreen()
+		a.view.Draw(ctx.screen, ctx.screen.Rect)
 
-	ctx.clearInfo()
-	ctx.infof("Generation: %d\r\n", a.automaton.gen)
-	ctx.infof("Plate Sizes: %v\r\n", a.automaton.plateSizes)
-	ctx.infof("Earth Elevation: %s\r\n", a.automaton.earthStats.String())
-	ctx.infof("Earthquake PID: %s\r\n", a.automaton.earthPID.String())
-	ctx.infof("Quakes moved earth: %d\r\n", a.automaton.quake)
-	ctx.infof("Slides moved earth: %d\r\n", a.automaton.slide)
-	ctx.infof("Water: %s\r\n", a.automaton.waterStats.String())
-	ctx.infof("Water Coverage PID: %s\r\n", a.automaton.waterPID.String())
-	ctx.infof("Water created or destroyed: %d\r\n", a.automaton.waterAdjusted)
-	ctx.infof("Water flowed: %d\r\n", a.automaton.flow)
+		ctx.clearInfo()
+		ctx.infof("Generation: %d\r\n", a.automaton.gen)
+		ctx.infof("Plate Sizes: %v\r\n", a.automaton.plateSizes)
+		ctx.infof("Earth Elevation: %s\r\n", a.automaton.earthStats.String())
+		ctx.infof("Earthquake PID: %s\r\n", a.automaton.earthPID.String())
+		ctx.infof("Quakes moved earth: %d\r\n", a.automaton.quake)
+		ctx.infof("Slides moved earth: %d\r\n", a.automaton.slide)
+		ctx.infof("Water: %s\r\n", a.automaton.waterStats.String())
+		ctx.infof("Water Coverage PID: %s\r\n", a.automaton.waterPID.String())
+		ctx.infof("Water created or destroyed: %d\r\n", a.automaton.waterAdjusted)
+		ctx.infof("Water flowed: %d\r\n", a.automaton.flow)
+	}
 
 	if ctx.profTiming {
 		ctx.proff("%v TPS\n", a.tickTimes.CountRecent(ctx.now, time.Second))
