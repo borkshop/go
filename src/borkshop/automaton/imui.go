@@ -43,7 +43,9 @@ type imContext struct {
 	imOutput
 
 	// animation
+	animating bool
 	lastFrame time.Time
+	rafHandle js.Value
 	rafFn     js.Func
 
 	// dom bindings
@@ -151,17 +153,32 @@ func (ctx *imContext) init() (err error) {
 
 	ctx.done = make(chan error)
 
-	ctx.requestFrame()
+	if ctx.animating {
+		ctx.requestFrame()
+	}
 	ctx.updateSize()
 
 	return nil
 }
 
 func (ctx *imContext) requestFrame() {
-	js.Global().Call("requestAnimationFrame", ctx.rafFn)
+	ctx.rafHandle = js.Global().Call("requestAnimationFrame", ctx.rafFn)
+}
+
+func (ctx *imContext) cancelFrame() {
+	if ctx.rafHandle != js.Undefined() {
+		js.Global().Call("cancelAnimationFrame", ctx.rafHandle)
+		ctx.rafHandle = js.Undefined()
+		ctx.lastFrame = time.Time{}
+	}
 }
 
 func (ctx *imContext) onFrame(this js.Value, args []js.Value) interface{} {
+	ctx.rafHandle = js.Undefined()
+	if !ctx.animating {
+		return nil
+	}
+
 	millisec := args[0].Float()
 	sec := int64(millisec / 1000)
 	microsec := int64(math.Round(math.Mod(millisec, 1000) * 1000))
@@ -214,16 +231,25 @@ func (ctx *imContext) Update() {
 		ctx.now = time.Now()
 	}
 
-	if ctx.elapsed > 0 {
+	// render when not animating or animation has advanced
+	if !ctx.animating || ctx.elapsed > 0 {
 		ctx.frameTimes.Collect(ctx.now)
+		defer ctx.Render()
 	}
 
-	// clear one-shot state after client update
-	defer func() {
+	defer func(wereAnimating bool) {
+		// request or cancel next frame as needed
+		if wereAnimating && !ctx.animating {
+			ctx.cancelFrame()
+		} else if !wereAnimating && ctx.animating {
+			ctx.requestFrame()
+		}
+
+		// clear one-shot state
 		ctx.now = time.Time{}
 		ctx.elapsed = 0
 		ctx.clearInput()
-	}()
+	}(ctx.animating)
 
 	if ctx.key.press == 'p' && ctx.key.mod == ctrlKey {
 		ctx.clearInput()
@@ -245,10 +271,6 @@ func (ctx *imContext) Update() {
 		ctx.proff("µ client: %v\n", ctx.clientTimes.Average())
 		ctx.proff("µ render: %v\n", ctx.renderTimes.Average())
 		ctx.proff("µ 𝝙frame: %v\n", ctx.elapsedTimes.Average())
-	}
-
-	if ctx.elapsed > 0 {
-		ctx.Render()
 	}
 }
 

@@ -65,6 +65,7 @@ func (a *App) Update(ctx *imContext) (err error) {
 	var tick bool
 	if ctx.key.press == 'p' {
 		a.ticking = !a.ticking
+		ctx.animating = a.ticking
 	}
 	if a.ticking || ctx.key.press == 'n' {
 		tick = true
