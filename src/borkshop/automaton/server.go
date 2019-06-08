@@ -10,6 +10,7 @@ import (
 	"log"
 	"net"
 	"net/http"
+	"os"
 
 	"github.com/jcorbin/gorunwasm/handler"
 )
@@ -33,6 +34,12 @@ func serve() error {
 		return err
 	}
 	defer wh.Close()
+
+	wd, err := os.Getwd()
+	if err != nil {
+		return err
+	}
+	http.Handle("/upload", handler.UploadHandler(wd))
 
 	ln, err := net.Listen("tcp", listen)
 	if err != nil {
