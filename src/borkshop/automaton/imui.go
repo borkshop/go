@@ -233,7 +233,7 @@ func (ctx *imContext) Update() {
 
 	if ctx.profTiming {
 		ctx.clearProf()
-		ctx.proff("%v FPS\n", ctx.frameTimes.CountRecent(ctx.lastFrame, time.Second))
+		ctx.proff("%v FPS\n", ctx.frameTimes.CountRecent(ctx.now, time.Second))
 	}
 
 	ctx.updateClient()
