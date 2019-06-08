@@ -4,10 +4,14 @@ package main
 
 import (
 	"errors"
+	"fmt"
 	"image"
 	"io"
 	"log"
 	"math/rand"
+	"net/url"
+	"os"
+	"syscall/js"
 	"time"
 
 	"borkshop/stats"
@@ -159,4 +163,70 @@ func (a *App) Update(ctx *imContext) (err error) {
 	}
 
 	return
+}
+
+var (
+	fetch      = js.Global().Get("fetch")
+	consoleLog = js.Global().Get("console")
+)
+
+func uploadBytes(name string, b []byte) {
+	uploadURL := os.Getenv("upload")
+
+	if uploadURL == "" {
+		consoleLog.Get("log").Invoke(
+			name,
+			js.Global().Call("btoa", js.TypedArrayOf(b)),
+		)
+		return
+	}
+
+	if err := postBytes(
+		fmt.Sprintf("%s?name=%s", uploadURL, url.QueryEscape(name)),
+		"application/octet-stream",
+		b,
+	); err != nil {
+		log.Printf("upload %v failed: %v", name, err)
+	} else {
+		log.Printf("uploaded %v", name)
+	}
+}
+
+func postBytes(url, contentType string, b []byte) error {
+	res, err := await(fetch.Invoke(url, map[string]interface{}{
+		"method":   "POST",
+		"redirect": "error",
+		"headers": map[string]interface{}{
+			"Content-Type": contentType,
+		},
+		"body": js.TypedArrayOf(b),
+	}))
+	if err != nil {
+		return err
+	}
+	if !res.Get("ok").Bool() {
+		return fmt.Errorf("%v %v", res.Get("status").Int(), res.Get("statusText").String())
+	}
+	return nil
+}
+
+func await(promise js.Value) (js.Value, error) {
+	done := make(chan js.Value)
+	fail := make(chan error)
+	promise.Call("then",
+		js.FuncOf(func(this js.Value, args []js.Value) interface{} {
+			done <- args[0]
+			return nil
+		}),
+		js.FuncOf(func(this js.Value, args []js.Value) interface{} {
+			fail <- errors.New(args[0].String())
+			return nil
+		}),
+	)
+	select {
+	case val := <-done:
+		return val, nil
+	case err := <-fail:
+		return js.Undefined(), err
+	}
 }
