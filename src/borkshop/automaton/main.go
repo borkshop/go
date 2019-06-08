@@ -3,6 +3,7 @@
 package main
 
 import (
+	"borkshop/stats"
 	"errors"
 	"image"
 	"log"
@@ -22,7 +23,9 @@ func main() {
 }
 
 type App struct {
-	ticking    bool
+	ticking   bool
+	tickTimes stats.Times
+
 	automaton  *Automaton
 	view       View
 	platesView *PlatesView
@@ -52,6 +55,7 @@ func newApp() *App {
 	// automaton.SetMountainTestPattern()
 
 	return &App{
+		tickTimes:  stats.MakeTimes(120),
 		automaton:  automaton,
 		platesView: platesView,
 		earthView:  earthView,
@@ -83,6 +87,7 @@ func (a *App) Update(ctx *imContext) (err error) {
 	}
 
 	if tick {
+		a.tickTimes.Collect(ctx.now)
 		a.automaton.Tick()
 	}
 
@@ -102,6 +107,10 @@ func (a *App) Update(ctx *imContext) (err error) {
 	ctx.infof("Water Coverage PID: %s\r\n", a.automaton.waterPID.String())
 	ctx.infof("Water created or destroyed: %d\r\n", a.automaton.waterAdjusted)
 	ctx.infof("Water flowed: %d\r\n", a.automaton.flow)
+
+	if ctx.profTiming {
+		ctx.proff("%v TPS\n", a.tickTimes.CountRecent(ctx.now, time.Second))
+	}
 
 	return
 }
