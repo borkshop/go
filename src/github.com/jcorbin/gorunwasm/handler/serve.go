@@ -2,9 +2,13 @@ package handler
 
 import (
 	"go/build"
+	"io"
+	"log"
 	"net/http"
 	"os"
 	"path/filepath"
+	"strings"
+	"syscall"
 )
 
 //go:generate go run assets_build.go
@@ -67,4 +71,96 @@ func Handle(prefix, srcDir, path string) (*WASMHandler, error) {
 		wh.Mount(prefix, http.DefaultServeMux)
 	}
 	return wh, err
+}
+
+// UploadHandler implements an http.Handler that will accept and save POST-ed
+// entities into a directory.
+type UploadHandler string
+
+func (uh UploadHandler) ServeHTTP(w http.ResponseWriter, req *http.Request) {
+	if err := req.ParseMultipartForm(64 * 1024 * 1024 * 1024); err == nil {
+		for name, fls := range req.MultipartForm.File {
+			fl := fls[0]
+			f, err := fl.Open()
+			if err == nil {
+				err = uh.accept(name, f)
+			}
+			if err != nil {
+				http.Error(w, err.Error(), http.StatusInternalServerError)
+				return
+			}
+		}
+		return
+	}
+
+	name := req.FormValue("name")
+	if name == "" {
+		http.Error(w, "missing name parameter", http.StatusBadRequest)
+		return
+	}
+	if err := uh.accept(name, req.Body); err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+	}
+}
+
+func (uh UploadHandler) accept(name string, in io.ReadCloser) error {
+	outPath := string(uh)
+	for _, part := range strings.Split(name, "/") {
+		outPath = filepath.Join(outPath, part)
+	}
+
+	out, err := createOrMkdir(outPath)
+
+	log.Printf("receiving upload to %q", out.Name())
+	defer func() {
+		if err != nil {
+			log.Printf("upload to %q failed: %v", out.Name(), err)
+		} else {
+			log.Printf("upload to %q done", out.Name())
+		}
+	}()
+
+	var buf [32 * 1024]byte
+	_, err = io.CopyBuffer(out, in, buf[:])
+
+	if cerr := out.Close(); err == nil {
+		err = cerr
+	}
+	if cerr := in.Close(); err == nil {
+		err = cerr
+	}
+
+	return err
+}
+
+func createOrMkdir(name string) (*os.File, error) {
+	out, err := os.Create(name)
+	if err != nil {
+		if unwrapOSError(err) == syscall.ENOENT {
+			dir := filepath.Dir(name)
+			err = os.MkdirAll(dir, os.ModePerm)
+			if err == nil {
+				out, err = os.Create(name)
+			}
+		}
+		if err != nil {
+			return nil, err
+		}
+	}
+	return out, nil
+}
+
+func unwrapOSError(err error) error {
+	for {
+		switch val := err.(type) {
+		case *os.PathError:
+			err = val.Err
+		case *os.LinkError:
+			err = val.Err
+		case *os.SyscallError:
+			err = val.Err
+		default:
+			return err
+		}
+	}
 }
