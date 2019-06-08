@@ -3,13 +3,14 @@
 package main
 
 import (
-	"borkshop/stats"
 	"errors"
 	"image"
 	"io"
 	"log"
 	"math/rand"
 	"time"
+
+	"borkshop/stats"
 )
 
 var errInt = errors.New("interrupt")
