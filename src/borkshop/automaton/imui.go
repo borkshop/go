@@ -172,9 +172,7 @@ func (ctx *imContext) onFrame(this js.Value, args []js.Value) interface{} {
 		ctx.elapsed = now.Sub(ctx.lastFrame)
 		ctx.elapsedTimes.Collect(ctx.elapsed)
 	}
-	ctx.frameTimes.Collect(ctx.now)
 	ctx.Update()
-	ctx.Render()
 	ctx.requestFrame()
 	ctx.lastFrame = now
 	return nil
@@ -216,6 +214,10 @@ func (ctx *imContext) Update() {
 		ctx.now = time.Now()
 	}
 
+	if ctx.elapsed > 0 {
+		ctx.frameTimes.Collect(ctx.now)
+	}
+
 	// clear one-shot state after client update
 	defer func() {
 		ctx.now = time.Time{}
@@ -243,6 +245,10 @@ func (ctx *imContext) Update() {
 		ctx.proff("µ client: %v\n", ctx.clientTimes.Average())
 		ctx.proff("µ render: %v\n", ctx.renderTimes.Average())
 		ctx.proff("µ 𝝙frame: %v\n", ctx.elapsedTimes.Average())
+	}
+
+	if ctx.elapsed > 0 {
+		ctx.Render()
 	}
 }
 
