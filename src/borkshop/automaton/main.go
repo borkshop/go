@@ -6,6 +6,7 @@ import (
 	"borkshop/stats"
 	"errors"
 	"image"
+	"io"
 	"log"
 	"math/rand"
 	"time"
@@ -23,8 +24,10 @@ func main() {
 }
 
 type App struct {
-	ticking   bool
-	tickTimes stats.Times
+	ticking     bool
+	ticks       chan chan struct{}
+	tickPending chan struct{}
+	tickTimes   stats.Times
 
 	automaton  *Automaton
 	view       View
@@ -65,6 +68,25 @@ func newApp() *App {
 	}
 }
 
+func (a *App) Open() (io.Closer, error) {
+	a.ticks = make(chan chan struct{}, 1)
+	go a.ticker()
+	return a, nil
+}
+
+func (a *App) Close() error {
+	close(a.ticks)
+	return nil
+}
+
+func (a *App) ticker() {
+	for req := range a.ticks {
+		a.automaton.Tick()
+		a.automaton.Predraw()
+		close(req)
+	}
+}
+
 func (a *App) Update(ctx *imContext) (err error) {
 	var tick bool
 	if ctx.key.press == 'p' {
@@ -97,10 +119,20 @@ func (a *App) Update(ctx *imContext) (err error) {
 		draw = true
 	}
 
-	if tick {
+	if a.tickPending != nil {
+		select {
+		case <-a.tickPending:
+			a.tickPending = nil
+			draw = true
+		default:
+			// not done yet
+			draw = false
+		}
+	} else if tick {
 		a.tickTimes.Collect(ctx.now)
-		a.automaton.Tick()
-		a.automaton.Predraw()
+		a.tickPending = make(chan struct{}, 1)
+		a.ticks <- a.tickPending
+		draw = false
 	}
 
 	if draw {
