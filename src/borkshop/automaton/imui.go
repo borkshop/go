@@ -233,13 +233,16 @@ func (ctx *imContext) Update() {
 	if ctx.profTiming {
 		ctx.clearProf()
 		ctx.proff("%v FPS\n", ctx.frameTimes.CountRecent(ctx.lastFrame, time.Second))
+	}
+
+	ctx.updateClient()
+
+	if ctx.profTiming {
 		ctx.proff("µ update: %v\n", ctx.updateTimes.Average())
 		ctx.proff("µ client: %v\n", ctx.clientTimes.Average())
 		ctx.proff("µ render: %v\n", ctx.renderTimes.Average())
 		ctx.proff("µ 𝝙frame: %v\n", ctx.elapsedTimes.Average())
 	}
-
-	ctx.updateClient()
 }
 
 func (ctx *imContext) updateClient() {
