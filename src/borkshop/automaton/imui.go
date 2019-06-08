@@ -11,6 +11,8 @@ import (
 	"os"
 	"syscall/js"
 	"time"
+
+	"borkshop/webgl"
 )
 
 var (
@@ -54,8 +56,9 @@ type imContext struct {
 	rafFn     js.Func
 
 	// dom bindings
-	canvas    js.Value
-	renderCtx js.Value
+	canvas      js.Value
+	gl          webgl.Canvas
+	renderCells glCellRenderer
 
 	infoDetails js.Value
 	infoBody    js.Value
@@ -159,9 +162,13 @@ func (ctx *imContext) init() (err error) {
 	ctx.profTitle = ctx.profDetails.Call("querySelector", "summary")
 	ctx.profBody = ctx.profDetails.Call("appendChild", document.Call("createElement", "pre"))
 
-	// TODO webgl instead
-	// TODO initialize cell rendering gl program
-	ctx.renderCtx = ctx.canvas.Call("getContext", "2d")
+	if err := ctx.gl.Init(ctx.canvas); err != nil {
+		return err
+	}
+
+	if err := ctx.renderCells.Init(&ctx.gl); err != nil {
+		return err
+	}
 
 	parent := ctx.canvas.Get("parentNode")
 	parent.Call("addEventListener", "keypress", js.FuncOf(ctx.onKeyPress))
@@ -241,6 +248,7 @@ func (ctx *imContext) onKeyPress(this js.Value, args []js.Value) interface{} {
 func (ctx *imContext) release() {
 	ctx.cancelFrame()
 	ctx.rafFn.Release()
+	ctx.gl.Release()
 }
 
 func (ctx *imContext) Update() {
@@ -333,14 +341,14 @@ func (ctx *imContext) Render() {
 	ctx.infoBody.Set("innerText", ctx.info.String())
 
 	// render the world grid
-	size := ctx.screen.Rect.Size()
-	ar := js.TypedArrayOf(ctx.screen.Pix)
-	defer ar.Release()
+	// TODO run cell rending gl program
 
-	// TODO can we just retain this image object between renders?
-	img := ImageData.New(Uint8ClampedArray.New(ar), size.X, size.Y)
+	// size := ctx.screen.Rect.Size()
+	// ar := js.TypedArrayOf(ctx.screen.Pix)
+	// defer ar.Release()
+	// img := ImageData.New(Uint8ClampedArray.New(ar), size.X, size.Y)
+	// ctx.renderCtx.Call("putImageData", img, 0, 0)
 
-	ctx.renderCtx.Call("putImageData", img, 0, 0)
 }
 
 func (in *imInput) clearInput() {
