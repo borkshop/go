@@ -68,6 +68,10 @@ func (ts *Times) Collect(t time.Time) {
 }
 
 func (ts *Times) CountRecent(now time.Time, within time.Duration) int {
+	if len(ts.t) == 0 {
+		return 0
+	}
+
 	i, j := 0, len(ts.t)
 	if len(ts.t) == cap(ts.t) {
 		// when in normal full-ring mode, we start at the next position (the
