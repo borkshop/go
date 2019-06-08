@@ -7,6 +7,7 @@ import (
 	"bytes"
 	"fmt"
 	"image"
+	"io"
 	"os"
 	"syscall/js"
 	"time"
@@ -23,6 +24,10 @@ const timingWindow = 4 * 60
 
 type Updater interface {
 	Update(*imContext) error
+}
+
+type Opener interface {
+	Open() (io.Closer, error)
 }
 
 type imContext struct {
@@ -105,10 +110,21 @@ type imOutput struct {
 	info   bytes.Buffer
 }
 
-func (ctx *imContext) Run(client Updater) error {
+func (ctx *imContext) Run(client Updater) (err error) {
 	ctx.client = client
-	err := ctx.init()
+	if op, ok := client.(Opener); ok {
+		var cl io.Closer
+		cl, err = op.Open()
+		defer func() {
+			if cerr := cl.Close(); err == nil {
+				err = cerr
+			}
+		}()
+	}
+
+	err = ctx.init()
 	defer ctx.release()
+
 	if err == nil {
 		err = <-ctx.done
 	}
