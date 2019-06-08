@@ -71,7 +71,12 @@ func (a *App) Update(ctx *imContext) (err error) {
 		a.ticking = !a.ticking
 		ctx.animating = a.ticking
 	}
-	if a.ticking || ctx.key.press == 'n' {
+
+	if a.ticking {
+		// while playing, tick per animation update
+		tick = ctx.elapsed > 0
+	} else if ctx.key.press == 'n' {
+		// when paused, allow manual stepping
 		tick = true
 	}
 
