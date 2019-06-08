@@ -173,7 +173,9 @@ func (ctx *imContext) onFrame(this js.Value, args []js.Value) interface{} {
 		defer ctx.elapsedTimes.Collect(elapsed)
 	}
 
-	ctx.animate(elapsed)
+	// TODO inject elapsed time to derive animation/simulation step
+	ctx.Update()
+	ctx.Render()
 	ctx.requestFrame()
 	ctx.lastFrame = now
 	return nil
@@ -202,12 +204,6 @@ func (ctx *imContext) onKeyPress(this js.Value, args []js.Value) interface{} {
 	ctx.imInput.onKeyPress(this, args)
 	ctx.Update()
 	return nil
-}
-
-func (ctx *imContext) animate(elapsed time.Duration) {
-	// TODO inject elapsed time to derive animation/simulation step
-	ctx.Update()
-	ctx.Render()
 }
 
 func (ctx *imContext) release() {
