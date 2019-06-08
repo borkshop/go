@@ -6,12 +6,14 @@ import (
 	"encoding/binary"
 	"fmt"
 	"io"
+	"os"
 	"path"
 	"sort"
 
 	"borkshop/cask"
 	"borkshop/cask/caskblob"
 	"borkshop/cask/caskio"
+
 	billy "gopkg.in/src-d/go-billy.v4"
 )
 
@@ -25,6 +27,8 @@ const (
 	FileMode
 	// DirMode indicates a directory.
 	DirMode
+	// ExecMode indicates an executable file.
+	ExecMode
 )
 
 // entries are sorted by the byte value of their name to facilitate fast
@@ -88,7 +92,11 @@ func Store(ctx context.Context, store cask.Store, fs billy.Filesystem, p string)
 				return cask.ZeroHash, err
 			}
 		} else if dirEnt.Mode().IsRegular() {
-			mode = FileMode
+			if dirEnt.Mode()&0111 == 0 {
+				mode = FileMode
+			} else {
+				mode = ExecMode
+			}
 			reader, err := fs.Open(name)
 			if err != nil {
 				return cask.ZeroHash, err
@@ -152,9 +160,17 @@ func Load(ctx context.Context, store cask.Store, fs billy.Filesystem, p string, 
 			namelen := int(binary.BigEndian.Uint16(buf[at+2 : at+4]))
 			name := string(buf[at+4 : at+4+namelen])
 
+			var perm os.FileMode
+			switch mode {
+			case DirMode, ExecMode:
+				perm = 0755
+			case FileMode:
+				perm = 0644
+			}
+
 			switch mode {
 			case DirMode:
-				err := fs.MkdirAll(path.Join(p, name), 0755)
+				err := fs.MkdirAll(path.Join(p, name), perm)
 				if err != nil {
 					return err
 				}
@@ -162,8 +178,8 @@ func Load(ctx context.Context, store cask.Store, fs billy.Filesystem, p string, 
 				if err != nil {
 					return err
 				}
-			case FileMode:
-				writer, err := fs.Create(path.Join(p, name))
+			case FileMode, ExecMode:
+				writer, err := fs.OpenFile(path.Join(p, name), os.O_WRONLY|os.O_CREATE, perm)
 				if err != nil {
 					return err
 				}
