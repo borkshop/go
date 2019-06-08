@@ -217,6 +217,11 @@ func (ctx *imContext) release() {
 func (ctx *imContext) Update() {
 	defer ctx.updateTimes.Measure()()
 
+	// clear one-shot state after client update
+	defer func() {
+		ctx.clearInput()
+	}()
+
 	if ctx.key.press == 'p' && ctx.key.mod == ctrlKey {
 		ctx.clearInput()
 		ctx.profTiming = !ctx.profTiming
@@ -235,9 +240,6 @@ func (ctx *imContext) Update() {
 	}
 
 	ctx.updateClient()
-
-	// clear one-shot input that's now been processed by the client
-	ctx.clearInput()
 }
 
 func (ctx *imContext) updateClient() {
