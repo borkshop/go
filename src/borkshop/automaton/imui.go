@@ -239,6 +239,7 @@ func (ctx *imContext) onKeyPress(this js.Value, args []js.Value) interface{} {
 }
 
 func (ctx *imContext) release() {
+	ctx.cancelFrame()
 	ctx.rafFn.Release()
 }
 
