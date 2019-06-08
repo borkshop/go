@@ -7,7 +7,6 @@ import (
 	"bytes"
 	"fmt"
 	"image"
-	"math"
 	"os"
 	"syscall/js"
 	"time"
@@ -45,6 +44,7 @@ type imContext struct {
 	// animation
 	animating bool
 	lastFrame time.Time
+	rafBase   time.Time
 	rafHandle js.Value
 	rafFn     js.Func
 
@@ -180,10 +180,12 @@ func (ctx *imContext) onFrame(this js.Value, args []js.Value) interface{} {
 	}
 
 	millisec := args[0].Float()
-	sec := int64(millisec / 1000)
-	microsec := int64(math.Round(math.Mod(millisec, 1000) * 1000))
+	rafRel := time.Duration(millisec * 1e6)
+	if ctx.rafBase.IsZero() {
+		ctx.rafBase = time.Now().Add(-rafRel)
+	}
+	now := ctx.rafBase.Add(rafRel)
 
-	now := time.Unix(sec, microsec*1000)
 	ctx.now = now
 	if !ctx.lastFrame.IsZero() {
 		ctx.elapsed = now.Sub(ctx.lastFrame)
