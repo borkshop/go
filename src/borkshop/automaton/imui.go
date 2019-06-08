@@ -218,7 +218,9 @@ func (ctx *imContext) Update() {
 	defer ctx.updateTimes.Measure()()
 
 	// clear output so that client may rebuild it
-	ctx.clearOutput()
+	ctx.clearScreen()
+	ctx.clearInfo()
+	ctx.clearProf()
 
 	if ctx.key.press == 'p' && ctx.key.mod == ctrlKey {
 		ctx.clearInput()
@@ -297,13 +299,14 @@ func (in *imInput) onKeyPress(this js.Value, args []js.Value) interface{} {
 	return nil
 }
 
-func (out *imOutput) clearOutput() {
+func (out *imOutput) clearScreen() {
 	for i := range out.screen.Pix {
 		out.screen.Pix[i] = 0
 	}
-	out.info.Reset()
-	out.prof.Reset()
 }
+
+func (out *imOutput) clearInfo() { out.info.Reset() }
+func (out *imOutput) clearProf() { out.prof.Reset() }
 
 func (out *imContext) proff(mess string, args ...interface{}) {
 	_, _ = fmt.Fprintf(&out.prof, mess, args...)
