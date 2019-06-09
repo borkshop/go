@@ -1,4 +1,8 @@
 {
+  "src/vendor/github.com/chewxy/math32": {
+    "remote": "gh:chewxy/math32",
+    "ref": "master"
+  },
   "src/vendor/github.com/hsluv/hsluv-go": {
     "remote": "https://github.com/hsluv/hsluv-go.git",
     "ref": "refs/tags/v2.0.0"
