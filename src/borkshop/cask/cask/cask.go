@@ -16,6 +16,7 @@ import (
 	"os"
 	"os/signal"
 	"path/filepath"
+	"strings"
 	"syscall"
 
 	"go.uber.org/multierr"
@@ -30,17 +31,24 @@ cask init [DIR]
 cask store [HOST:PORT] < FILE > HASH
   Stores input to CASK.
   Writes the hash.
-cask load [HOST:PORT] HASH > FILE
+cask load [HOST:PORT] HASH[:PATH] > FILE
   Writes out the file for the given hash.
 cask checkin [HOST:PORT] DIR > HASH
   Stores the given directory in CASK.
   Writes the hash.
-cask checkout [HOST:PORT] DIR HASH
+cask checkout [HOST:PORT] DIR HASH[:PATH]
   Writes out the directory tree from CASK to the given path.
+cask ls/list [HOST:PORT] HASH[:PATH]
+  Writes the list of entries in the directory with the hash.
+cask hash [HOST:PORT] HASH:PATH
+  Follows a path from the hash of a directory.
+  Writes the hash of the addressed object.
 cask serve [HOST:PORT]
   Runs a CASK server.
   Commands sent with the server's address will use the server's .cask
   instead of the local .cask.
+cask path
+  Writes the location of the nearest .cask directory.
 `
 
 func main() {
@@ -56,22 +64,25 @@ func main() {
 		cancel()
 	}()
 
-	if err := run(ctx, os.Args[1:], os.Stdout, os.Stderr); err != nil {
+	fs := osfs.New("/")
+
+	if err := run(ctx, os.Args[1:], os.Stdout, os.Stderr, fs); err != nil {
 		fmt.Fprintf(os.Stderr, "%v\n", err.Error())
 		os.Exit(1)
 	}
 }
 
-func run(ctx context.Context, args []string, stdout, stderr io.Writer) (err error) {
+func run(ctx context.Context, args []string, stdout, stderr io.Writer, fs billy.Filesystem) (err error) {
 	if len(args) < 1 {
 		fmt.Fprintf(stdout, usage)
 		return
 	}
+
 	command := args[0]
 
 	// Parse and validate arguments.
 	hashArg := ""
-	pathArg := "."
+	pathArg := ""
 	hostArg := ""
 	peerArg := ""
 	switch command {
@@ -84,7 +95,7 @@ func run(ctx context.Context, args []string, stdout, stderr io.Writer) (err erro
 		case 2:
 			pathArg = args[1]
 		default:
-			err = fmt.Errorf("unexpected extra arguments: %v", args[2:])
+			err = fmt.Errorf("usage error: cask %s [DIR]: 0 or 1 but got %d arguments", command, len(args)-1)
 			return
 		}
 	case "store":
@@ -94,10 +105,10 @@ func run(ctx context.Context, args []string, stdout, stderr io.Writer) (err erro
 			hostArg = "0:0"
 			peerArg = args[1]
 		default:
-			err = fmt.Errorf("unexpected extra arguments: %v", args[1:])
+			err = fmt.Errorf("usage error: cask %s [HOST:PORT]: 0 or 1 but got %d arguments", command, len(args)-1)
 			return
 		}
-	case "load":
+	case "load", "checkin", "list", "ls", "hash":
 		switch len(args) {
 		case 2:
 			hashArg = args[1]
@@ -106,19 +117,7 @@ func run(ctx context.Context, args []string, stdout, stderr io.Writer) (err erro
 			peerArg = args[1]
 			hashArg = args[2]
 		default:
-			err = fmt.Errorf("unexpected extra arguments: %v", args[2:])
-			return
-		}
-	case "checkin":
-		switch len(args) {
-		case 2:
-			pathArg = args[1]
-		case 3:
-			hostArg = "0:0"
-			peerArg = args[1]
-			pathArg = args[2]
-		default:
-			err = fmt.Errorf("unexpected extra arguments: %v", args[2:])
+			err = fmt.Errorf("usage error: cask %s [HOST:PORT] HASH: 1 or 2 but got %d arguments", command, len(args)-1)
 			return
 		}
 	case "checkout":
@@ -132,7 +131,7 @@ func run(ctx context.Context, args []string, stdout, stderr io.Writer) (err erro
 			pathArg = args[2]
 			hashArg = args[3]
 		default:
-			err = fmt.Errorf("unexpected extra arguments: %v", args[3:])
+			err = fmt.Errorf("usage error: cask %s [HOST:PORT] PATH HASH: 2 or 3 but got %d arguments", command, len(args)-1)
 			return
 		}
 	case "serve":
@@ -142,26 +141,22 @@ func run(ctx context.Context, args []string, stdout, stderr io.Writer) (err erro
 		case 2:
 			hostArg = args[1]
 		default:
-			err = fmt.Errorf("unexpected extra arguments: %v", args[2:])
+			err = fmt.Errorf("usage error: cask %s [HOST:PORT]: 0 or 1 but got %d arguments", command, len(args)-1)
 			return
 		}
+	case "path":
+		switch len(args) {
+		case 1:
+		default:
+			err = fmt.Errorf("usage error: cask %s: 0 but got %d arguments", command, len(args)-1)
+			return
+		}
+	default:
+		err = fmt.Errorf("usage error: unrecognized command: %s", args[0])
+		return
 	}
 
 	// Input and dependencies.
-
-	var hash cask.Hash
-	switch command {
-	case "load", "checkout":
-		if h, decodeErr := hex.DecodeString(hashArg); decodeErr != nil {
-			err = decodeErr
-			return
-		} else if len(h) != len(hash) {
-			err = errors.New("invalid hash")
-			return
-		} else {
-			copy(hash[:], h)
-		}
-	}
 
 	var path string
 	switch command {
@@ -174,11 +169,9 @@ func run(ctx context.Context, args []string, stdout, stderr io.Writer) (err erro
 		}
 	}
 
-	fs := osfs.New("/")
-
 	var store cask.Store
 	switch command {
-	case "store", "load", "checkin", "checkout", "serve":
+	case "store", "load", "checkin", "checkout", "list", "ls", "hash", "serve":
 		if peerArg != "" {
 			store = caskmemstore.New()
 		} else {
@@ -217,6 +210,17 @@ func run(ctx context.Context, args []string, stdout, stderr io.Writer) (err erro
 		}
 	}
 
+	var hash cask.Hash
+	switch command {
+	case "load", "checkout", "list", "ls", "hash":
+		if h, resolveErr := resolve(ctx, store, hashArg); resolveErr != nil {
+			err = resolveErr
+			return
+		} else {
+			hash = h
+		}
+	}
+
 	// Execute.
 	switch command {
 	case "init":
@@ -251,15 +255,47 @@ func run(ctx context.Context, args []string, stdout, stderr io.Writer) (err erro
 			err = loadErr
 			return
 		}
+	case "list", "ls":
+		if list, loadErr := caskdir.List(ctx, store, hash); loadErr != nil {
+			err = loadErr
+			return
+		} else {
+			for _, entry := range list {
+				mode := "?"
+				switch entry.Mode {
+				case caskdir.FileMode:
+					mode = "f"
+				case caskdir.ExecMode:
+					mode = "x"
+				case caskdir.DirMode:
+					mode = "d"
+				}
+				fmt.Fprintf(stdout, "%x %s %s\n", entry.Hash, mode, string(entry.Name))
+			}
+		}
+	case "hash":
+		if entry, resolveErr := caskdir.Resolve(ctx, store, hash, pathArg); resolveErr != nil {
+			err = resolveErr
+			return
+		} else {
+			hash = entry.Hash
+		}
 	case "serve":
 		fmt.Fprintf(stderr, "Serving on %s\n", server.LocalAddr().String())
 		<-ctx.Done()
 		err = ctx.Err()
+	case "path":
+		if caskPath, findErr := findCask(fs); findErr != nil {
+			err = findErr
+			return
+		} else {
+			fmt.Fprintf(stdout, "%s\n", caskPath)
+		}
 	}
 
 	// Report.
 	switch command {
-	case "store", "checkin":
+	case "store", "checkin", "hash":
 		fmt.Fprintf(stdout, "%x\n", hash)
 	}
 
@@ -284,4 +320,32 @@ func findCask(fs billy.Filesystem) (string, error) {
 		}
 		at = parent
 	}
+}
+
+func resolve(ctx context.Context, store cask.Store, hashArg string) (cask.Hash, error) {
+	parts := strings.SplitN(hashArg, ":", 2)
+	hashArg = parts[0]
+	var path string
+	if len(parts) == 2 {
+		path = parts[1]
+	}
+
+	var hash cask.Hash
+	if h, err := hex.DecodeString(hashArg); err != nil {
+		return hash, err
+	} else if len(h) != len(hash) {
+		return hash, errors.New("invalid hash")
+	} else {
+		copy(hash[:], h)
+	}
+
+	if path != "" {
+		if entry, err := caskdir.Resolve(ctx, store, hash, path); err != nil {
+			return hash, err
+		} else {
+			hash = entry.Hash
+		}
+	}
+
+	return hash, nil
 }
