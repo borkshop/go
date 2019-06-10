@@ -3,11 +3,13 @@ package caskdir_test
 import (
 	"context"
 	"io/ioutil"
+	"strconv"
 	"strings"
 	"testing"
 
 	"borkshop/cask/caskdir"
 	"borkshop/cask/caskmemstore"
+
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"gopkg.in/src-d/go-billy.v4/memfs"
@@ -56,4 +58,47 @@ func TestStoreDir(t *testing.T) {
 	assert.Equal(t, "100000", lines[99999])
 
 	assert.Equal(t, hash1, hash2)
+}
+
+func TestResolveAndList(t *testing.T) {
+	ctx := context.Background()
+	store := caskmemstore.New()
+	osfs := osfs.New("..")
+
+	dataHash, err := caskdir.Store(ctx, store, osfs, "testdata")
+	require.NoError(t, err)
+
+	nominalEntry, err := caskdir.Resolve(ctx, store, dataHash, "nominal/0")
+	require.NoError(t, err)
+
+	entries, err := caskdir.List(ctx, store, nominalEntry.Hash)
+	require.NoError(t, err)
+
+	for i := 0; i < 10; i++ {
+		assert.Equal(t, strconv.Itoa(i)+".names", string(entries[i].Name))
+	}
+}
+
+func TestResolveNotFound(t *testing.T) {
+	ctx := context.Background()
+	store := caskmemstore.New()
+	osfs := osfs.New("..")
+
+	dataHash, err := caskdir.Store(ctx, store, osfs, "testdata")
+	require.NoError(t, err)
+
+	_, err = caskdir.Resolve(ctx, store, dataHash, "bogus")
+	require.Error(t, err, "not found")
+}
+
+func TestResolveFileAsDir(t *testing.T) {
+	ctx := context.Background()
+	store := caskmemstore.New()
+	osfs := osfs.New("..")
+
+	dataHash, err := caskdir.Store(ctx, store, osfs, "testdata")
+	require.NoError(t, err)
+
+	_, err = caskdir.Resolve(ctx, store, dataHash, "nominal/0/0.names/bogus")
+	require.Error(t, err, "not dir")
 }

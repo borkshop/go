@@ -4,11 +4,13 @@ import (
 	"bytes"
 	"context"
 	"encoding/binary"
+	"errors"
 	"fmt"
 	"io"
 	"os"
 	"path"
 	"sort"
+	"strings"
 
 	"borkshop/cask"
 	"borkshop/cask/caskblob"
@@ -195,4 +197,81 @@ func Load(ctx context.Context, store cask.Store, fs billy.Filesystem, p string, 
 		}
 	}
 	return nil
+}
+
+// List reads a directory and returns a list of entries.
+func List(ctx context.Context, store cask.Store, h cask.Hash) ([]Entry, error) {
+	reader := caskio.NewReader(store, h)
+	// TODO expose API on reader for guessing the necessary capacity.
+	entries := make([]Entry, 0, 0)
+	for {
+		links, buf, err := reader.Next(ctx)
+		if err == io.EOF {
+			break
+		}
+		if err != nil {
+			return nil, err
+		}
+		at := 0
+		for _, link := range links {
+			mode := Mode(binary.BigEndian.Uint16(buf[at : at+2]))
+			namelen := int(binary.BigEndian.Uint16(buf[at+2 : at+4]))
+			name := buf[at+4 : at+4+namelen]
+
+			entries = append(entries, Entry{
+				Name: name,
+				Mode: mode,
+				Hash: link,
+			})
+
+			at += 4 + namelen
+		}
+	}
+
+	return entries, nil
+}
+
+// Resolve traverses a directory tree to the entry at the given path from the hash.
+func Resolve(ctx context.Context, store cask.Store, h cask.Hash, p string) (Entry, error) {
+	parts := strings.SplitN(p, "/", 2)
+	var head, tail string
+	head = parts[0]
+	if len(parts) > 1 {
+		tail = parts[1]
+	}
+
+	reader := caskio.NewReader(store, h)
+	for {
+		links, buf, err := reader.Next(ctx)
+		if err == io.EOF {
+			break
+		}
+		if err != nil {
+			return Entry{}, err
+		}
+		at := 0
+		for _, link := range links {
+			mode := Mode(binary.BigEndian.Uint16(buf[at : at+2]))
+			namelen := int(binary.BigEndian.Uint16(buf[at+2 : at+4]))
+			name := buf[at+4 : at+4+namelen]
+
+			if string(name) == head {
+				if tail == "" {
+					return Entry{
+						Name: name,
+						Mode: mode,
+						Hash: link,
+					}, nil
+				} else if mode == DirMode {
+					return Resolve(ctx, store, link, tail)
+				} else {
+					return Entry{}, fmt.Errorf("cannot open file as dir: %s", string(name))
+				}
+			}
+
+			at += 4 + namelen
+		}
+	}
+
+	return Entry{}, errors.New("not found")
 }
