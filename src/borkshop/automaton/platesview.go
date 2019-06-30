@@ -25,6 +25,10 @@ func NewPlatesView(automaton *Automaton) *PlatesView {
 	}
 }
 
+func (v *PlatesView) Name() string {
+	return "plates"
+}
+
 func (v *PlatesView) Draw(screen *image.RGBA, rect image.Rectangle) {
 	// TODO offset point
 	drawPlates(v.image, v.automaton.plates, v.automaton.points, v.colors)

@@ -87,40 +87,8 @@ func NewAutomaton(order int, numPlates int) *Automaton {
 	stencil.WriteHilbertStencil3Table(stencil3, length)
 	stencil.WriteHilbertStencil5Table(stencil5, length)
 	stencil.WriteHilbertStencil9Table(stencil9, length)
-	stencil.InitInt64Vector(repose, 0x7)
 
-	earthPID := PID{
-		Target:           0xff,
-		ProportionalGain: 0xfff,
-		IntegralGain:     0xfff,
-		DifferentialGain: 0xfff,
-		Min:              0x0,
-		Max:              0xffff,
-	}
-
-	var quakeFractionalBits uint = 14
-
-	waterPID := PID{
-		Target:           int64(area) / 2,
-		ProportionalGain: 0xfff,
-		IntegralGain:     0xff,
-		DifferentialGain: 0x1,
-		Min:              -0xffffffff,
-		Max:              0xffffffff,
-	}
-
-	waterAdjustmentVolume := int64(0xf)
-	significantWater := int64(0xf)
-
-	stencil.WriteSequenceInt64Vector(entropy)
-	WriteNextRandomInt64Vector(entropy)
-
-	WriteQuakeVectors(quakeVectors)
-
-	WriteRandomPlateVector(plates, entropy, numPlates)
-	MeasurePlateSizes(plateSizes, plates)
-
-	automaton := &Automaton{
+	a := &Automaton{
 		order:     order,
 		length:    length,
 		area:      area,
@@ -140,21 +108,54 @@ func NewAutomaton(order int, numPlates int) *Automaton {
 		plateSizes:   plateSizes,
 		plateWeights: plateWeights,
 
-		earth:               earth,
-		earth3s:             earth3s,
-		quakeVectors:        quakeVectors,
-		earthPID:            earthPID,
-		quakeFractionalBits: quakeFractionalBits,
-		repose:              repose,
+		earth:        earth,
+		earth3s:      earth3s,
+		quakeVectors: quakeVectors,
+		repose:       repose,
 
-		water:                 water,
-		water3s:               water3s,
-		waterPID:              waterPID,
-		waterAdjustmentVolume: waterAdjustmentVolume,
-		significantWater:      significantWater,
+		water:   water,
+		water3s: water3s,
 	}
 
-	return automaton
+	a.Reset()
+
+	return a
+}
+
+func (a *Automaton) Reset() {
+	stencil.InitInt64Vector(a.earth, 0)
+	stencil.InitInt64Vector(a.repose, 0x7)
+
+	a.earthPID = PID{
+		Target:           0xff,
+		ProportionalGain: 0xfff,
+		IntegralGain:     0xfff,
+		DifferentialGain: 0xfff,
+		Min:              0x0,
+		Max:              0xffff,
+	}
+
+	a.quakeFractionalBits = 14
+
+	a.waterPID = PID{
+		Target:           int64(a.area) / 2,
+		ProportionalGain: 0xfff,
+		IntegralGain:     0xff,
+		DifferentialGain: 0x1,
+		Min:              -0xffffffff,
+		Max:              0xffffffff,
+	}
+
+	a.waterAdjustmentVolume = int64(0xf)
+	a.significantWater = int64(0xf)
+
+	stencil.WriteSequenceInt64Vector(a.entropy)
+	WriteNextRandomInt64Vector(a.entropy)
+
+	WriteQuakeVectors(a.quakeVectors)
+
+	WriteRandomPlateVector(a.plates, a.entropy, a.numPlates)
+	MeasurePlateSizes(a.plateSizes, a.plates)
 }
 
 func (a *Automaton) Predraw() {

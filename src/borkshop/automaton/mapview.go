@@ -31,6 +31,10 @@ func NewMapView(automaton *Automaton) *MapView {
 	}
 }
 
+func (v *MapView) Name() string {
+	return "map"
+}
+
 func (v *MapView) Draw(screen *image.RGBA, rect image.Rectangle) {
 	draw.Draw(v.img, v.img.Rect, &image.Uniform{black}, image.ZP, draw.Over)
 

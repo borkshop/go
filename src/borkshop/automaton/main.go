@@ -82,6 +82,7 @@ type App struct {
 
 type View interface {
 	Draw(screen *image.RGBA, rect image.Rectangle)
+	Name() string
 }
 
 func newApp() *App {
@@ -101,6 +102,7 @@ func newApp() *App {
 	// automaton.SetMountainTestPattern()
 
 	return &App{
+		ticking:    true,
 		tickTimes:  stats.MakeTimes(120),
 		automaton:  automaton,
 		platesView: platesView,
@@ -148,17 +150,67 @@ func (a *App) Update(ctx *imContext) (err error) {
 	draw := tick
 
 	switch ctx.key.press {
-	case 'P':
+	case '1':
+		a.view = a.mapView
+		draw = true
+	case '2':
 		a.view = a.platesView
 		draw = true
-	case 'E':
+	case '3':
 		a.view = a.earthView
 		draw = true
-	case 'W':
+	case '4':
 		a.view = a.waterView
 		draw = true
-	case 'M':
-		a.view = a.mapView
+
+	case 'r':
+		a.automaton.Reset()
+		draw = true
+	case 'm':
+		a.automaton.SetMountainTestPattern()
+		draw = true
+	case 't':
+		a.automaton.SetTowerTestPattern()
+		draw = true
+	case 'h':
+		a.automaton.SetHilbertMountainTestPattern()
+		draw = true
+
+	case 'f':
+		a.automaton.enableFaucet = true
+		draw = true
+	case 'F':
+		a.automaton.enableFaucet = false
+		draw = true
+	case 'd':
+		a.automaton.enableDrain = true
+		draw = true
+	case 'D':
+		a.automaton.enableDrain = false
+		draw = true
+	case 'c':
+		a.automaton.disableWaterCoverage = false
+		draw = true
+	case 'C':
+		a.automaton.disableWaterCoverage = true
+		draw = true
+	case 'w':
+		a.automaton.disableWatershed = false
+		draw = true
+	case 'W':
+		a.automaton.disableWatershed = true
+		draw = true
+	case 's':
+		a.automaton.disableSlides = false
+		draw = true
+	case 'S':
+		a.automaton.disableSlides = true
+		draw = true
+	case 'q':
+		a.automaton.disableQuakes = false
+		draw = true
+	case 'Q':
+		a.automaton.disableQuakes = true
 		draw = true
 	}
 
@@ -184,6 +236,7 @@ func (a *App) Update(ctx *imContext) (err error) {
 		a.view.Draw(ctx.screen, ctx.screen.Rect)
 
 		ctx.clearInfo()
+		ctx.infof("View: %s [1-4]\r\n", a.view.Name())
 		ctx.infof("Generation: %d\r\n", a.automaton.gen)
 		ctx.infof("Plate Sizes: %v\r\n", a.automaton.plateSizes)
 		ctx.infof("Earth Elevation: %s\r\n", a.automaton.earthStats.String())
@@ -194,6 +247,13 @@ func (a *App) Update(ctx *imContext) (err error) {
 		ctx.infof("Water Coverage PID: %s\r\n", a.automaton.waterPID.String())
 		ctx.infof("Water created or destroyed: %d\r\n", a.automaton.waterAdjusted)
 		ctx.infof("Water flowed: %d\r\n", a.automaton.flow)
+		ctx.infof("[f/F]aucet open: %v\n", a.automaton.enableFaucet)
+		ctx.infof("[d/D]rain open: %v\n", a.automaton.enableDrain)
+		ctx.infof("Water [c/C]overage running: %v\n", !a.automaton.disableWaterCoverage)
+		ctx.infof("[w/W]atershed running: %v\n", !a.automaton.disableWatershed)
+		ctx.infof("Mud[s/S]lides running: %v\n", !a.automaton.disableSlides)
+		ctx.infof("[q/Q]uakes running: %v\n", !a.automaton.disableQuakes)
+
 	}
 
 	if ctx.profTiming {
