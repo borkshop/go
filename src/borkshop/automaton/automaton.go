@@ -183,9 +183,9 @@ func (a *Automaton) Tick() {
 	}
 
 	// Slides
+	a.slide = 0
 	if !a.disableSlides {
-		a.slide = 0
-		for i := 0; i < 1; i++ {
+		for i := 0; i < 2; i++ {
 			stencil.WriteStencil3Int64Vector(a.earth3s, a.earth, a.stencil3)
 			SlideInt64Vector(a.temp3s, &a.slide, a.earth3s, a.repose, a.entropy, 2-int64(i), 1+(int(a.entropy[0]&1)+i)%2)
 			stencil.EraseInt64Vector(a.earth)
@@ -195,19 +195,18 @@ func (a *Automaton) Tick() {
 	}
 
 	// Watershed
+	a.flow = 0
 	if !a.disableWatershed {
 		stencil.WriteStencil3Int64Vector(a.earth3s, a.earth, a.stencil3)
-		a.flow = 0
-		for i := 0; i < 1; i++ {
-			stencil.WriteStencil3Int64Vector(a.water3s, a.water, a.stencil3)
-			WatershedInt64Vector(a.temp3s, &a.flow, a.water3s, a.earth3s, a.entropy, 2-int64(i), 1+(int(a.entropy[0]&1)+i)%2)
-			stencil.EraseInt64Vector(a.water)
-			stencil.AddInt64VectorStencil3(a.water, a.temp3s, a.stencil3)
-			WriteNextRandomInt64Vector(a.entropy)
-		}
+		stencil.WriteStencil3Int64Vector(a.water3s, a.water, a.stencil3)
+		WatershedInt64Vector(a.temp3s, &a.flow, a.water3s, a.earth3s, a.entropy)
+		stencil.EraseInt64Vector(a.water)
+		stencil.AddInt64VectorStencil3(a.water, a.temp3s, a.stencil3)
+		WriteNextRandomInt64Vector(a.entropy)
 	}
 
 	// Water Coverage
+	a.waterAdjusted = 0
 	if !a.disableWaterCoverage {
 		WriteStatsFromInt64Vector(&a.waterStats, a.water)
 		MeasureWaterCoverage(&a.waterCoverage, a.water, a.significantWater)
