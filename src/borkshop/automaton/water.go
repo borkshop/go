@@ -77,7 +77,7 @@ func AdjustWaterInt64Vector(water []int64, precipitation, evaporation *int64, pr
 		next := water[i] * 0xfe / 0xff
 		diff := next - water[i]
 		water[i] = next
-		*evaporation += diff
+		*evaporation -= diff
 	}
 }
 
