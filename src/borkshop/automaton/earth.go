@@ -45,13 +45,14 @@ func Quake(dst [][3]int64, quake *int64, src [][3]int64, plates []int64, quakeVe
 	}
 }
 
-func SlideInt64Vector(dst [][3]int64, slide *int64, src [][3]int64, repose []int64, entropy []int64, mute int64, other int) {
+func SlideInt64Vector(dst [][3]int64, slide *int64, src [][3]int64, repose int64, entropy []int64, mute int64, other int) {
 	for i := 0; i < len(dst); i++ {
 		dst[i][0] = src[i][0]
 		dst[i][1] = 0
 		dst[i][2] = 0
 
-		delta := SlideInt64(src[i][0], src[i][other], repose[i]) / mute
+		noise := entropy[i] & 0xf
+		delta := SlideInt64(src[i][0], src[i][other], repose+noise) / mute
 		dst[i][0] -= delta
 		dst[i][other] += delta
 		*slide += mag64(delta)

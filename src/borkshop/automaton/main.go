@@ -94,15 +94,7 @@ func newApp() *App {
 	waterView := NewWaterView(automaton)
 	mapView := NewMapView(automaton)
 
-	// automaton.enableFaucet = true
-	// automaton.disableWaterCoverage = true
-	// automaton.disableSlides = true
-	// automaton.disableQuakes = true
-	// automaton.disablePlates = true
-	// automaton.SetMountainTestPattern()
-
 	return &App{
-		ticking:    true,
 		tickTimes:  stats.MakeTimes(120),
 		automaton:  automaton,
 		platesView: platesView,
@@ -236,23 +228,25 @@ func (a *App) Update(ctx *imContext) (err error) {
 		a.view.Draw(ctx.screen, ctx.screen.Rect)
 
 		ctx.clearInfo()
-		ctx.infof("View: %s [1-4]\r\n", a.view.Name())
-		ctx.infof("Generation: %d\r\n", a.automaton.gen)
-		ctx.infof("Plate Sizes: %v\r\n", a.automaton.plateSizes)
-		ctx.infof("Earth Elevation: %s\r\n", a.automaton.earthStats.String())
-		ctx.infof("Earthquake PID: %s\r\n", a.automaton.earthPID.String())
-		ctx.infof("Quakes moved earth: %d\r\n", a.automaton.quake)
-		ctx.infof("Slides moved earth: %d\r\n", a.automaton.slide)
-		ctx.infof("Water: %s\r\n", a.automaton.waterStats.String())
-		ctx.infof("Water Coverage PID: %s\r\n", a.automaton.waterPID.String())
-		ctx.infof("Water created or destroyed: %d\r\n", a.automaton.waterAdjusted)
-		ctx.infof("Water flowed: %d\r\n", a.automaton.flow)
-		ctx.infof("[f/F]aucet open: %v\n", a.automaton.enableFaucet)
-		ctx.infof("[d/D]rain open: %v\n", a.automaton.enableDrain)
+		ctx.infof("View: %s [1-4]\n", a.view.Name())
+		ctx.infof("Generation: %d\n", a.automaton.gen)
+		ctx.infof("Plate Sizes: %v\n", a.automaton.plateSizes)
+		ctx.infof("Earth Elevation: %s\n", a.automaton.earthStats.String())
+		ctx.infof("Earthquake PID: %s\n", a.automaton.earthPID.String())
+		ctx.infof("Quakes moved earth: %d\n", a.automaton.totalQuake)
+		ctx.infof("Slides moved earth: %d\n", a.automaton.totalSlide)
+		ctx.infof("Earth eroded:       %d\n", a.automaton.totalErosion)
+		ctx.infof("Water:              %s\n", a.automaton.waterStats.String())
+		ctx.infof("Precipitation PID: %s\n", a.automaton.precipitationPID.String())
+		ctx.infof("Precipitation: %d\n", a.automaton.totalPrecipitation)
+		ctx.infof("Evaporation:   %d\n", a.automaton.totalEvaporation)
+		ctx.infof("Water shed:    %d\n", a.automaton.totalWatershed)
+		ctx.infof("[f/F]aucet open:            %v\n", a.automaton.enableFaucet)
+		ctx.infof("[d/D]rain open:             %v\n", a.automaton.enableDrain)
 		ctx.infof("Water [c/C]overage running: %v\n", !a.automaton.disableWaterCoverage)
-		ctx.infof("[w/W]atershed running: %v\n", !a.automaton.disableWatershed)
-		ctx.infof("Mud[s/S]lides running: %v\n", !a.automaton.disableSlides)
-		ctx.infof("[q/Q]uakes running: %v\n", !a.automaton.disableQuakes)
+		ctx.infof("[w/W]atershed running:      %v\n", !a.automaton.disableWatershed)
+		ctx.infof("Mud[s/S]lides running:      %v\n", !a.automaton.disableSlides)
+		ctx.infof("[q/Q]uakes running:         %v\n", !a.automaton.disableQuakes)
 
 	}
 

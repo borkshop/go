@@ -1,33 +1,43 @@
 package main
 
-func WatershedInt64Vector(dst [][3]int64, flow *int64, water [][3]int64, earth [][3]int64, entropy []int64) {
-	for i := 0; i < len(dst); i++ {
-		dst[i][0] = water[i][0]
-		dst[i][1] = 0
-		dst[i][2] = 0
+func WatershedInt64Vector(waterDst, earthDst [][3]int64, totalWatershed, totalErode *int64, water [][3]int64, earth [][3]int64, entropy []int64) {
+	for i := 0; i < len(waterDst); i++ {
+		waterDst[i][0] = water[i][0]
+		waterDst[i][1] = 0
+		waterDst[i][2] = 0
+		earthDst[i][0] = earth[i][0]
+		earthDst[i][1] = 0
+		earthDst[i][2] = 0
 
-		deltas := [2]int64{
+		flows := [2]int64{
 			ShedInt64(water[i][0]/2, water[i][1]/2, earth[i][0], earth[i][1]),
 			ShedInt64(water[i][0]/2, water[i][2]/2, earth[i][0], earth[i][2]),
 		}
-		magnitudes := []uint64{
-			uint64(mag64(deltas[0])),
-			uint64(mag64(deltas[1])),
+		flowMagnitudes := []uint64{
+			uint64(mag64(flows[0])),
+			uint64(mag64(flows[1])),
 		}
-		total := magnitudes[0] + magnitudes[1]
+		totalWatershedMagnitudes := flowMagnitudes[0] + flowMagnitudes[1]
 
 		// Vote on direction based on relative magnitude.
 		var choice int
-		if total == 0 || uint64(entropy[i])%total < magnitudes[0] {
+		if totalWatershedMagnitudes == 0 {
+			choice = int(entropy[i] & 1)
+		} else if uint64(entropy[i])%totalWatershedMagnitudes < flowMagnitudes[0] {
 			choice = 0
 		} else {
 			choice = 1
 		}
-		delta := deltas[choice]
 
-		dst[i][0] -= delta
-		dst[i][1+choice] += delta
-		*flow += int64(magnitudes[choice])
+		flow := flows[choice]
+		waterDst[i][0] -= flow
+		waterDst[i][1+choice] += flow
+		*totalWatershed += int64(flowMagnitudes[choice])
+
+		erode := mulFrac64(flow, 1, 3, uint64(entropy[0]))
+		earthDst[i][0] -= erode
+		earthDst[i][1+choice] += erode
+		*totalErode += mag64(erode)
 	}
 }
 
@@ -51,24 +61,23 @@ func ShedInt64(leftWater, rightWater, leftEarth, rightEarth int64) int64 {
 	return 0
 }
 
-func AdjustWaterInt64Vector(water []int64, changed *int64, control int64, entropy []int64, volume int64) {
-	switch {
-	case control > 0:
+const handicap = 0xffffff
+
+func AdjustWaterInt64Vector(water []int64, precipitation, evaporation *int64, precipitationControl int64, entropy []int64, volume int64) {
+	if precipitationControl > 0 {
 		for i := 0; i < len(water); i++ {
-			if uint64(entropy[i])&0xffffffff < uint64(control) {
-				water[i] += volume
-				*changed += volume
-			}
+			volume := mulFrac64(volume, precipitationControl, 32, uint64(entropy[i]))
+			water[i] += volume
+			*precipitation += volume
 		}
-	case control < 0:
-		for i := 0; i < len(water); i++ {
-			if uint64(entropy[i])&0xffffffff < uint64(-control) {
-				if water[i] > volume {
-					water[i] -= volume
-					*changed -= volume
-				}
-			}
-		}
+	}
+
+	// Evaporation
+	for i := 0; i < len(water); i++ {
+		next := water[i] * 0xfe / 0xff
+		diff := next - water[i]
+		water[i] = next
+		*evaporation += diff
 	}
 }
 

@@ -41,7 +41,7 @@ func (v *MapView) Draw(screen *image.RGBA, rect image.Rectangle) {
 	drawAlpha(v.earth, v.automaton.earth, v.automaton.earthStats, 0, 255, v.automaton.points)
 	draw.DrawMask(v.img, v.img.Rect, &image.Uniform{brown}, image.ZP, v.earth, image.ZP, draw.Over)
 
-	drawWater(v.water, v.automaton.water, v.automaton.waterStats, 128, 255, v.automaton.significantWater, v.automaton.points)
+	drawWater(v.water, v.automaton.water, v.automaton.waterStats, 128, 255, v.automaton.significantWater*0x4, v.automaton.points)
 	draw.DrawMask(v.img, v.img.Rect, &image.Uniform{blue}, image.ZP, v.water, image.ZP, draw.Over)
 
 	drawScreen(screen, rect, v.img)
