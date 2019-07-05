@@ -13,12 +13,11 @@ type Automaton struct {
 	rect      image.Rectangle
 	numPlates int
 
+	points   []image.Point
 	stencil3 [][2]int
 	stencil5 [][4]int
 	stencil9 [][8]int
-	points   []image.Point
 	temp3s   [][3]int64
-	tomp3s   [][3]int64
 
 	entropy []int64
 
@@ -59,6 +58,8 @@ type Automaton struct {
 	significantWater      int64
 
 	// Watershed
+	waterGradient3s  [][3]int64
+	earthGradient3s  [][3]int64
 	totalWatershed   int64
 	totalErosion     int64
 	disableWatershed bool
@@ -69,22 +70,10 @@ func NewAutomaton(order int, numPlates int) *Automaton {
 	area := 1 << uint(order*2)
 	rect := image.Rect(0, 0, length, length)
 
+	points := make([]image.Point, area)
 	stencil3 := make([][2]int, area)
 	stencil5 := make([][4]int, area)
 	stencil9 := make([][8]int, area)
-	temp3s := make([][3]int64, area)
-	tomp3s := make([][3]int64, area)
-	points := make([]image.Point, area)
-	entropy := make([]int64, area)
-	plates := make([]int64, area)
-	plate5s := make([][5]int64, area)
-	plateSizes := make([]int64, numPlates)
-	plateWeights := make([]int64, numPlates)
-	earth := make([]int64, area)
-	earth3s := make([][3]int64, area)
-	quakeVectors := make([]image.Point, numPlates)
-	water := make([]int64, area)
-	water3s := make([][3]int64, area)
 
 	stencil.WriteHilbertPoints(points, length)
 	stencil.WriteHilbertStencil3Table(stencil3, length)
@@ -98,26 +87,23 @@ func NewAutomaton(order int, numPlates int) *Automaton {
 		rect:      rect,
 		numPlates: numPlates,
 
-		stencil3: stencil3,
-		stencil5: stencil5,
-		stencil9: stencil9,
-		temp3s:   temp3s,
-		tomp3s:   tomp3s,
-		points:   points,
-
-		entropy: entropy,
-
-		plates:       plates,
-		plate5s:      plate5s,
-		plateSizes:   plateSizes,
-		plateWeights: plateWeights,
-
-		earth:        earth,
-		earth3s:      earth3s,
-		quakeVectors: quakeVectors,
-
-		water:   water,
-		water3s: water3s,
+		points:          points,
+		stencil3:        stencil3,
+		stencil5:        stencil5,
+		stencil9:        stencil9,
+		temp3s:          make([][3]int64, area),
+		entropy:         make([]int64, area),
+		plates:          make([]int64, area),
+		plate5s:         make([][5]int64, area),
+		plateSizes:      make([]int64, numPlates),
+		plateWeights:    make([]int64, numPlates),
+		earth:           make([]int64, area),
+		earth3s:         make([][3]int64, area),
+		quakeVectors:    make([]image.Point, numPlates),
+		water:           make([]int64, area),
+		water3s:         make([][3]int64, area),
+		waterGradient3s: make([][3]int64, area),
+		earthGradient3s: make([][3]int64, area),
 	}
 
 	a.Reset()
@@ -127,6 +113,7 @@ func NewAutomaton(order int, numPlates int) *Automaton {
 
 func (a *Automaton) Reset() {
 	stencil.InitInt64Vector(a.earth, 0)
+	stencil.InitInt64Vector(a.water, 0)
 
 	a.repose = 0xf
 
@@ -206,8 +193,8 @@ func (a *Automaton) Tick() {
 		stencil.WriteStencil3Int64Vector(a.earth3s, a.earth, a.stencil3)
 		stencil.WriteStencil3Int64Vector(a.water3s, a.water, a.stencil3)
 		WatershedInt64Vector(
-			a.temp3s,
-			a.tomp3s,
+			a.waterGradient3s,
+			a.earthGradient3s,
 			&a.totalWatershed,
 			&a.totalErosion,
 			a.water3s,
@@ -215,9 +202,9 @@ func (a *Automaton) Tick() {
 			a.entropy,
 		)
 		stencil.EraseInt64Vector(a.water)
-		stencil.AddInt64VectorStencil3(a.water, a.temp3s, a.stencil3)
+		stencil.AddInt64VectorStencil3(a.water, a.waterGradient3s, a.stencil3)
 		stencil.EraseInt64Vector(a.earth)
-		stencil.AddInt64VectorStencil3(a.earth, a.tomp3s, a.stencil3)
+		stencil.AddInt64VectorStencil3(a.earth, a.earthGradient3s, a.stencil3)
 		WriteNextRandomInt64Vector(a.entropy)
 	}
 

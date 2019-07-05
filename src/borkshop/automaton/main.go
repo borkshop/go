@@ -72,12 +72,13 @@ type App struct {
 	tickPending chan struct{}
 	tickTimes   stats.Times
 
-	automaton  *Automaton
-	view       View
-	platesView *PlatesView
-	earthView  *EarthView
-	waterView  *WaterView
-	mapView    *MapView
+	automaton         *Automaton
+	view              View
+	mapView           *MapView
+	platesView        *PlatesView
+	earthView         *EarthView
+	waterView         *WaterView
+	waterGradientView *WaterGradientView
 }
 
 type View interface {
@@ -89,19 +90,21 @@ func newApp() *App {
 	const order = 8
 	const numPlates = 5
 	automaton := NewAutomaton(order, numPlates)
+	mapView := NewMapView(automaton)
 	platesView := NewPlatesView(automaton)
 	earthView := NewEarthView(automaton)
 	waterView := NewWaterView(automaton)
-	mapView := NewMapView(automaton)
+	waterGradientView := NewWaterGradientView(automaton)
 
 	return &App{
-		tickTimes:  stats.MakeTimes(120),
-		automaton:  automaton,
-		platesView: platesView,
-		earthView:  earthView,
-		waterView:  waterView,
-		mapView:    mapView,
-		view:       mapView,
+		tickTimes:         stats.MakeTimes(120),
+		automaton:         automaton,
+		view:              mapView,
+		mapView:           mapView,
+		platesView:        platesView,
+		earthView:         earthView,
+		waterView:         waterView,
+		waterGradientView: waterGradientView,
 	}
 }
 
@@ -153,6 +156,9 @@ func (a *App) Update(ctx *imContext) (err error) {
 		draw = true
 	case '4':
 		a.view = a.waterView
+		draw = true
+	case '5':
+		a.view = a.waterGradientView
 		draw = true
 
 	case 'r':
@@ -228,7 +234,7 @@ func (a *App) Update(ctx *imContext) (err error) {
 		a.view.Draw(ctx.screen, ctx.screen.Rect)
 
 		ctx.clearInfo()
-		ctx.infof("View:                       %s [1-4]\n", a.view.Name())
+		ctx.infof("View:                       %s [1-5]\n", a.view.Name())
 		ctx.infof("Generation:                 %d\n", a.automaton.gen)
 		ctx.infof("Plate Sizes:                %v\n", a.automaton.plateSizes)
 		ctx.infof("Earth Elevation:            %s\n", a.automaton.earthStats.String())

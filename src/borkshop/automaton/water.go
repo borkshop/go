@@ -34,7 +34,7 @@ func WatershedInt64Vector(waterDst, earthDst [][3]int64, totalWatershed, totalEr
 		waterDst[i][1+choice] += flow
 		*totalWatershed += int64(flowMagnitudes[choice])
 
-		erode := mulFrac64(flow, 1, 3, uint64(entropy[0]))
+		erode := mulFrac64(flow, 1, 4, uint64(entropy[0]))
 		earthDst[i][0] -= erode
 		earthDst[i][1+choice] += erode
 		*totalErode += mag64(erode)
@@ -60,8 +60,6 @@ func ShedInt64(leftWater, rightWater, leftEarth, rightEarth int64) int64 {
 	}
 	return 0
 }
-
-const handicap = 0xffffff
 
 func AdjustWaterInt64Vector(water []int64, precipitation, evaporation *int64, precipitationControl int64, entropy []int64, volume int64) {
 	if precipitationControl > 0 {
