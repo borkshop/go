@@ -4,7 +4,6 @@ import (
 	"image"
 
 	"borkshop/hilbert"
-	"borkshop/modspace"
 	"borkshop/xorshiftstar"
 )
 
@@ -40,8 +39,8 @@ const (
 )
 
 var (
-	// Space is the toroidal space of the warehouse Hilbert curve.
-	Space = modspace.Space(image.Point{Scale, Scale})
+	// Region is the bounding box for the area, suitable for modulo.
+	Region = image.Rectangle{image.ZP, image.Point{Scale, Scale}}
 	// North is the relative position of the northern point.
 	North = image.Point{0, -1}
 	// South is the relative position of the southern point.
@@ -96,10 +95,10 @@ func DescribeRoom(hpt image.Point) *Room {
 		image.Pt(room.EastMargin+2, room.SouthMargin+2),
 	}
 
-	north := Space.Add(hpt, North)
-	south := Space.Add(hpt, South)
-	west := Space.Add(hpt, West)
-	east := Space.Add(hpt, East)
+	north := hpt.Add(North).Mod(Region)
+	south := hpt.Add(South).Mod(Region)
+	west := hpt.Add(West).Mod(Region)
+	east := hpt.Add(East).Mod(Region)
 
 	hilbertNorth := Hilbert.Encode(north)
 	hilbertSouth := Hilbert.Encode(south)
