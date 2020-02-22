@@ -1,7 +1,7 @@
 package caskdiskstore
 
 import (
-	"borkshop/cask/casktest"
+	"borkshop/cask/test"
 	"testing"
 	"time"
 

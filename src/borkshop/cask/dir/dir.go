@@ -13,8 +13,8 @@ import (
 	"strings"
 
 	"borkshop/cask"
-	"borkshop/cask/caskblob"
-	"borkshop/cask/caskio"
+	"borkshop/cask/blob"
+	"borkshop/cask/io"
 
 	billy "gopkg.in/src-d/go-billy.v4"
 )

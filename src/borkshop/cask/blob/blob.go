@@ -7,7 +7,7 @@ import (
 	"io"
 
 	"borkshop/cask"
-	"borkshop/cask/caskio"
+	"borkshop/cask/io"
 )
 
 const storeBlobBufferSize = 4096

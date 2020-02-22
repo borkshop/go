@@ -8,7 +8,7 @@ import (
 	"time"
 
 	"borkshop/cask"
-	"borkshop/cask/casktempstore"
+	"borkshop/cask/tempstore"
 	"github.com/stretchr/testify/assert"
 )
 

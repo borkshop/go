@@ -2,11 +2,11 @@ package main
 
 import (
 	"borkshop/cask"
-	"borkshop/cask/caskblob"
-	"borkshop/cask/caskdir"
-	"borkshop/cask/caskdiskstore"
-	"borkshop/cask/caskmemstore"
-	"borkshop/cask/casknet"
+	"borkshop/cask/blob"
+	"borkshop/cask/dir"
+	"borkshop/cask/diskstore"
+	"borkshop/cask/memstore"
+	"borkshop/cask/net"
 	"context"
 	"encoding/hex"
 	"errors"

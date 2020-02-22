@@ -2,7 +2,7 @@ package casktest
 
 import (
 	"borkshop/cask"
-	"borkshop/cask/caskblob"
+	"borkshop/cask/blob"
 	"context"
 	"fmt"
 	"time"

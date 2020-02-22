@@ -7,9 +7,9 @@ import (
 	"os"
 	"testing"
 
-	"borkshop/cask/caskblob"
-	"borkshop/cask/caskdiskstore"
-	"borkshop/cask/caskmemstore"
+	"borkshop/cask/blob"
+	"borkshop/cask/diskstore"
+	"borkshop/cask/memstore"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"gopkg.in/src-d/go-billy.v4/memfs"

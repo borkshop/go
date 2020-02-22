@@ -5,8 +5,8 @@ import (
 	"testing"
 
 	"borkshop/cask"
-	"borkshop/cask/caskmemstore"
-	"borkshop/cask/casknet"
+	"borkshop/cask/memstore"
+	"borkshop/cask/net"
 	"github.com/stretchr/testify/require"
 )
 

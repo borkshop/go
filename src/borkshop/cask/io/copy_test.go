@@ -4,9 +4,9 @@ import (
 	"context"
 	"testing"
 
-	"borkshop/cask/caskdir"
-	"borkshop/cask/caskio"
-	"borkshop/cask/caskmemstore"
+	"borkshop/cask/dir"
+	"borkshop/cask/io"
+	"borkshop/cask/memstore"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"gopkg.in/src-d/go-billy.v4/memfs"
